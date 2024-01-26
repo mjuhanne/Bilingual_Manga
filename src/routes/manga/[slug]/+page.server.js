@@ -5,7 +5,7 @@ import {ObjectId} from 'mongodb'
 /** @type {import('./$types').PageServerLoad} */
 
 
-
+/*
 const slugswap=()=>{    let meta;
     obj.subscribe(value => { meta=value;});
     let metarr = meta['0'].manga_titles;
@@ -27,6 +27,7 @@ const slugswap=()=>{    let meta;
         }
         
     });}
+*/
 
 export async function load({params,url}) 
 {   let id=params["slug"]

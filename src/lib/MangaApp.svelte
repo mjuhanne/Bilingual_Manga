@@ -3,7 +3,8 @@
 
 	import { page } from '$app/stores';
 
-	
+	import { browser } from '$app/environment';	
+
 const imgscon=(imgsl,rep)=>{
     const replaceing=(rstr,str)=>{
 		let rstrarr=str.split('/')
@@ -336,8 +337,10 @@ $:{
 
 
 </script>
+{#if browser}
 <Reader delayml={delayml} prel={prel} bind:imgs_jap={imgs_jap} bind:imgs_eng={imgs_eng} bind:eng_ocr={eng_ocr} bind:jp_ocr={jp_ocr} bind:lang={lang} bind:enp={enp} bind:jpp={jpp} bind:indicator={indicator} bind:chaptersen={chaptersen} bind:iii={iii} bind:chaptersjp={chaptersjp} bind:jjj={jjj} 
 bind:volumesen={volumesen} bind:volumesjp={volumesjp} bind:vi={vi} bind:vj={vj} bind:check={check}></Reader>
+{/if}
 <style>
 
 </style>
