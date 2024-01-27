@@ -1,5 +1,4 @@
 <script>
-
 import { createEventDispatcher } from "svelte";
 
 let dispatch = createEventDispatcher();
@@ -8,25 +7,23 @@ export let sort_criteria_list;
 export let sort_criteria;
 export let sort_reverse;
 
-let sort_criteria_by_values = ['Rating','Release'];
-let omit_subheading = ['A-Z','Newly added'];
-
-const onChanged = () => {
-    dispatch("SortCriteriaChanged");
+const onCriteriaChanged = () => {
+    dispatch("SortCriteriaChanged",sort_criteria);
 };
-
+const onReverseChanged = () => {
+    dispatch("SortReverseChanged",sort_reverse);
+};
 </script>
 
 <div>
 Sort by
-<select id='sort_criteria' bind:value={sort_criteria} on:change={onChanged}  >
-    <!--{#each Object.keys(sort_criteria_list) as c}-->
+<select id='sort_criteria' bind:value={sort_criteria} on:change={onCriteriaChanged}  >
     {#each sort_criteria_list as c}
     <option value="{c}">{c}</option>
     {/each}
 </select>
 Reverse
-<input type=checkbox bind:checked={sort_reverse} > 
+<input type=checkbox bind:checked={sort_reverse} on:change={onReverseChanged}> 
 </div>
 
 <style>

@@ -2,6 +2,7 @@
     import MangaCard from '$lib/MangaCard.svelte';
     import MangaSortDashboard from '$lib/MangaSortDashboard.svelte';
     import { page } from '$app/stores';
+    import { goto } from "$app/navigation";
     import { sort_options, sortManga } from '$lib/MangaSorter.js';
     export let x;
     export let cdncdn;
@@ -46,11 +47,12 @@
 
     let pii=1;
     
-
+$: {
     if(pagen>=1&&pagen<=xnum)
     {
         pii=parseInt(pagen);
     }
+}
 
     let pii2=pii-1;
     let pii3=pii+1;
@@ -68,9 +70,18 @@
             return false;
         }
     }
-
     const sortCriteriaChanged = (e) => {
-        // TODO: jump to first page
+        sort_criteria = e.detail;
+		$page.url.searchParams.set('sort',sort_criteria);
+		$page.url.searchParams.set('page',1);
+        pagen = 1;
+        goto(`?${$page.url.searchParams.toString()}`);
+    };
+
+    const sortReverseChanged = (e) => {
+        sort_reverse = e.detail;
+		$page.url.searchParams.set('reverse',sort_reverse);
+        goto(`?${$page.url.searchParams.toString()}`);
     };
 
     </script>
@@ -84,12 +95,16 @@
         <a href="{url1}download" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">Download</a>
     </div>
     <div class="sortsel">
-        <MangaSortDashboard bind:sort_criteria bind:sort_reverse sort_criteria_list={Object.keys(sort_options)} on:SortCriteriaChanged={sortCriteriaChanged}/>
+        <MangaSortDashboard {sort_criteria} {sort_reverse} 
+            sort_criteria_list={Object.keys(sort_options)} 
+            on:SortCriteriaChanged={sortCriteriaChanged}
+            on:SortReverseChanged={sortReverseChanged}
+        />
     </div>
     </div>
 <div id="cardholderid" class="cardholder">
     {#each sx as manga,pi }
-    {#if pagchang(pi) }
+    {#if pii && pagchang(pi) }
     <MangaCard data={manga} subheading={manga.subheading} ls={ls} cdncdn={cdncdn1}/>
     {/if}        
     {/each}
