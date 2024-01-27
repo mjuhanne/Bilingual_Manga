@@ -23,7 +23,7 @@ export async function load(event)
       jsonc[0].inhtml["tracker"]="" 
     }
 
-     return jsonc;       
+     return {'metadata':jsonc};
      
    }
    
