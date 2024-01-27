@@ -49,7 +49,7 @@ select:hover{
 }
 
 div {
-    width: 300px;
+    width: 350px;
     text-decoration: none;
     color: whitesmoke;
     font-size: 1.1 rem;

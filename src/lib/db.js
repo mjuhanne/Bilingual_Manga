@@ -4,14 +4,16 @@ const response = await fetch('http://localhost:3300/json/admin.manga_metadata.js
 const a = await response.json()
 const response1 = await fetch('http://localhost:3300/json/admin.manga_data.json')
 const b = await response1.json()
-const response2 = await fetch('http://localhost:3300/json/ratings.json')
-const c = await response2.json()
+const response_r = await fetch('http://localhost:3300/json/ratings.json')
+const ratings = await response_r.json()
+const response_l = await fetch('http://localhost:3300/json/lang_summary.json')
+const lang_summary = await response_l.json()
 
 let user_data;
 
 try {
-    const response3 = await fetch('http://localhost:3300/json/user_data.json')
-    user_data = await response3.json()
+    const response_ud = await fetch('http://localhost:3300/json/user_data.json')
+    user_data = await response_ud.json()
     console.log("User_data: " + JSON.stringify(user_data));
 } catch (error) {
     console.log("No user_data.json was found. Reverting to default settings");
@@ -35,9 +37,27 @@ const AugmentMetadataWithRatings = (db) => {
     });
 };
 
-const admin={"manga_metadata":a,"manga_data":b,"ratings":c,"user_data":user_data}
+const AugmentMetadataWithLanguageSummary = (db) => {
+    let manga_titles = db['manga_metadata']['0'].manga_titles;
+    let ls = db['lang_summary'];
+    console.log("Augment manga_metadata with language summary for " + Object.keys(ls).length + " titles");
+
+    manga_titles.forEach(element => {
+        let id = element.enid;
+
+        if (id in ls) {
+            let l = ls[id];
+            for (let k of Object.keys(l)) {
+                element[k] = l[k];
+            }
+        }
+    });
+};
+
+const admin={"manga_metadata":a,"manga_data":b,"ratings":ratings,"lang_summary":lang_summary,"user_data":user_data}
 
 AugmentMetadataWithUserData(admin);
 AugmentMetadataWithRatings(admin);
+AugmentMetadataWithLanguageSummary(admin);
 
 export default admin;
