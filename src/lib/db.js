@@ -1,5 +1,5 @@
 import fetch from 'node-fetch'
-import { AugmentMetadataWithUserData, user_data_defaults } from '$lib/UserDataTools.js'
+import { AugmentMetadataWithUserData, checkUserData } from '$lib/UserDataTools.js'
 const response = await fetch('http://localhost:3300/json/admin.manga_metadata.json')
 const a = await response.json()
 const response1 = await fetch('http://localhost:3300/json/admin.manga_data.json')
@@ -12,11 +12,13 @@ let user_data;
 try {
     const response3 = await fetch('http://localhost:3300/json/user_data.json')
     user_data = await response3.json()
+    console.log("User_data: " + JSON.stringify(user_data));
 } catch (error) {
-    user_data = user_data_defaults;
-    console.log("No user_data.json was found. Reverting to default settings: " + JSON.stringify(user_data));
+    console.log("No user_data.json was found. Reverting to default settings");
+    user_data = {}
 }
-    
+checkUserData(user_data);
+
 const AugmentMetadataWithRatings = (db) => {
     let manga_titles = db['manga_metadata']['0'].manga_titles;
     let ratings = db['ratings'];

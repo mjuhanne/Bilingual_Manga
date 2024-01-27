@@ -1,9 +1,10 @@
 export let sort_options = {
-    'Newly added': { field: '',     is_value:false, add_subheading:false, rev:false },
-    'A-Z'        : { field: 'entit',    is_value:false, add_subheading:false, rev:false },
-    'Release'    : { field: 'Release',  is_value:true, add_subheading:true, rev:true },
-    'Rating'     : { field: '',         is_value:true, add_subheading:true, rev:true },
-    'Status'     : { field: 'Status',   is_value:false, add_subheading:true, rev:false },
+    'Newly added': { field: '',         is_value:false, subheading_template:'', rev:false },
+    'A-Z'        : { field: 'entit',    is_value:false, subheading_template:'', rev:false },
+    'Release'    : { field: 'Release',  is_value:true, subheading_template:'Release _', rev:true },
+    'Rating'     : { field: '',         is_value:true, subheading_template:'Rating: _', rev:true },
+    'Status'     : { field: 'Status',   is_value:false, subheading_template:'_', rev:false },
+    'Read status': { field: 'read_chapter_pct',   is_value:true, subheading_template:'Read _ %', rev:true },
 };
     
 export const sortManga = (x, sort_criteria, sort_reverse) => {
@@ -48,11 +49,8 @@ export const sortManga = (x, sort_criteria, sort_reverse) => {
         let manga_sort_tuple = manga_by_criteria[i];
         let idx = manga_sort_tuple[0];
         sorted_manga_list[i] = x[idx];
-        if (sort_options[sort_criteria].add_subheading) {
-            sorted_manga_list[i]['subheading'] = sort_criteria + ': ' + manga_sort_tuple[1];
-        } else {
-            sorted_manga_list[i]['subheading'] = '';
-        }
+        sorted_manga_list[i]['subheading'] = 
+            sort_options[sort_criteria].subheading_template.replace('_', String(manga_sort_tuple[1]));
     }
     return sorted_manga_list;
 };
