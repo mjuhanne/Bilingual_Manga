@@ -1,42 +1,42 @@
 <script>
     import MangaMeta from '$lib/MangaMeta.svelte';
     import MangaChSel from '$lib/MangaChSel.svelte';
-    import { page } from '$app/stores';
+    import MangaViewTabs from './MangaViewTabs.svelte';
     export let data;    
     export let ll;
     
     export let cdncdn1;
-    let chaptersen=data.manga_data.en_data.ch_naen;
-    let chaptersjp=data.manga_data.jp_data.ch_najp;
 
-    let volumesen=data.manga_data.en_data.vol_en;
-    let volumesjp=data.manga_data.jp_data.vol_jp;
-    let url1=`${$page.url}`.split('?')[0]
+    export let selectedTab;
+
+    let chapters, volumes, cover, title, syn;
+    if (data.l=="en") {
+        chapters=data.manga_data.en_data.ch_naen;
+        volumes=data.manga_data.en_data.vol_en;
+        cover=ll.coveren;
+        title=ll.entit;
+        syn=data.manga_data.syn_en;
+    } else {
+        chapters=data.manga_data.jp_data.ch_najp;
+        volumes=data.manga_data.jp_data.vol_jp;
+        cover=ll.coverjp;
+        title=ll.jptit;
+        syn=data.manga_data.syn_jp;
+    }
 </script>
-{#if data.l==="en"}
 
-<div id="mainimagec" style="background:url({cdncdn1}/{ll.coveren}) no-repeat; background-size: cover;background-position: center;" >
-<img src="{cdncdn1}/{ll.coveren}" alt="{ll.coveren}" id="mainimage"/>
+<div id="mainimagec" style="background:url({cdncdn1}/{cover}) no-repeat; background-size: cover;background-position: center;" >
+<img src="{cdncdn1}/{cover}" alt="{cover}" id="mainimage"/>
 <div id="spreads" ></div>
-<div id="mainimagetitle">{ll.entit}</div>
+<div id="mainimagetitle">{title}</div>
 </div>
-<MangaMeta meta={ll} syn={data.manga_data.syn_en}/>
-<div style="text-align: left;margin-left:5.3vw;"><a class="chbtna" href="{url1}?lang=jp" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">JP 🡆</a></div>
-<MangaChSel ch={chaptersen} vol={volumesen} la="en"/>
-
-{:else}
-
-<div id="mainimagec" style="background:url({cdncdn1}/{ll.coverjp}) no-repeat; background-size: cover;background-position: center;" >
-<img src="{cdncdn1}/{ll.coverjp}" alt="{ll.coverjp}" id="mainimage"/>
-<div id="spreads" ></div>
-<div id="mainimagetitle">{ll.jptit}</div>
-</div>
-<MangaMeta meta={ll} syn={data.manga_data.syn_jp}/>
-<div style="text-align: left;margin-left:5vw;"><a class="chbtna" href="{url1}?lang=en" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">EN 🡆</a></div>
-<MangaChSel ch={chaptersjp} vol={volumesjp} manga_data={data.manga_data} la="jp"/>
-
-{/if} 
-
+<MangaViewTabs titles={['Series info','Volumes']} lang={data.l} bind:selectedTab>
+    {#if selectedTab==0}
+        <MangaMeta meta={ll} {syn}/>
+    {:else if selectedTab==1}
+        <MangaChSel ch={chapters} vol={volumes} manga_data={data.manga_data} la={data.l}/>
+    {/if}
+</MangaViewTabs>
 
 <style>
     #mainimage{
@@ -44,7 +44,6 @@
         margin-left:5vw ;
         z-index: 3;
         border-radius: 3px;
-       
     }
     #mainimagec{
         display: flex;
@@ -55,8 +54,6 @@
         position: relative;
         z-index: 1;
         outline: none;
-
-        
     }
     #spreads{
         position: absolute;
@@ -77,14 +74,5 @@
         overflow: hidden;
 
         margin:10px 0px 10px 5px;
-    }
-    .chbtna{
-    text-decoration: none;
-    padding:7px;
-    margin: 5px 5px;
-    color: whitesmoke;
-    background:#333;
-    border-radius:5px;
-    border: 2px solid gray ;
     }
 </style>

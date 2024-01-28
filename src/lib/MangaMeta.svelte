@@ -2,21 +2,6 @@
 import MangaFavouriteButton from "./MangaFavouriteButton.svelte";
 export let meta;
 export let syn;
-let st="🡓🡓 Show More 🡓🡓"
-const clst=()=>
-{
-    if(st==="🡓🡓 Show More 🡓🡓")
-    {
-        st="🡑🡑 Show Less 🡑🡑";
-        document.getElementById("metac").style="height:auto;"
-}
-    else if(st==="🡑🡑 Show Less 🡑🡑")
-    {
-        st="🡓🡓 Show More 🡓🡓";
-        document.getElementById("metac").style="height:50vh;"
-
-}
-}
 
 </script>
 <div id="metac">
@@ -86,18 +71,15 @@ const clst=()=>
     {syn}    
 </div>
 </div>
-<button on:click={clst}><span style="font-size:0.8rem;">{st}</span></button>
 <style>
 #metac{
 display: block;
 text-align: left;
 margin: 5px 5vw;
 margin-bottom: 0px;
-height: 50vh;
+height: auto;
 max-width: 90vw;
 overflow: clip;
-
-border-bottom:rgb(28, 163, 28) solid 2px;
 border-radius:5px;
 }
 .metae{
@@ -119,24 +101,6 @@ border-radius:5px;
 
 a:hover {
   background-color:rgba(255,255,255,0.3);
-}
-
-button{
-    display: inline;
-    border: 2px solid green;
-    border-radius:0px 0px 5px 5px;
-    margin: 0px;
-    padding: auto;
-    background-color: green;
-
-    color: whitesmoke;
-
-}
-button:hover{
-    background-color:rgba(0,110,0,1);
-    border-color:rgba(0,110,0,1);
-
-
 }
 
 </style>
