@@ -54,13 +54,18 @@ export const sortManga = (x, sort_criteria, sort_reverse) => {
         });
     } else {
         // Sort the array based on the sort value (which is a string)
-        manga_by_criteria.sort(function(first, second) {
-            let sorted = [second[1],first[1]].sort();
-            if (reverse) {
-                return sorted[0] == first[1] ? 1 : -1;
+        if (reverse) {
+            if('Newly added'===sort_criteria) {
+                manga_by_criteria.reverse();
+            } else {
+                manga_by_criteria.sort((a,b)=>{return b[1].toLowerCase().localeCompare(a[1].toLowerCase())});
             }
-            return sorted[0] == first[1] ? -1 : 1;
-        });
+        } else {
+            if('Newly added' !==sort_criteria) {
+            manga_by_criteria.sort((a,b)=>{return a[1].toLowerCase().localeCompare(b[1].toLowerCase())});
+            } 
+            // 'Newly added' is already in the correct order
+        }
     }
 
     // reconstruct the manga list and add additional subheading (the sort criteria+value) if necessary
