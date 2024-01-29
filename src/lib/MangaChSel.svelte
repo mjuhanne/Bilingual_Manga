@@ -10,6 +10,20 @@ export let manga_data;
 let vna=Object.keys(vol);
 let url1=""
 
+let ch_page_count = [];
+let i=0;
+if (la=='jp') {
+    for (let key in manga_data.jp_data.ch_jp ){
+        ch_page_count[i] = manga_data.jp_data.ch_jp[key].length;
+        i++;
+    }
+} else {
+    for (let key in manga_data.en_data.ch_en) {
+        ch_page_count[i] = manga_data.en_data.ch_en[key].length;
+        i++;
+    }
+}
+
 url1=`${$page.url}`.split('?')[0]
 const btnel=(e)=>{
     let tar=e.target;
@@ -42,10 +56,10 @@ const btnel=(e)=>{
 <div id="vol{jji}" class:chaptergrid={la==="jp"}>
 {#each ch.slice(vol[v].s, ((vol[v].e)+1)) as c,i }
     {#if (la==="en")}
-    <a href="{url1}?lang={la}&chen={i+vol[v].s}&chjp=0&enp=0&jpp=0#img_store" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><div class="chsingle">{c}</div></a>
+    <a href="{url1}?lang={la}&chen={i+vol[v].s}&chjp=0&enp=0&jpp=0#img_store" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><div class="chsingle">{c} ({ch_page_count[i+vol[v].s]} pages)</div></a>
     {/if}
     {#if (la==="jp")}
-    <a href="{url1}?lang={la}&chen=0&chjp={i+vol[v].s}&enp=0&jpp=0#img_store" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><div class="chsingle">{c}</div></a>
+    <a href="{url1}?lang={la}&chen=0&chjp={i+vol[v].s}&enp=0&jpp=0#img_store" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><div class="chsingle">{c} ({ch_page_count[i+vol[v].s]} pages)</div></a>
     <div>
         <MangaReadingStatus title={c} chapter_ids={[manga_data.jp_data.chapter_ids[vol[v].s+i]]} bind:manga_data={manga_data}/>
     </div>
@@ -63,10 +77,10 @@ const btnel=(e)=>{
 {#each ch.slice(vol[v].s, ((vol[v].e)+1)) as c,i }
     
     {#if (la==="en")}
-    <a href="{url1}?lang={la}&chen={i+vol[v].s}&chjp=0&enp=0&jpp=0#img_store" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><div class="chsingle">{c}</div></a>
+    <a href="{url1}?lang={la}&chen={i+vol[v].s}&chjp=0&enp=0&jpp=0#img_store" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><div class="chsingle">{c} ({ch_page_count[i+vol[v].s]} pages)</div></a>
     {/if}
     {#if (la==="jp")}
-    <a href="{url1}?lang={la}&chen=0&chjp={i+vol[v].s}&enp=0&jpp=0#img_store" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><div class="chsingle">{c}</div></a>
+    <a href="{url1}?lang={la}&chen=0&chjp={i+vol[v].s}&enp=0&jpp=0#img_store" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><div class="chsingle">{c} ({ch_page_count[i+vol[v].s]} pages)</div></a>
     <div>
         <MangaReadingStatus title={c} chapter_ids={[manga_data.jp_data.chapter_ids[vol[v].s+i]]} bind:manga_data={manga_data}/>
     </div>
