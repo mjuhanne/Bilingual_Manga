@@ -54,8 +54,8 @@ $: {
     }
 }
 
-    let pii2=pii-1;
-    let pii3=pii+1;
+$: pii2=pii-1;
+$: pii3=pii+1;
 
 
     const pagchang=(pi)=>{
