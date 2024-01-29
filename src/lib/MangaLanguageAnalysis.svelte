@@ -1,6 +1,7 @@
 <script>
 import { onMount } from 'svelte';
 import {obj} from '$lib/store.js';
+import ToggleSwitch from './ToggleSwitch.svelte';
 let all_meta_data;
 obj.subscribe(value => { all_meta_data=value;});
 
@@ -14,7 +15,6 @@ let individual_set = false;
 let w_per_v_set = false;
 
 const toggleIndividual = () => {
-    individual_set = !individual_set;
     console.log("toggleIndividual " + individual_set);
     if (individual_set) {
         current_set = meta.individual_statistics
@@ -27,13 +27,9 @@ const toggleIndividual = () => {
 }
 
 const toggleWordsPerVolume = () => {
-    w_per_v_set = !w_per_v_set;
     console.log("toggleWordsPerVolume " + w_per_v_set);
     draw_graphs();
 }
-    
-
-//export let avg_set = all_meta_data['average'].individual_statistics
 
 Chart.defaults.color = '#fff';
 
@@ -168,11 +164,7 @@ const colorizeDifference = (a,b) => {
 <div class="container">
     <div class="subcontainer">
         <div>
-            <label class="switch">
-                Individual kanjis/words
-                <input type="checkbox" on:change={toggleIndividual}>
-                <span class="slider round"></span>
-            </label>            
+            <ToggleSwitch onLabel="Individual kanjis/words" offLabel="All kanjis/words" bind:switchPosition={individual_set} on:switchChanged={toggleIndividual}></ToggleSwitch>
         </div>
         <table>
             <tr>
@@ -198,11 +190,7 @@ const colorizeDifference = (a,b) => {
 
     <div class="subcontainer">
         <div>
-            <label class="switch">
-                words/volume
-                <input type="checkbox" on:change={toggleWordsPerVolume}>
-                <span class="slider round"></span>
-            </label>            
+            <ToggleSwitch onLabel="Quantity per volume" offLabel="Percentage" bind:switchPosition={w_per_v_set} on:switchChanged={toggleWordsPerVolume}></ToggleSwitch>
         </div>
         <div>
             <canvas id="JLPT_word_chart"></canvas>
