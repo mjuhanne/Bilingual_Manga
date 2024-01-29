@@ -2,6 +2,7 @@
     import MangaMeta from '$lib/MangaMeta.svelte';
     import MangaChSel from '$lib/MangaChSel.svelte';
     import MangaViewTabs from './MangaViewTabs.svelte';
+    import MangaLanguageAnalysis from './MangaLanguageAnalysis.svelte';
     export let data;    
     export let ll;
     
@@ -30,11 +31,13 @@
 <div id="spreads" ></div>
 <div id="mainimagetitle">{title}</div>
 </div>
-<MangaViewTabs titles={['Series info','Volumes']} lang={data.l} bind:selectedTab>
+<MangaViewTabs titles={['Series info','Volumes','Language analysis']} lang={data.l} bind:selectedTab>
     {#if selectedTab==0}
         <MangaMeta meta={ll} {syn}/>
     {:else if selectedTab==1}
         <MangaChSel ch={chapters} vol={volumes} manga_data={data.manga_data} la={data.l}/>
+    {:else if selectedTab==2}
+        <MangaLanguageAnalysis meta={ll} manga_data={data.manga_data}/>
     {/if}
 </MangaViewTabs>
 

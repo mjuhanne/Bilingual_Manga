@@ -52,6 +52,10 @@ const AugmentMetadataWithLanguageSummary = (db) => {
             }
         }
     });
+
+    if ('average' in ls) {
+        db['manga_metadata']['0'].average_manga = ls['average'];
+    }
 };
 
 const admin={"manga_metadata":a,"manga_data":b,"ratings":ratings,"lang_summary":lang_summary,"user_data":user_data}

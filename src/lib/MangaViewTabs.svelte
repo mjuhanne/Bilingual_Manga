@@ -16,9 +16,12 @@
 	}
 	.tabs {
         display: grid;
-        grid-template-columns: 2fr 4fr 1fr;
+        grid-template-columns: 7fr 1fr;
+		justify-items: start;
         grid-gap: 0px;
 		background-color: #333;
+		padding-left:50px;
+		padding-right:50px;
 	}
 	.tab {
         font-size: 1.1rem;
@@ -42,6 +45,9 @@
 	.tab:hover {
 		background: #282;
 	}
+	.lang_div {
+		justify-self: end;
+	}
 	.langbutton {
         color: #fff;
 		background: rgb(36, 71, 115);
@@ -62,8 +68,7 @@
 				</button>
 			{/each}
 		</div>
-		<div></div>
-		<div>
+		<div class="lang_div">
 			<a href="{lang_button_url}" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">
 				<button class="tab langbutton">{lang_button_text}
 				</button>
