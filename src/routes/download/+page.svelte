@@ -3,28 +3,90 @@
     import {onMount} from 'svelte'
     import MangaSortDashboard from '$lib/MangaSortDashboard.svelte';
     import { sort_options, sortManga } from '$lib/MangaSorter.js';
+    import DownloadLog from '$lib/DownloadLog.svelte';
 
-    const hide_sort_columns = ['Newly added','Rating','Volumes'];
+    const hide_sort_columns = ['Newly added','Rating','Volumes','Repository status'];
+    const list_item_colors = {
+        'Downloaded' : 'ForestGreen',
+        'Downloading' : 'CornflowerBlue',
+        'Incomplete' : 'crimson',
+        'Checking' : 'orange',
+        'Queued' : 'grey',
+        'Selected' : 'yellow',
+    };
 
-    onMount(dwdata)
+    let events;
     let meta;
     obj.subscribe(value => { meta=value;});
 
     let sort_criteria='Newly added';
     let sort_reverse=false;
-    let sx;
+    
+    let manga_repo_status={};
+    let manga_process_status={};
+    let process_status={'status':0};
+    let log_file_paths={};
 
-    $: {
-        console.log("sorted");
-        sx = sortManga(meta['0'].manga_titles, sort_criteria, sort_reverse);
-        dwdata();
+    let list_colors = [];
+
+    $: x12 = sortManga(meta['0'].manga_titles, sort_criteria, sort_reverse);
+    $: colorizeList(x12);
+
+    function getMangaColor(status) {
+        let color = 'white';
+        if (status in list_item_colors) {
+            color = list_item_colors[status];
+        } else if (status.includes('Downloading')) { // status is 'Downloading xx/yy'
+            color = list_item_colors['Downloading'];
+        }
+        return color;
     }
 
-    sx = sortManga(meta['0'].manga_titles, sort_criteria, sort_reverse);
-    
-    $: x12 = sx; //meta['0'].manga_titles;
-    //$: x12 = x11.slice().reverse()
+    function colorizeItem(item, color) {
+        document.getElementById(`#s${item}`).style.color  = color;
+    }
+
+    function colorizeList(manga_list) {
+        for(let xx in manga_list) {
+            let manga_id = manga_list[xx].enid;
+            if (manga_id in manga_repo_status) {
+                let status = manga_repo_status[manga_id];
+
+                if (manga_id in manga_process_status) {
+                    status = manga_process_status[manga_id];
+                }
+                list_colors[xx] = getMangaColor(status);
+            }
+        }
+    }
+
     let cdncdn1=meta['0'].cdn1;
+
+
+    onMount( () => {
+
+        events = new EventSource('http://localhost:3300/events');
+        events.onmessage = (event) => {
+            const parsedData = JSON.parse(event.data);
+            manga_repo_status = parsedData.manga_repo_status; 
+            manga_process_status = parsedData.manga_process_status;
+            process_status = parsedData.process_status;
+            log_file_paths = parsedData.log_files;
+            colorizeList(x12);
+
+            // augment metadata with repo status
+            $obj['0'].manga_titles.forEach(element => {
+                let id = element.enid;
+
+                if (id in manga_repo_status) {
+                    element["repo_status"] = manga_repo_status[id]
+                } else {
+                    element["repo_status"] = '';
+                }
+            });
+
+        };
+    });
 
 
     let lan="JPN"
@@ -41,19 +103,6 @@
     }
     cdncdn1
     let chk={}
-    function chkclr(chk,xa=true)
-    {
-        for(let chel in chk)
-        {
-            if(chk[chel])
-            {
-                if(xa)
-                {document.getElementById(`#s${chel}`).style.color="green"}
-                else
-                {document.getElementById(`#s${chel}`).style.color="white"}
-            }
-        }
-    }
     function getSelectedChapterIds() {
         let chapters = [];
         for (let idx in chk) {
@@ -63,96 +112,60 @@
         }
         return chapters;
     }
+    function checkSelected()
+    {
+        fetch(`${cdncdn1}/check`, { method: "post",headers: {'Accept': 'application/json','Content-Type': 'application/json'},body: JSON.stringify(getSelectedChapterIds())}).then( (response) => {let aaafdfv = response;}).then(()=>{});
+        
+    }
     function downloadSelected()
     {
-        fetch(`${cdncdn1}/download`, { method: "post",headers: {'Accept': 'application/json','Content-Type': 'application/json'},body: JSON.stringify(getSelectedChapterIds())}).then( (response) => {let aaafdfv = response;}).then(()=>{chkclr(chk);refr1();dwdata();});
+        fetch(`${cdncdn1}/download`, { method: "post",headers: {'Accept': 'application/json','Content-Type': 'application/json'},body: JSON.stringify(getSelectedChapterIds())}).then( (response) => {let aaafdfv = response;}).then(()=>{});
         
+    }
+    function stopDownloading()
+    {
+        fetch(`${cdncdn1}/stop`, { method: "post",headers: {'Accept': 'application/json','Content-Type': 'application/json'},body: ''}).then( (response) => {let aaafdfv = response;}).then(()=>{});
     }
     function deleteSelected()
     {
-        fetch(`${cdncdn1}/remove`, { method: "post",headers: {'Accept': 'application/json','Content-Type': 'application/json'},body: JSON.stringify(getSelectedChapterIds())}).then( (response) => {let aaafdfv = response;}).then(()=>{chkclr(chk,false);refr1();});
+        fetch(`${cdncdn1}/remove`, { method: "post",headers: {'Accept': 'application/json','Content-Type': 'application/json'},body: JSON.stringify(getSelectedChapterIds())}).then( (response) => {let aaafdfv = response;}).then(()=>{});
     }
-
-    function dwdata()
-    {
-        fetch(`${cdncdn1}/json/dw.json`)
-        .then(response => response.json())
-	    .then((data3)=>{
-            let pmd = data3["pm"]
-            for(let xx in x12)
-            {   if(pmd.includes(x12[xx].enid))
-                {
-                    document.getElementById(`#s${xx}`).style.color="green"
-                }
-
-            }
-        })
-        .catch(err => {console.log(err);})
-    }
-
-    function refr1()
+    function unSelectAll()
     {
         for(let elm in chk)
         {
             chk[elm]=false
         }
     }
-
-    function refr()
-    {
-        for(let elm in chk)
-        {
-            chk[elm]=false
-            document.getElementById(`#s${elm}`).style.color="white"
-        }
-        dwdata()
-    }
-
-    function sela()
+    function selectAll()
     {
         for(let i in x12)
         {
             chk[`${i}`]=true
         }
     }
-    function seld()
+    function selectDownloaded()
     {
-        fetch(`${cdncdn1}/json/dw.json`)
-        .then(response => response.json())
-	    .then((data3)=>{
-            let pmd = data3["pm"]
-            for(let xx in x12)
-            {   if(pmd.includes(x12[xx].enid))
-                {
-                    chk[`${xx}`]=true
-                }
-
+        for(let xx in x12)
+        {   if(manga_repo_status[x12[xx].enid]=='Downloaded')
+            {
+                chk[`${xx}`]=true
             }
-        })
-        .catch(err => {console.log(err);})
+        }
     }
-    function seldu()
+    function unSelectDownloaded()
     {
-        fetch(`${cdncdn1}/json/dw.json`)
-        .then(response => response.json())
-	    .then((data3)=>{
-            let pmd = data3["pm"]
-            for(let xx in x12)
-            {   if(pmd.includes(x12[xx].enid))
-                {
-                    chk[`${xx}`]=false
-                }
-
+        for(let xx in x12)
+        {   if(manga_repo_status[x12[xx].enid]=='Downloaded')
+            {
+                chk[`${xx}`]=false
             }
-        })
-        .catch(err => {console.log(err);})
+        }
     }
-
     const sortCriteriaChanged = (e) => {
         sort_criteria = e.detail;
         console.log("sortcriteria " + sort_criteria)
     };
-
     const sortReverseChanged = (e) => {
         sort_reverse = e.detail;
     };
@@ -162,16 +175,22 @@
 
 <div class="header_buttons">
     <button on:click={clic}>{lan}</button>
-    <button on:click={downloadSelected}>Download</button>
+    {#if process_status.status!='Downloading'}
+        <button on:click={downloadSelected}>Download</button>
+    {:else}
+    <button on:click={stopDownloading}>Stop</button>
+    {/if}
+    <button on:click={checkSelected}>Check</button>
     <button on:click={deleteSelected}>Delete Manga</button>
-    <button on:click={sela}>Select All</button>
-    <button on:click={refr}>unSelect All</button>
-    <button on:click={seld}>Select Downloaded</button>
-    <button on:click={seldu}>unSelect Downloaded</button>
+    <button on:click={selectAll}>Select All</button>
+    <button on:click={unSelectAll}>unSelect All</button>
+    <button on:click={selectDownloaded}>Select Downloaded</button>
+    <button on:click={unSelectDownloaded}>unSelect Downloaded</button>
     <MangaSortDashboard {sort_criteria} {sort_reverse} 
         sort_criteria_list={Object.keys(sort_options)} 
         on:SortCriteriaChanged={sortCriteriaChanged}
         on:SortReverseChanged={sortReverseChanged}
+        show_repo_status=true
     />
 </div>
 <div class="header_list">
@@ -180,29 +199,33 @@
     <div>{#if !hide_sort_columns.includes(sort_criteria)}{sort_criteria}{/if}</div>
     <div>Rating</div>
     <div>Vols.</div>
+    <div>{#if process_status.status != ''}{process_status.msg}{:else}Repository Status{/if}</div>
 </div>
 </div>
 <div style="text-align: left;font-size:15pt; font-weight:550">
 <ol class="manga-list">
 {#key x12}
 
-    {#each x12 as name,index}
-    <div class="list-item" id=#s{index}>
-    {#if lan==="JPN"}
+    {#each x12 as manga,index}
+    <div class="list-item" style="color:{list_colors[index]}" id=#s{index}>
     <div id=#d{index}>
-        <li><input id=#{index} type=checkbox bind:checked={chk[`${index}`]} on:change={()=>{if(chk[`${index}`]){document.getElementById(`#s${index}`).style.color="yellow"}else{document.getElementById(`#s${index}`).style.color="white";dwdata()}}}></li>
+        <li><input id=#{index} type=checkbox bind:checked={chk[`${index}`]} on:change={()=>{if(chk[`${index}`]){colorizeItem(index,getMangaColor('Selected'))}else{colorizeItem(index,list_colors[index])}}}></li>
     </div>
-    <div>{name.entit}</div>
+    {#if lan==="JPN"}
+    <div>{manga.entit}</div>
     {/if}
     {#if lan==="ENG"}
-    <div id=#d{index}>
-        <li><input id=#{index} type=checkbox bind:checked={chk[`${index}`]} on:change={()=>{if(chk[`${index}`]){document.getElementById(`#s${index}`).style.color="yellow"}else{document.getElementById(`#s${index}`).style.color="white";dwdata()}}}></li>
-    </div>
-    <div>{name.jptit}</div>
+    <div>{manga.jptit}</div>
     {/if}
-    <div>{#if !hide_sort_columns.includes(sort_criteria)}{name.sort_value}{/if}</div>
-    <div>{name.rating_data.rating} ({name.rating_data.votes})</div>
-    <div>{name.num_volumes}</div>
+    <div>{#if !hide_sort_columns.includes(sort_criteria)}{manga.sort_value}{/if}</div>
+    <div>{manga.rating_data.rating} ({manga.rating_data.votes})</div>
+    <div>{manga.num_volumes}</div>
+    <div>
+        {#if manga.enid in manga_process_status}{manga_process_status[manga.enid]}{:else}{manga_repo_status[manga.enid]??''}{/if}
+        {#if manga.enid in log_file_paths}
+        <DownloadLog {cdncdn1} manga_id={manga.enid}/>
+        {/if}
+    </div>
     </div>
 
     {/each}
@@ -226,7 +249,7 @@
     .header_list {
         background:#666;
         display: grid;
-        grid-template-columns:  0.2fr 4fr 0.5fr 0.6fr 0.5fr;
+        grid-template-columns:  0.2fr 3fr 0.5fr 0.6fr 0.5fr 0.8fr;
         grid-gap: 5px;
         text-align: left;
         margin:0px;
@@ -235,7 +258,7 @@
     }
     .list-item {
         display: grid;
-        grid-template-columns:  0.2fr 4fr 0.5fr 0.6fr 0.5fr;
+        grid-template-columns:  0.2fr 3fr 0.5fr 0.6fr 0.5fr 0.8fr;
         grid-gap: 5px;
         text-align: left;
         margin:1px;
@@ -250,7 +273,6 @@
         padding:0px;
 
     }
-
     button {
         font-family: Arial, Helvetica,'Noto Sans Symbols 2',sans-serif;
         color: whitesmoke;
@@ -266,7 +288,4 @@
     button:hover {
         background:#666;
     }
-    
-
- 
 </style>

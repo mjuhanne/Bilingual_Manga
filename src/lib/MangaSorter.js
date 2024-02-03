@@ -4,6 +4,7 @@ export let sort_options = {
     'Release'    : { s:'', field: 'Release',  is_value:true, subheading_template:'Release _', rev:true },
     'Rating'     : { s:'rating_data', field: 'rating', is_value:true, subheading_template:'Rating: _', rev:true },
     'Status'     : { s:'', field: 'Status',   is_value:false, subheading_template:'_', rev:false },
+    'Repository status': { s:'', field: 'repo_status',   is_value:false, subheading_template:'_', rev:false },
     'Read status': { s:'', field: 'read_chapter_pct',   is_value:true, subheading_template:'Read _ %', rev:true },
     'JLPT content': { s:'total_statistics', field: 'jlpt_word_content_pct',  is_value:true, subheading_template:'JLPT _ %', rev:true },
     'Advanced JLPT': { s:'total_statistics', field: 'advanced_jlpt_word_content_pct',   is_value:true, subheading_template:'JLPT1 _ %', rev:true },
@@ -83,6 +84,7 @@ export const sortManga = (x, sort_criteria, sort_reverse) => {
             sort_value = "NA";
         }
         sorted_manga_list[i] = x[idx];
+        sorted_manga_list[i]['sort_value'] = String(sort_value);
         sorted_manga_list[i]['subheading'] = 
             sort_options[sort_criteria].subheading_template.replace('_', String(sort_value));
     }
