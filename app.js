@@ -1,6 +1,6 @@
 
 import cors from "cors"
-import { initRepository, fetchCoverImages, downloadMangas, stopDownloading, removeMangas, checkRepository, getStatus, getDownloadLog } from "./repository.js";
+import { initRepository, fetchCoverImages, downloadMangas, stopProcess, archiveMangas, removeMangas, checkRepository, getStatus, getDownloadLog } from "./repository.js";
 
 import express from "express"
 import { fileURLToPath } from 'url';
@@ -28,6 +28,12 @@ app.use('/remove',(req, res) => {
   res.send("ok")
 });
 
+app.use('/archive',(req, res) => {
+  let manga_ids=req.body
+  archiveMangas(manga_ids);
+  res.send("ok")
+});
+
 app.use('/download',(req, res) => {
   let manga_ids=req.body
   downloadMangas(manga_ids);
@@ -35,7 +41,7 @@ app.use('/download',(req, res) => {
 });
 
 app.use('/stop',(req, res) => {
-  stopDownloading();
+  stopProcess();
   res.send("ok")  
 });
 
