@@ -4,6 +4,14 @@
 	import { page } from '$app/stores';
 
 	import { browser } from '$app/environment';	
+    import {onMount} from 'svelte'
+
+	export let mounted = false;
+
+    onMount( () => {
+		mounted = true;
+	});
+
 
 const imgscon=(imgsl,rep)=>{
     const replaceing=(rstr,str)=>{
@@ -274,18 +282,18 @@ if(imgs_jpo[Object.keys(imgs_jpo)[0]]!=undefined && jj>=0)
 		seljs=2;
 	}
 
+	if (mounted) {
 
-	fetch(`${cdncdn1}/ocr/${cid[(cid.length-seljs)]}.json`)
-	.then(response => response.json())
-	.then((data)=>jp_ocr=data)
-	.catch(err => {jp_ocr={};
-	fetch(`${cdncdn}/ocr/${cid[(cid.length-seljs)]}.json`)
-	.then(response => response.json())
-	.then((data)=>jp_ocr=data)
-	.catch(err => {jp_ocr={};})
-
-})
-
+		fetch(`${cdncdn1}/ocr/${cid[(cid.length-seljs)]}.json`)
+		.then(response => response.json())
+		.then((data)=>jp_ocr=data)
+		.catch(err => {jp_ocr={};
+		fetch(`${cdncdn}/ocr/${cid[(cid.length-seljs)]}.json`)
+		.then(response => response.json())
+		.then((data)=>jp_ocr=data)
+		.catch(err => {jp_ocr={};})
+		})
+	}
 
 	
 	}
