@@ -62,7 +62,7 @@ function saveRepositoryJson() {
     }
   }
   
-  let data = {'pm':pm,'incomplete':incomplete,'archived':manga_archived};
+  let data = {'pm':pm,'incomplete':incomplete,'archived':manga_archived,'archive_directory':archive_dir};
   fs.writeFileSync ("./json/dw.json", JSON.stringify(data));
 }
 
@@ -553,6 +553,10 @@ export async function archiveMangas(selected_manga_ids) {
       manga_ids.push(id);
     }
   } 
+
+  if (!fs.existsSync(archive_dir)) {
+    fs.mkdirSync(archive_dir, { recursive: true });
+  }
 
   let archived_count=0;
   for (let ii in manob['data']) {

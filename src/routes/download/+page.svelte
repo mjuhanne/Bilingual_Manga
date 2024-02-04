@@ -33,7 +33,8 @@
         [STATUS_SELECTED] : 'yellow',
     };
 
-    const hide_sort_columns = ['Newly added','Rating','Volumes','Repository status'];
+    // Prevent double column insertion when sorting based on these values 
+    const hide_sort_columns = ['A-Z','Newly added','Rating','Volumes','Repository status'];
 
     let events;
     let meta;
