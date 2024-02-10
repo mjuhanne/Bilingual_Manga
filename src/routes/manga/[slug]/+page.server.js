@@ -75,7 +75,7 @@ function cleanFileNames(manga_data) {
             let files = chapter_set[ch]
             for (let f_i in files) {
                 let filename = files[f_i];
-                let new_filename = filename.replace(/[^A-Za-z0-9 _\-.\/()]+/g, '_');
+                let new_filename = filename.replace(/[^A-Za-z0-9 ,+'!_&@#\-\[\].\/()]+/g, '_');
                 if (filename != new_filename) {
                     console.log(` * Warning: ${lang} chapter ${chapter_names[lang][ch_i]}:'${filename}' -> '${new_filename}'`)
                     chapter_files[lang][ch][f_i] = new_filename;

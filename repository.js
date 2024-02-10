@@ -249,8 +249,7 @@ async function downloadFile(manga_id, dl_task) {
     try {
       res = await fetch(dl_task.url);
       if (res.ok) {
-        let filename = decodeURIComponent(decodeURIComponent(dl_task.p));
-        const temp2 = await res.body.pipe(fs.createWriteStream(filename));
+        const temp2 = await res.body.pipe(fs.createWriteStream(dl_task.p));
         return DL_OK;
       } else {
         return DL_FILE_NOT_FOUND;
@@ -339,9 +338,8 @@ function filterQueue(queue, create_dirs, select_existing=false) {
         fs.mkdirSync(img_directory, { recursive: true });
       }
     }
-    let decoded_path = decodeURIComponent(decodeURIComponent(img_file_path));
 
-    if (!fs.existsSync(decoded_path) ^ select_existing) {
+    if (!fs.existsSync(img_file_path) ^ select_existing) {
       filtered_queue.push(queue[ii]);
     }
   }
@@ -350,7 +348,7 @@ function filterQueue(queue, create_dirs, select_existing=false) {
 
 // Replace uncommon characters in local file names with '_'
 function cleanFileName(filename) {
-  let new_filename = filename.replace(/[^A-Za-z0-9 _\-.\/()]+/g, '_');
+  let new_filename = filename.replace(/[^A-Za-z0-9 ,+'!_&@#\-\[\].\/()]+/g, '_');
   if (filename != new_filename) {
     console.log(` * Warning: '${filename}' -> '${new_filename}'`)
   }
@@ -385,8 +383,9 @@ function createQueueForLanguage(title, lang, imgs, ocrtt, selected_chapter_id) {
             ocr_files.push(ocrp);
           }
         }
-        pat1 = cleanFileName(pat1);
-        queue.push({'l':lang, 'ocr':false, 'ch':eliix, 'url':img_url,'p':pat1});
+        let decoded_path = decodeURIComponent(decodeURIComponent(pat1));
+        let cleaned_path = cleanFileName(decoded_path);
+        queue.push({'l':lang, 'ocr':false, 'ch':eliix, 'url':img_url,'p':cleaned_path});
       }
     }
   }
@@ -516,7 +515,7 @@ async function checkArchiveFileIntegrity(metadata, mdata, archive_file, chapter_
   let all_files = createQueue(metadata, mdata, chapter_id);
   let missing_files = [];
   for (let q_item of all_files) {
-    let q_p = decodeURIComponent(q_item.p);
+    let q_p = q_item.p;
     if (q_p.substring(0,2) == './') {
       q_p = q_p.substring(2);
     }
