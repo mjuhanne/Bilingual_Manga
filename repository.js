@@ -19,15 +19,29 @@ const STATUS_NOT_DL = 'Not downloaded';
 const STATUS_DOWNLOADING = 'Downloading';
 const STATUS_CHECKING = 'Checking';
 const STATUS_ARCHIVING = 'Archiving';
+const STATUS_REMOVING = 'Removing';
+const STATUS_VERIFYING_ARCHIVE = 'Verifying archive';
 const STATUS_QUEUED = 'Queued';
 const STATUS_ERROR = 'Error';
 const STATUS_NONE = '';
+
+// Download errors
+const DL_OK = 0;
+const DL_FILE_NOT_FOUND = 1;
+const DL_TIMEOUT = 2;
+const DL_NO_SPACE = 3;
+
+// Archive status
+const ARCHIVE_NONE = 0;
+const ARCHIVE_INCOMPLETE = 1;
+const ARCHIVE_COMPLETE = 2;
 
 const log_dir = "./ipfs/log/"
 let ipfsgate = "http://localhost:3300/ipfs/%@cid@%";
 
 let manga_repo_status = {};  // 'Not downloaded', 'Downloaded', 'Incomplete'
 let manga_archived = [];
+let manga_archive_incomplete = [];
 let manga_process_status = {};  // 'Downloading', 'Checking', 'Queued'
 
 let process_status = {'status':'', 'total_process_msg':'', 'manga_id':0, 'manga_process_msg':''};
@@ -39,6 +53,7 @@ let send_event_func;
 function delay(time) {
   return new Promise(resolve => setTimeout(resolve, time));
 }
+const delaySync = util.promisify(delay);
 
 function getMetadata(oid) {
   let manga_tit = manob['meta'].manga_titles;
@@ -61,16 +76,33 @@ function saveRepositoryJson() {
       incomplete.push(id);
     }
   }
-  
-  let data = {'pm':pm,'incomplete':incomplete,'archived':manga_archived,'archive_directory':archive_dir};
+  let data = {
+    'pm':pm,
+    'incomplete':incomplete,
+    'archived':manga_archived,
+    'archive_incomplete':manga_archive_incomplete,
+    'archive_directory':archive_dir
+  };
   fs.writeFileSync ("./json/dw.json", JSON.stringify(data));
 }
 
-function setArchivedStatus(manga_id, archived, defer_broadcast=false) {
-  if (archived) {
-    manga_archived.push(manga_id);
-  } else {
-    manga_archived = manga_archived.filter((el) => el != manga_id);
+function getArchivedStatus(manga_id) {
+  if (manga_archived.includes(manga_id)) {
+    return ARCHIVE_COMPLETE;
+  } else if (manga_archive_incomplete.includes(manga_id)) {
+    return ARCHIVE_INCOMPLETE;
+  }
+  return ARCHIVE_NONE;
+}
+
+function setArchivedStatus(manga_id, archive_status, defer_broadcast=false) {
+  manga_archived = manga_archived.filter((el) => el != manga_id);
+  manga_archive_incomplete = manga_archive_incomplete.filter((el) => el != manga_id);
+
+  if (archive_status == ARCHIVE_COMPLETE) {
+      manga_archived.push(manga_id);
+  } else if (archive_status == ARCHIVE_INCOMPLETE) {
+    manga_archive_incomplete.push(manga_id);
   }
   saveRepositoryJson();
   if (!defer_broadcast) {
@@ -88,10 +120,12 @@ function updateMangaRepositoryStatus(manga_id, status, defer_broadcast=false) {
 
 function sendProcessErrorMessage(manga_id, message) {
   console.log(`Error processing ${manga_id}: ${message}`);
+  process_status['id'] = manga_id;
   process_status['msg'] = message;
   process_status['status'] = STATUS_ERROR;
   manga_process_status = {};
   send_event_func();
+  process_status['status'] = STATUS_NONE; // clear error
 }
 
 
@@ -138,9 +172,9 @@ export function getStatus() {
     'process_status':process_status, 
     'log_files':log_file_paths,
     'manga_archived':manga_archived,
+    'manga_archive_incomplete':manga_archive_incomplete,
   }
 }
-
 
 const imgscon = (imgsl, rep) => {
   const replaceing = (rstr, str) => {
@@ -162,7 +196,6 @@ const imgscon = (imgsl, rep) => {
       ximg[j1 + 1] = imgsret;
     });
   }
-  // console.log(ximg);
   return ximg;
 };
 
@@ -208,6 +241,31 @@ function clearLogFile(manga_id) {
   }
 }
 
+async function downloadFile(manga_id, dl_task) {
+  let retries=8;
+  let retry_wait=1;
+  let res;
+  do {
+    try {
+      res = await fetch(dl_task.url);
+      if (res.ok) {
+        let filename = decodeURIComponent(decodeURIComponent(dl_task.p));
+        const temp2 = await res.body.pipe(fs.createWriteStream(filename));
+        return DL_OK;
+      } else {
+        return DL_FILE_NOT_FOUND;
+      }
+    } catch (err) {
+          sendProcessErrorMessage(manga_id, err.message);
+          retries -= 1;
+          if (retries>0) {
+            await delay(retry_wait*1000);
+            retry_wait *= 2;
+          }
+    }
+  } while(retries>0);
+  return DL_TIMEOUT;
+}
 
 async function downloadQueues(queue_per_manga) {
   let total_count = 0;
@@ -225,14 +283,13 @@ async function downloadQueues(queue_per_manga) {
       updateTotalProcessStatus(STATUS_DOWNLOADING, true, total_count, num_total_files);
       updateMangaProcessStatus(manga_id, STATUS_DOWNLOADING, false, queue_count+1, queue.length);
       console.log(`[${total_count}/${num_total_files}] (${dl_task.url})`);
-      const res = await fetch(dl_task.url);
-      if (res.ok) {
-        let filename = decodeURIComponent(decodeURIComponent(dl_task.p));
-        console.log(`[${total_count}/${num_total_files}] (${dl_task.ch}) : [${filename}`);
-        const temp2 = await res.body.pipe(fs.createWriteStream(filename));  
-      } else {
+      console.log(`[${total_count}/${num_total_files}] (${dl_task.ch}) : [${dl_task.p}`);
+      let ret = await downloadFile(manga_id, dl_task)
+      if (ret==DL_FILE_NOT_FOUND) {
         console.log("Error downloading " + dl_task.uri)
         error_queue.push(dl_task)
+      } else if (ret>DL_FILE_NOT_FOUND) {
+        return;
       }
       queue_count += 1;
       total_count += 1;
@@ -291,8 +348,16 @@ function filterQueue(queue, create_dirs, select_existing=false) {
   return filtered_queue;
 }
 
+// Replace uncommon characters in local file names with '_'
+function cleanFileName(filename) {
+  let new_filename = filename.replace(/[^A-Za-z0-9 _\-.\/()]+/g, '_');
+  if (filename != new_filename) {
+    console.log(` * Warning: '${filename}' -> '${new_filename}'`)
+  }
+  return new_filename;
+}
 
-function createQueueForLanguage(title, lang, imgs, ocrtt) {
+function createQueueForLanguage(title, lang, imgs, ocrtt, selected_chapter_id) {
   let queue = [];
   for (let eliix in imgs) {
     let chapter = imgs[eliix];
@@ -304,33 +369,37 @@ function createQueueForLanguage(title, lang, imgs, ocrtt) {
       let ipfsgatemm = manob["meta"].ipfsgate.replace("%@cid@%", "");
       let img_url = `${ipfsgatemm}${pat1.replace("./ipfs/", "")}`;
 
-      if (ocrtt) {
-        let cid = img_url.split("/");
-        let seljs = 3;
-        if (`${cid[cid.length - seljs]}` === "ipfs") {
-          seljs = 2;
-        }
-    
-        let ocr = `${manob["meta"].cdn}/ocr/${cid[cid.length - seljs]}.json`;
-        let ocrp = `./ocr/${cid[cid.length - seljs]}.json`;
-        if (!ocr_files.includes(ocrp)) { // avoid duplicates
-          queue.push({'l':lang, 'ocr':true, 'ch':eliix, 'url':ocr,'p':ocrp});
-          ocr_files.push(ocrp);
-        }
+      let cid = img_url.split("/");
+      let seljs = 3;
+      if (`${cid[cid.length - seljs]}` === "ipfs") {
+        seljs = 2;
       }
-      queue.push({'l':lang, 'ocr':false, 'ch':eliix, 'url':img_url,'p':pat1});
+      let chapter_id = cid[cid.length - seljs];
+
+      if (selected_chapter_id == '' || (chapter_id==selected_chapter_id)) {
+        if (ocrtt) {    
+          let ocr = `${manob["meta"].cdn}/ocr/${chapter_id}.json`;
+          let ocrp = `./ocr/${chapter_id}.json`;
+          if (!ocr_files.includes(ocrp)) { // avoid duplicates
+            queue.push({'l':lang, 'ocr':true, 'ch':eliix, 'url':ocr,'p':ocrp});
+            ocr_files.push(ocrp);
+          }
+        }
+        pat1 = cleanFileName(pat1);
+        queue.push({'l':lang, 'ocr':false, 'ch':eliix, 'url':img_url,'p':pat1});
+      }
     }
   }
   return queue;
 }
 
 
-function createQueue(metadata, data) {
+function createQueue(metadata, data, chapter_id='') {
   let imgs_engo = imgscon(data.en_data.ch_en, data.en_data.ch_enh);
   let imgs_jpo = imgscon(data.jp_data.ch_jp, data.jp_data.ch_jph);
   let queue = [];
-  queue = createQueueForLanguage(metadata.entit, "en", imgs_engo, false);
-  queue = queue.concat(createQueueForLanguage(metadata.entit, "jp", imgs_jpo, true));
+  queue = createQueueForLanguage(metadata.entit, "en", imgs_engo, false, chapter_id);
+  queue = queue.concat(createQueueForLanguage(metadata.entit, "jp", imgs_jpo, true, chapter_id));
   return queue;
 }
 
@@ -380,10 +449,14 @@ export function stopProcess() {
 }
 
 
-export function removeMangas(manga_ids) {
+export async function removeMangas(manga_ids) {
   console.log("removeMangas " + manga_ids);
 
-  let removed = 0;
+  for (let id of manga_ids) {
+    updateMangaProcessStatus(id, STATUS_QUEUED, true);
+  } 
+
+  let num_removed_ch = 0, num_removed_mangas = 0;
   for (let ii in manob['data']) {
     let mdata = manob['data'][ii];
     let idd = mdata._id.$oid;
@@ -391,6 +464,19 @@ export function removeMangas(manga_ids) {
 
     if (manga_ids.includes(idd)) {
       console.log("Remove " + metadata.entit);
+
+      updateTotalProcessStatus(STATUS_REMOVING, true, num_removed_mangas+1, manga_ids.length);
+      updateMangaProcessStatus(idd,STATUS_REMOVING);
+
+      await delay(2000); // doing deliberately slow to allow user to regret and stop the process
+
+      if (stopProcessing) {
+        console.log("Stopping removing process")
+        clearProcessStatus();
+        stopProcessing=false;
+        return false;
+      }
+
       let chapter_sets = [mdata.en_data["ch_enh"], mdata.jp_data["ch_jph"]];
       for (let chapter_set of chapter_sets) {
         for (let icc in chapter_set) {
@@ -399,15 +485,120 @@ export function removeMangas(manga_ids) {
           if (fs.existsSync(rmdd)) {
             console.log(" * " + rmdd);
             fs.rmSync(rmdd, { recursive: true, force: true });
-            removed += 1;
+            num_removed_ch += 1;
           }
         }
       }
+      num_removed_mangas += 1;
       clearLogFile(idd);
-      updateMangaRepositoryStatus(idd, STATUS_NOT_DL);
+      updateMangaRepositoryStatus(idd, STATUS_NOT_DL, true);
+      updateMangaProcessStatus(idd,STATUS_NONE);
+      console.log("Removed " + metadata.entit);
+
     }
   }
-  console.log("Removed " + removed + " chapters");
+  clearProcessStatus();
+  console.log("Removed " + num_removed_ch + " chapters");
+}
+
+
+async function checkArchiveFileIntegrity(metadata, mdata, archive_file, chapter_id) {
+  let temp_file = "./zip-list.temp";
+  try {
+    let cmd = `unzip -Z -1 ${archive_file} > ${temp_file}`
+    let stdout = await execSync(cmd, {'encoding': 'utf-8'});
+  } catch (err) {
+    return err.message;
+  }
+
+  let data = fs.readFileSync(temp_file, "utf-8");
+  let arc_files = data.split('\n');
+  let all_files = createQueue(metadata, mdata, chapter_id);
+  let missing_files = [];
+  for (let q_item of all_files) {
+    let q_p = decodeURIComponent(q_item.p);
+    if (q_p.substring(0,2) == './') {
+      q_p = q_p.substring(2);
+    }
+    if (arc_files.indexOf(q_p) == -1) {
+      missing_files.push(q_item);
+    }
+  }
+  if (missing_files.length>0) {
+    let msg = `${archive_file} is missing ${missing_files.length} files`;
+    generateLogFile(metadata.enid, msg, missing_files);
+    console.log(msg);
+    return msg;
+  }
+  let cmd = `unzip -t -q ${archive_file}`
+  const { stdout, stderr } = await execSync(cmd, {'encoding': 'UTF-8'});
+  if (stdout.includes('No errors detected')) {
+    return '';
+  }
+  return stdout;
+}
+
+async function checkMangaArchives(manga_id, metadata, mdata) {
+
+  let chapter_sets = [mdata.en_data["ch_enh"], mdata.jp_data["ch_jph"]];
+  let total_chapters=0, num_archives_intact = 0;
+  for (let chapter_set of chapter_sets) {
+      total_chapters += chapter_set.length;
+  }
+
+  let archive_title_dir = `${archive_dir}/${manga_id}`
+  if (fs.existsSync(archive_title_dir)) {
+
+    let processed_chapters=0;
+
+    for (let cs_i in chapter_sets) {
+      let chapter_set = chapter_sets[cs_i];
+
+      for (let icc in chapter_set) {
+
+        if (stopProcessing) {
+          return false;
+        }
+  
+        updateMangaProcessStatus(manga_id,STATUS_VERIFYING_ARCHIVE,false,processed_chapters+1,total_chapters);
+        let ch = chapter_set[icc].split("/")[0];
+        let archive_file = `${archive_title_dir}/${ch}.zip`
+        if (fs.existsSync(archive_file)) {
+          let res = await checkArchiveFileIntegrity(metadata, mdata, archive_file, ch);
+          if (res != '') {
+            // incomplete
+            console.log(res);
+          } else {
+            num_archives_intact += 1;
+          }
+        } else {
+          console.log("  * Missing archive file " + archive_file);
+        }
+        processed_chapters += 1;
+      }
+    }
+  }
+
+  let archive_status = getArchivedStatus(manga_id);
+  if (num_archives_intact == total_chapters) {
+    if (archive_status != ARCHIVE_COMPLETE) {
+      // Archive was missing from dw.json
+      console.log("  * Found all archived chapters (previously unmarked)");
+      setArchivedStatus(manga_id, ARCHIVE_COMPLETE);
+      clearLogFile(manga_id);
+    }
+  } else {
+    if ((archive_status != ARCHIVE_INCOMPLETE) && (num_archives_intact>0) )  {
+      console.log("  * Some archived chapters found");
+      setArchivedStatus(manga_id, ARCHIVE_INCOMPLETE);
+      clearLogFile(manga_id);
+    } else if ((archive_status != ARCHIVE_NONE) && (num_archives_intact==0) )  {
+      // Couldn't find the archive file(s) anymore
+      console.log("  * Removing archived status ");
+      setArchivedStatus(manga_id, ARCHIVE_NONE);
+      clearLogFile(manga_id);
+    }
+  }
 }
 
 
@@ -427,25 +618,17 @@ export async function checkRepository(manga_ids) {
     if (manga_ids.includes(idd)) {
       console.log("Check " + metadata.entit);
 
-      let archive_file = `${archive_dir}/${idd}.tar`
-      if (fs.existsSync(archive_file)) {
-        if (!(manga_archived.includes(idd))) {
-          // Archive was missing from dw.json
-          console.log("  * Found archive file " + archive_file);
-          setArchivedStatus(idd, true);
-          clearLogFile(idd);
-        }
-      } else {
-        if (manga_archived.includes(idd)) {
-          // Couldn't find the archive file anymore
-          console.log("  * Missing archive file " + archive_file);
-          setArchivedStatus(idd, false);
-          clearLogFile(idd);
-        }
+      if (stopProcessing) {
+        console.log("Stopping verifying process")
+        clearProcessStatus();
+        stopProcessing=false;
+        return false;
       }
 
-      // check if all the manga files are present
       updateTotalProcessStatus(STATUS_CHECKING, true, checked_count, manga_ids.length);
+      await checkMangaArchives(idd, metadata, mdata);
+
+      // check if all the manga files are present
       updateMangaProcessStatus(idd,STATUS_CHECKING,false);
       await delay(50); // checking is too fast :)
       // Full manga file list
@@ -494,57 +677,13 @@ export async function checkRepository(manga_ids) {
   clearProcessStatus();
 }
 
-
-// TODO: checking the fileames doesn't work because for some reason the shell command output
-// uses weird octal utf-8 coding for non-ascii characters
-/*
-function checkArchiveFileIntegrity(metadata, mdata, archive_file) {
-  let temp_file = "./tar-list.temp";
-  let cmd = `tar tf ${archive_file} > ${temp_file}`
-  const { stdout, stderr } = await execSync(cmd, {'encoding': 'UTF-8'});
-  let data = fs.readFileSync(temp_file, "utf8");
-  let arc_files = data.split('\n');
-  let all_files = createQueue(metadata, mdata);
-  let existing_files = filterQueue(all_files,false, true);
-  let missing_files = [];
-  for (let q_item of existing_files) {
-    let q_p = decodeURIComponent(q_item.p);
-    if (arc_files.indexOf(q_p) == -1) {
-      missing_files.push(q_item);
-    }
-  }
-  if (missing_files.length>0) {
-    return false;
-  }
-  return true;
-}
-*/
-
-// Here we just check that the output archive file size is larger than the input files combined
-function checkArchiveFileIntegrity(metadata, mdata, archive_file) {
-
-  let all_files = createQueue(metadata, mdata);
-  let existing_files = filterQueue(all_files,false, true);
-  let total_size = 0;
-  for (let q_item of existing_files) {
-    let q_p = decodeURIComponent(q_item.p);
-    let stats = fs.statSync(q_p);
-    total_size += stats.size;
-  }
-  let stats = fs.statSync(archive_file);
-  if (stats.size < total_size) {
-    return false;
-  }
-  return true;
-}
-
 export async function archiveMangas(selected_manga_ids) {
   console.log("archiveMangas " + selected_manga_ids);
 
   let manga_ids = [];
   for (let id of selected_manga_ids) {
     let status = manga_repo_status[id]
-    if (id in manga_archived) {
+    if (manga_archived.includes(id)) {
       console.log(` * wont process ${id} because already archived`);
     } else if (status != STATUS_DOWNLOADED && status != STATUS_INCOMPLETE) {
       console.log(` * wont process ${id} because status is ${status}`);
@@ -565,16 +704,18 @@ export async function archiveMangas(selected_manga_ids) {
     let metadata = getMetadata(idd);
 
     if (manga_ids.includes(idd)) {
-      let archive_file = `${archive_dir}/${idd}.tar`
-      console.log(`Archive ${metadata.entit} to ${archive_file}`);
-
-      if (fs.existsSync(archive_file)) {
-        console.log(" * Deleting previous incomplete archive file")
-        fs.rmSync(archive_file);
-      }
+      console.log(`Archive ${metadata.entit}`);
 
       updateTotalProcessStatus(STATUS_ARCHIVING, true, archived_count, manga_ids.length);
       updateMangaProcessStatus(idd,STATUS_ARCHIVING,false);
+
+      let archive_title_dir = `${archive_dir}/${idd}`
+      if (!fs.existsSync(archive_title_dir)) {
+        fs.mkdirSync(archive_title_dir);
+      }
+
+      // at first the archive status is incomplete
+      setArchivedStatus(idd, ARCHIVE_INCOMPLETE, true);
 
       let chapter_sets = [mdata.en_data["ch_enh"], mdata.jp_data["ch_jph"]];
       let processed_chapters=0, total_chapters=0;
@@ -598,47 +739,56 @@ export async function archiveMangas(selected_manga_ids) {
 
           updateMangaProcessStatus(idd,STATUS_ARCHIVING,false,processed_chapters+1,total_chapters);
 
-          let ch = chapter_set[icc].split("/");
-          let chapter_dir = `./ipfs/${ch[0]}`;
+          let ch = chapter_set[icc].split("/")[0];
 
-          let ocrp = '';
-          if (cs_i==1) {
-            ocrp = `./ocr/${ch[0]}.json`
-            if (!fs.existsSync(ocrp)) {
-              ocrp = ''; // skip occasional missing OCR file
+          let archive_file = `${archive_title_dir}/${ch}.zip`
+
+          let process_this_chapter = true;
+          let num_archives_intact = 0
+          if (fs.existsSync(archive_file)) {
+            let res = await checkArchiveFileIntegrity(metadata, mdata, archive_file, ch);
+            if (res == '') {
+              process_this_chapter = false;
+              num_archives_intact += 1;
+              console.log(` * Chapter ${cs_i}/${icc} : ${archive_file} already exists`)
+            } else {
+              console.log(" * Deleting previous incomplete archive file")
+              fs.rmSync(archive_file);  
             }
           }
+    
+          if (process_this_chapter) {
 
-          let cmd = '';
-          if (processed_chapters==0) {
-            cmd = `tar cf ${archive_file} ${chapter_dir} ${ocrp}`
-          } else {
-            cmd = `tar rf ${archive_file} ${chapter_dir} ${ocrp}`
+            let chapter_dir = `./ipfs/${ch}`;
+
+            let ocrp = '';
+            if (cs_i==1) {
+              ocrp = `./ocr/${ch}.json`
+              if (!fs.existsSync(ocrp)) {
+                ocrp = ''; // skip occasional missing OCR file
+              }
+            }
+
+            let cmd = `zip -r0 ${archive_file} ${chapter_dir} ${ocrp}`
+            console.log(` * Chapter ${cs_i}/${icc} : ${chapter_dir}`)
+            try {
+              const { stdout, stderr } = await execSync(cmd);
+            } catch (error) {
+              sendProcessErrorMessage(idd, error.stderr);
+              return false;      
+            }
           }
-          console.log(` * Chapter ${icc} : ${chapter_dir}`)
-          try {
-            const { stdout, stderr } = await execSync(cmd);
-          } catch (error) {
-            sendProcessErrorMessage(idd, error.stderr);
-            return false;      
-          }
-          processed_chapters +=1;
+          processed_chapters += 1;
         }
       }
 
-      // double check that the archive contains all files before marking it as archived
-      if (!fs.existsSync(archive_file)) {
-        sendProcessErrorMessage(idd, `Error creating archive ${archive_file}`);
-        return false;
-      }
-      if (checkArchiveFileIntegrity(metadata, mdata, archive_file)) {
-        updateMangaProcessStatus(idd,STATUS_NONE,false);
-        clearLogFile(idd);
-        setArchivedStatus(idd, true);
-      } else {
-        sendProcessErrorMessage(idd, `Archive ${archive_file} incomplete!`);
-        return false;
-      }
+      updateTotalProcessStatus(STATUS_VERIFYING_ARCHIVE, true, archived_count, manga_ids.length);
+      // this will also set the archived status
+      await checkMangaArchives(idd, metadata, mdata);
+
+      updateMangaProcessStatus(idd,STATUS_NONE,false);
+      clearLogFile(idd);
+      console.log(" * Archiving completed!")
       archived_count += 1;
     }
   }
@@ -687,11 +837,15 @@ export function initRepository(send_event_callback_func) {
   data = JSON.parse(data);
   let pm = data["pm"];
   let incomplete = [];
+  manga_archived = [];
   if ('incomplete' in data) {
     incomplete = data["incomplete"];
   }
   if ('archived' in data) {
     manga_archived = data["archived"];
+  }
+  if ('archive_incomplete' in data) {
+    manga_archive_incomplete = data["archive_incomplete"];
   }
   if ('archive_directory' in data) {
     archive_dir = data["archive_directory"];

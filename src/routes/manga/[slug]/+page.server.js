@@ -64,8 +64,27 @@ export async function load({params,url})
 
 });
 
-
-
+// Replace uncommon characters in local file names with '_'  
+function cleanFileNames(manga_data) {
+    let chapter_files = {'en':manga_data.en_data["ch_en"], 'jp':manga_data.jp_data["ch_jp"]};
+    let chapter_names = {'en':manga_data.en_data["ch_naen"], 'jp':manga_data.jp_data["ch_najp"]};
+    for (let lang in chapter_files) {
+        let chapter_set = chapter_files[lang];
+        let ch_i = 0;
+        for (let ch in chapter_set) {
+            let files = chapter_set[ch]
+            for (let f_i in files) {
+                let filename = files[f_i];
+                let new_filename = filename.replace(/[^A-Za-z0-9 _\-.\/()]+/g, '_');
+                if (filename != new_filename) {
+                    console.log(` * Warning: ${lang} chapter ${chapter_names[lang][ch_i]}:'${filename}' -> '${new_filename}'`)
+                    chapter_files[lang][ch][f_i] = new_filename;
+                }
+            }
+            ch_i += 1;
+        }
+    }
+}
 
     let arr =[];
     let man=db['manga_data']
@@ -99,6 +118,7 @@ export async function load({params,url})
         if(pm.includes(id))
         {
             ipfsss=meta['0'].ipfsgate1
+            cleanFileNames(arr[0]);
         }
         else
         {

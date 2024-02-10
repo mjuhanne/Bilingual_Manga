@@ -1,21 +1,46 @@
-export let sort_options = {
+
+let common_sort_options = {
     'Newly added': { s:'', field: '',         is_value:false, subheading_template:'', rev:false },
     'A-Z'        : { s:'', field: 'entit',    is_value:false, subheading_template:'', rev:false },
     'Release'    : { s:'', field: 'Release',  is_value:true, subheading_template:'Release _', rev:true },
     'Rating'     : { s:'rating_data', field: 'rating', is_value:true, subheading_template:'Rating: _', rev:true },
     'Status'     : { s:'', field: 'Status',   is_value:false, subheading_template:'_', rev:false },
-    'Repository status': { s:'', field: 'repo_status',   is_value:false, subheading_template:'_', rev:false },
     'Read status': { s:'', field: 'read_chapter_pct',   is_value:true, subheading_template:'Read _ %', rev:true },
     'JLPT content': { s:'total_statistics', field: 'jlpt_word_content_pct',  is_value:true, subheading_template:'JLPT _ %', rev:true },
     'Advanced JLPT': { s:'total_statistics', field: 'advanced_jlpt_word_content_pct',   is_value:true, subheading_template:'JLPT1 _ %', rev:true },
-    'Intermediate JLPT': { s:'total_statistics', field: 'weighted_intermediate_jlpt_word_content_pts',   is_value:true, subheading_template:'JLPT2-3 _ W', rev:true },
-    'non-JLPT words/vol': { s:'individual_statistics', field: 'num_non_jlpt_words_per_v',   is_value:true, subheading_template:'non-JLPT w/v _', rev:false },
+    'Intermediate JLPT (w)': { s:'total_statistics', field: 'weighted_intermediate_jlpt_word_content_pts',   is_value:true, subheading_template:'JLPT2-3 _', rev:true },
+    'non-JLPT words/vol': { s:'unique_statistics', field: 'num_non_jlpt_words_per_v',   is_value:true, subheading_template:'non-JLPT w/v _', rev:false },
     'Volumes':    { s:'', field: 'num_volumes',is_value:true, subheading_template:'_ volumes', rev:true },
     'Pages':      { s:'', field: 'num_pages',     is_value:true, subheading_template:'_ pages', rev:true },
     'Total words': { s:'total_statistics', field: 'num_words',     is_value:true, subheading_template:'_ words', rev:true },
     'Words/page': { s:'total_statistics', field: 'w_per_p',       is_value:true, subheading_template:'_ words/page', rev:true },
     'Kanji/word': { s:'total_statistics', field: 'k_per_w_pct',  is_value:true, subheading_template:'Kanjis/word _ %', rev:true },
 };
+
+
+export let download_view_sort_options = {
+    ...{
+        'Repository status': { s:'', field: 'repo_status',   is_value:false, subheading_template:'_', rev:false },
+    },
+    ...common_sort_options,
+}
+
+export let suggested_preread_sort_options = {
+    ...{
+        'Common unknown words': { s:'', field: 'ncuuw',   is_value:true, subheading_template:'_', rev:true },
+        'Common unknown words/vol': { s:'', field: 'ncuuw_per_vol',   is_value:true, subheading_template:'_', rev:true },
+        'Comprehension % improvement': { s:'', field: 'improvement_pct',   is_value:true, subheading_template:'_', rev:true },
+        'Relative improvement': { s:'', field: 'relative_improvement',   is_value:true, subheading_template:'_', rev:true },
+    },
+    ...common_sort_options,
+}
+
+export let showcase_sort_options = common_sort_options;
+
+let sort_options = {
+    ...download_view_sort_options,
+    ...suggested_preread_sort_options,
+}
 
 export const sortManga = (x, sort_criteria, sort_reverse) => {
     let sorted_manga_list = [];

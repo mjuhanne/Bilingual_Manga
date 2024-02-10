@@ -51,8 +51,6 @@ app.listen(3300, function () {
     
 });
 
-
-
 app.get('/status', (request, response) => response.json({clients: clients.length}));
 
 

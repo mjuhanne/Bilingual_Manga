@@ -3,7 +3,7 @@
     import MangaSortDashboard from '$lib/MangaSortDashboard.svelte';
     import { page } from '$app/stores';
     import { goto } from "$app/navigation";
-    import { sort_options, sortManga } from '$lib/MangaSorter.js';
+    import { showcase_sort_options, sortManga } from '$lib/MangaSorter.js';
     export let x;
     export let cdncdn;
     export let cdncdn1;
@@ -96,7 +96,7 @@ $: pii3=pii+1;
     </div>
     <div class="sortsel">
         <MangaSortDashboard {sort_criteria} {sort_reverse} 
-            sort_criteria_list={Object.keys(sort_options)} 
+            sort_criteria_list={Object.keys(showcase_sort_options)} 
             on:SortCriteriaChanged={sortCriteriaChanged}
             on:SortReverseChanged={sortReverseChanged}
         />

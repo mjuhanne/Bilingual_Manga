@@ -7,9 +7,7 @@ export let sort_criteria_list;
 export let sort_criteria;
 export let sort_reverse;
 
-// repository status (is manga downloaded) is not yet correctly propagated to MangaShowcase
-// so hide it by default 
-export let show_repo_status=false; 
+export let width = 350;
 
 const onCriteriaChanged = () => {
     dispatch("SortCriteriaChanged",sort_criteria);
@@ -19,13 +17,11 @@ const onReverseChanged = () => {
 };
 </script>
 
-<div>
+<div style='width:{width}px'>
 Sort by
 <select id='sort_criteria' bind:value={sort_criteria} on:change={onCriteriaChanged}  >
     {#each sort_criteria_list as c}
-        {#if (c!='Repository status' || show_repo_status)}
-            <option value="{c}">{c}</option>
-        {/if}
+        <option value="{c}">{c}</option>
     {/each}
 </select>
 Reverse
@@ -55,7 +51,6 @@ select:hover{
 }
 
 div {
-    width: 350px;
     text-decoration: none;
     color: whitesmoke;
     font-size: 1.1 rem;
