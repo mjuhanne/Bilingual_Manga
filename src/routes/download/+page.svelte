@@ -20,6 +20,7 @@
     const STATUS_VERIFYING_ARCHIVE = 'Verifying archive';
     const STATUS_CHECKING = 'Checking';
     const STATUS_ARCHIVING = 'Archiving';
+    const STATUS_RESTORING = 'Restoring';
     const STATUS_REMOVING = 'Removing';
     const STATUS_QUEUED = 'Queued';
     const STATUS_ERROR = 'Error';
@@ -30,6 +31,7 @@
         [STATUS_ARCHIVE_INCOMPLETE] : '#AF601A',
         [STATUS_DOWNLOADED] : 'ForestGreen',
         [STATUS_ARCHIVING] : 'violet',
+        [STATUS_RESTORING] : 'violet',
         [STATUS_DOWNLOADING] : 'CornflowerBlue',
         [STATUS_INCOMPLETE] : '#EC7063',
         [STATUS_ARCHIVED] : '#b0b',
@@ -72,6 +74,7 @@
     let manga_process_status={};
     let process_status={'status':0};
     let log_file_paths={};
+    let manga_archived=[];
 
     let list_colors = [];
 
@@ -149,7 +152,7 @@
             manga_process_status = parsedData.manga_process_status;
             process_status = parsedData.process_status;
             log_file_paths = parsedData.log_files;
-            let manga_archived = parsedData.manga_archived;
+            manga_archived = parsedData.manga_archived;
             let manga_archive_incomplete = parsedData.manga_archive_incomplete;
 
             if (process_status.status=='Error') {
@@ -214,6 +217,11 @@
         fetch(`${cdncdn1}/archive`, { method: "post",headers: {'Accept': 'application/json','Content-Type': 'application/json'},body: JSON.stringify(selected_manga_ids)}).then( (response) => {let aaafdfv = response;}).then(()=>{});
         unSelectAll();
     }
+    function restoreSelected()
+    {
+        fetch(`${cdncdn1}/restore`, { method: "post",headers: {'Accept': 'application/json','Content-Type': 'application/json'},body: JSON.stringify(selected_manga_ids)}).then( (response) => {let aaafdfv = response;}).then(()=>{});
+        unSelectAll();
+    }
     function downloadSelected()
     {
         fetch(`${cdncdn1}/download`, { method: "post",headers: {'Accept': 'application/json','Content-Type': 'application/json'},body: JSON.stringify(selected_manga_ids)}).then( (response) => {let aaafdfv = response;}).then(()=>{});
@@ -260,6 +268,32 @@
         {
             let manga_id = x12[xx].enid;
             if(manga_repo_status[manga_id]==STATUS_DOWNLOADED)
+            {
+                selected_manga_ids = selected_manga_ids.filter( (id) => (id != manga_id));
+            }
+        }
+        selected_manga_ids = selected_manga_ids;
+    }
+    function selectArchived()
+    {
+        for(let xx in x12)
+        {
+            let id = x12[xx].enid;
+            if(manga_repo_labels[id].includes(STATUS_ARCHIVED))
+            {
+                if (!selected_manga_ids.includes(id)) {
+                    selected_manga_ids.push(id);
+                }
+            }
+        }
+        selected_manga_ids = selected_manga_ids; // force update
+    }
+    function unSelectArchived()
+    {
+        for(let xx in x12)
+        {
+            let manga_id = x12[xx].enid;
+            if(manga_repo_labels[manga_id].includes(STATUS_ARCHIVED))
             {
                 selected_manga_ids = selected_manga_ids.filter( (id) => (id != manga_id));
             }
@@ -317,21 +351,27 @@
     {:else}
         <button on:click={stopProcess}>Stop</button>
     {/if}
-
+    {#if process_status.status!=STATUS_RESTORING}
+        <button disabled={process_status.status!=''} on:click={restoreSelected}>Restore</button>
+    {:else}
+        <button on:click={stopProcess}>Stop</button>
+    {/if}
     {#if process_status.status!=STATUS_REMOVING}
         <button disabled={process_status.status!=''} class="danger" on:click={deleteSelected}>Delete Manga</button>
     {:else}
         <button on:click={stopProcess}>Stop</button>
     {/if}
-    <button on:click={selectAll}>Select All</button>
-    <button on:click={unSelectAll}>unSelect All</button>
-    <button on:click={selectDownloaded}>Select DL'd</button>
-    <button on:click={unSelectDownloaded}>unSelect DL'd</button>
+    <button on:click={selectAll}>Sel All</button>
+    <button on:click={unSelectAll}>unSel All</button>
+    <button on:click={selectDownloaded}>Sel DL'd</button>
+    <button on:click={unSelectDownloaded}>unSel DL'd</button>
+    <button on:click={selectArchived}>Sel Arch</button>
+    <button on:click={unSelectArchived}>unSel Arch</button>
     <MangaSortDashboard {sort_criteria} {sort_reverse} 
         sort_criteria_list={Object.keys(download_view_sort_options)} 
         on:SortCriteriaChanged={sortCriteriaChanged}
         on:SortReverseChanged={sortReverseChanged}
-        width='420'
+        width='380'
     />
 </div>
 <div class="header_list">
@@ -420,9 +460,9 @@
         color: whitesmoke;
         background:#444;
         padding: 0px;
-        padding-left: 10px;
-        padding-right: 10px;
-        margin-right: 15px;
+        padding-left: 5px;
+        padding-right: 5px;
+        margin-right: 5px;
         border-radius: 5px;
         font-size: 0.9rem;
         border-style:hidden;

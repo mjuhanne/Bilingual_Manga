@@ -19,6 +19,7 @@ const STATUS_NOT_DL = 'Not downloaded';
 const STATUS_DOWNLOADING = 'Downloading';
 const STATUS_CHECKING = 'Checking';
 const STATUS_ARCHIVING = 'Archiving';
+const STATUS_RESTORING = 'Restoring';
 const STATUS_REMOVING = 'Removing';
 const STATUS_VERIFYING_ARCHIVE = 'Verifying archive';
 const STATUS_QUEUED = 'Queued';
@@ -600,6 +601,50 @@ async function checkMangaArchives(manga_id, metadata, mdata) {
   }
 }
 
+async function checkMangaFiles(manga_id, metadata, mdata) {
+
+  updateMangaProcessStatus(manga_id,STATUS_CHECKING,false);
+  await delay(50); // checking is too fast :)
+  // Full manga file list
+  let all_files = createQueue(metadata, mdata);
+  let a_stats = getQueueStats(all_files);
+  // Missing files
+  let missing_files = filterQueue(all_files,false);
+  let m_stats = getQueueStats(missing_files);
+
+  if (m_stats.total>0) {
+    if (m_stats.images>0) {
+      if (m_stats.images != a_stats.images) {
+        console.log("Missing " + m_stats.images + "/" + a_stats.images + " files");
+        generateLogFile(manga_id,`Missing ${m_stats.images}/${a_stats.images} files (${m_stats.ocr}/${a_stats.ocr} OCR)`, missing_files);
+        updateMangaRepositoryStatus(manga_id, STATUS_INCOMPLETE);
+        for (let mi in missing_files) {
+          console.log(" * " + missing_files[mi].p);
+        }
+      } else {
+        // just a non downloaded manga
+        updateMangaRepositoryStatus(manga_id, STATUS_NOT_DL);
+        clearLogFile(manga_id);
+      }
+    } else {
+      if (m_stats.ocr > 0) {
+        console.log("Missing " + m_stats.ocr + "/" + a_stats.ocr + " ocr");
+        generateLogFile(manga_id,`Missing ${m_stats.ocr}/${a_stats.ocr} OCR files`, missing_files);
+        updateMangaRepositoryStatus(manga_id, STATUS_INCOMPLETE);
+        for (let mi in missing_files) {
+          console.log(" * " + missing_files[mi].p);
+        }
+      }
+    }
+  } else {
+    if (manga_repo_status[manga_id] != STATUS_DOWNLOADED) {
+      // Completely downloaded but missing from dw.json
+      console.log("  * Found all manga files");
+      updateMangaRepositoryStatus(manga_id,STATUS_DOWNLOADED);
+      clearLogFile(manga_id);
+    }
+  }
+}
 
 export async function checkRepository(manga_ids) {
   console.log("checkRepository " + manga_ids);
@@ -625,50 +670,11 @@ export async function checkRepository(manga_ids) {
       }
 
       updateTotalProcessStatus(STATUS_CHECKING, true, checked_count, manga_ids.length);
+
+      // check if all the manga archives and files are present
       await checkMangaArchives(idd, metadata, mdata);
+      await checkMangaFiles(idd, metadata, mdata);
 
-      // check if all the manga files are present
-      updateMangaProcessStatus(idd,STATUS_CHECKING,false);
-      await delay(50); // checking is too fast :)
-      // Full manga file list
-      let all_files = createQueue(metadata, mdata);
-      let a_stats = getQueueStats(all_files);
-      // Missing files
-      let missing_files = filterQueue(all_files,false);
-      let m_stats = getQueueStats(missing_files);
-
-      if (m_stats.total>0) {
-        if (m_stats.images>0) {
-          if (m_stats.images != a_stats.images) {
-            console.log("Missing " + m_stats.images + "/" + a_stats.images + " files");
-            generateLogFile(idd,`Missing ${m_stats.images}/${a_stats.images} files (${m_stats.ocr}/${a_stats.ocr} OCR)`, missing_files);
-            updateMangaRepositoryStatus(idd, STATUS_INCOMPLETE);
-            for (let mi in missing_files) {
-              console.log(" * " + missing_files[mi].p);
-            }
-          } else {
-            // just a non downloaded manga
-            updateMangaRepositoryStatus(idd, STATUS_NOT_DL);
-            clearLogFile(idd);
-          }
-        } else {
-          if (m_stats.ocr > 0) {
-            console.log("Missing " + m_stats.ocr + "/" + a_stats.ocr + " ocr");
-            generateLogFile(idd,`Missing ${m_stats.ocr}/${a_stats.ocr} OCR files`, missing_files);
-            updateMangaRepositoryStatus(idd, STATUS_INCOMPLETE);
-            for (let mi in missing_files) {
-              console.log(" * " + missing_files[mi].p);
-            }
-          }
-        }
-      } else {
-        if (manga_repo_status[idd] != STATUS_DOWNLOADED) {
-          // Completely downloaded but missing from dw.json
-          console.log("  * Found all manga files");
-          updateMangaRepositoryStatus(idd,STATUS_DOWNLOADED);
-          clearLogFile(idd);
-        }
-      }
       updateMangaProcessStatus(idd,STATUS_NONE,false);
       checked_count += 1;
     }
@@ -787,8 +793,89 @@ export async function archiveMangas(selected_manga_ids) {
 
       updateMangaProcessStatus(idd,STATUS_NONE,false);
       clearLogFile(idd);
-      console.log(" * Archiving completed!")
+      console.log(`Archiving ${metadata.entit} completed!`);
       archived_count += 1;
+    }
+  }
+  clearProcessStatus();
+}
+
+
+export async function restoreMangas(selected_manga_ids) {
+  console.log("restoreMangas " + selected_manga_ids);
+
+  let manga_ids = [];
+  for (let id of selected_manga_ids) {
+    let status = getArchivedStatus(id);
+    if (status != ARCHIVE_COMPLETE && status != ARCHIVE_INCOMPLETE) {
+      console.log(` * wont process ${id} because not archived`);
+    } else {
+      updateMangaProcessStatus(id, STATUS_QUEUED, true);
+      manga_ids.push(id);
+    }
+  } 
+
+  let restored_count=0;
+  for (let ii in manob['data']) {
+    let mdata = manob['data'][ii];
+    let idd = mdata._id.$oid;
+    let metadata = getMetadata(idd);
+
+    if (manga_ids.includes(idd)) {
+      console.log(`Restore ${metadata.entit}`);
+
+      updateTotalProcessStatus(STATUS_RESTORING, true, restored_count, manga_ids.length);
+      updateMangaProcessStatus(idd,STATUS_RESTORING,false);
+
+      let archive_title_dir = `${archive_dir}/${idd}`
+      if (!fs.existsSync(archive_title_dir)) {
+        console.log(" * Deleting previous incomplete archive file")
+        sendProcessErrorMessage(idd, `Archive directory ${archive_title_dir} does not exist!`);
+        return false;
+      }
+
+      let chapter_sets = [mdata.en_data["ch_enh"], mdata.jp_data["ch_jph"]];
+      let processed_chapters=0, total_chapters=0;
+      for (let chapter_set of chapter_sets) {
+          total_chapters += chapter_set.length;
+      }
+
+      for (let cs_i in chapter_sets) {
+        let chapter_set = chapter_sets[cs_i];
+        for (let icc in chapter_set) {
+
+          if (stopProcessing) {
+            console.log("Stopping restoring process")
+            clearProcessStatus();
+            stopProcessing=false;
+            return false;
+          }
+
+          updateMangaProcessStatus(idd,STATUS_RESTORING,false,processed_chapters+1,total_chapters);
+
+          let ch = chapter_set[icc].split("/")[0];
+
+          let archive_file = `${archive_title_dir}/${ch}.zip`
+
+          let cmd = `unzip -o ${archive_file}`
+          console.log(` * Chapter ${cs_i}/${icc} from ${archive_file}`)
+          try {
+            const { stdout, stderr } = await execSync(cmd);
+          } catch (error) {
+            sendProcessErrorMessage(idd, error.stderr);
+            return false;      
+          }
+          processed_chapters += 1;
+        }
+      }
+
+      // check for missing files and set repository status
+      await checkMangaFiles(idd, metadata, mdata);
+
+      updateMangaProcessStatus(idd,STATUS_NONE,false);
+      clearLogFile(idd);
+      console.log(`Restoring ${metadata.entit} completed!`);
+      restored_count += 1;
     }
   }
   clearProcessStatus();
