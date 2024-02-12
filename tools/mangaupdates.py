@@ -84,9 +84,11 @@ parser_select.add_argument('index', type=int, help='search result index number')
 args = vars(parser.parse_args())
 cmd = args.pop('command')
 
-manga_data_file = "../json/admin.manga_data.json"
-manga_metadata_file = "../json/admin.manga_metadata.json"
-ratings_file = "../json/ratings.json"
+base_dir = "./"
+
+manga_data_file = base_dir + "json/admin.manga_data.json"
+manga_metadata_file = base_dir + "json/admin.manga_metadata.json"
+ratings_file = base_dir + "json/ratings.json"
 
 search_url = "http://api.mangaupdates.com/v1/series/search"
 get_series_url = "http://api.mangaupdates.com/v1/series/"
