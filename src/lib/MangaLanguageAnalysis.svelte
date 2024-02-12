@@ -11,14 +11,15 @@ export let manga_data;
 export let current_set = meta.total_statistics
 export let avg_set = all_meta_data[0].average_manga.total_statistics;
 
-let individual_set = false;
+let unique_items_set = false;
 let w_per_v_set = false;
+$: custom_analysis_available = 'pct_known_words' in current_set;
 
-const toggleIndividual = () => {
-    console.log("toggleIndividual " + individual_set);
-    if (individual_set) {
-        current_set = meta.individual_statistics
-        avg_set = all_meta_data[0].average_manga.individual_statistics;
+const toggleUnique = () => {
+    console.log("toggleUnique " + unique_items_set);
+    if (unique_items_set) {
+        current_set = meta.unique_statistics
+        avg_set = all_meta_data[0].average_manga.unique_statistics;
     } else {
         current_set = meta.total_statistics
         avg_set = all_meta_data[0].average_manga.total_statistics;
@@ -60,14 +61,21 @@ const set_jlpt_graph_set = () => {
         labels: ['non-JLPT', 'JLPT1', 'JLPT 2', 'JLPT 3', 'JLPT 4', 'JLPT 5','non-JLPT katakana'],
         datasets: [
             {
-            label: 'Current',
+            label: 'This manga',
             data: w_per_v_set ? current_set.jlpt_word_level_per_v : current_set.jlpt_word_level_pct,
+            borderWidth: 1,
+            borderColor: '#555555',
+            backgroundColor: '#eeeeee',
+            },
+            {
+            label: 'This manga (known)',
+            data: w_per_v_set ? current_set.jlpt_known_w_level_per_v : current_set.jlpt_known_w_level_pct,
             borderWidth: 1,
             borderColor: '#005500',
             backgroundColor: '#009900',
             },
             {
-            label: 'Average',
+            label: 'Average manga',
             data: w_per_v_set ? avg_set.jlpt_word_level_per_v : avg_set.jlpt_word_level_pct,
             borderWidth: 1,
             borderColor: '#707070',
@@ -80,14 +88,21 @@ const set_jlpt_graph_set = () => {
         labels: ['non-JLPT', 'JLPT1', 'JLPT 2', 'JLPT 3', 'JLPT 4', 'JLPT 5'],
         datasets: [
             {
-            label: 'Current',
+            label: 'This manga',
             data: w_per_v_set ? current_set.jlpt_kanji_level_per_v : current_set.jlpt_kanji_level_pct,
             borderWidth: 1,
-            borderColor: '#335500',
+            borderColor: '#555555',
+            backgroundColor: '#eeeeee',
+            },
+            {
+            label: 'This manga (known)',
+            data: w_per_v_set ? current_set.jlpt_known_k_level_per_v : current_set.jlpt_known_k_level_pct,
+            borderWidth: 1,
+            borderColor: '#005500',
             backgroundColor: '#009900',
             },
             {
-            label: 'Average',
+            label: 'Average manga',
             data: w_per_v_set ? avg_set.jlpt_kanji_level_per_v : avg_set.jlpt_kanji_level_pct,
             borderWidth: 1,
             borderColor: '#707070',
@@ -134,10 +149,10 @@ const draw = (canvas, data, title) => {
 
 const draw_graphs = () => {
     set_jlpt_graph_set();
-    let txt = 'JLPT ' + (individual_set?'individual':'total') + ' word distribution ' + 
+    let txt = 'JLPT ' + (unique_items_set?'unique':'total') + ' word distribution ' + 
         (w_per_v_set?'per volume':'(%)')
     draw('JLPT_word_chart', jlpt_word_data,txt);
-    txt = 'JLPT ' + (individual_set?'individual':'total') + ' kanji distribution ' + 
+    txt = 'JLPT ' + (unique_items_set?'unique':'total') + ' kanji distribution ' + 
         (w_per_v_set?'per volume':'(%)')
     draw('JLPT_kanji_chart', jlpt_kanji_data,txt);
 }
@@ -164,8 +179,33 @@ const colorizeDifference = (a,b) => {
 <div class="container">
     <div class="subcontainer">
         <div>
-            <ToggleSwitch onLabel="Individual kanjis/words" offLabel="All kanjis/words" bind:switchPosition={individual_set} on:switchChanged={toggleIndividual}></ToggleSwitch>
+            <ToggleSwitch onLabel="Unique kanjis/words" offLabel="All kanjis/words" bind:switchPosition={unique_items_set} on:switchChanged={toggleUnique}></ToggleSwitch>
         </div>
+    
+        {#if custom_analysis_available}
+        <table>
+            <tr>
+                <th>Your statistics</th>
+                <th>Whole series</th>
+                <th>Next unread volume(chapter)</th>
+            </tr>
+            <tr>
+                <th>Comprehension %</th>
+                <td>{current_set.pct_known_words}</td>
+                <td>{current_set.pct_known_words_next_ch}</td>
+            </tr>
+            <tr>
+                <th>Unknown words</th>
+                <td>{current_set.num_unknown_words}</td>
+                <td>{current_set.num_unknown_words_next_ch}</td>
+            </tr>
+            <tr>
+                <th>Unknown kanjis</th>
+                <td>{current_set.num_unknown_kanjis}</td>
+                <td>{current_set.num_unknown_kanjis_next_ch}</td>
+            </tr>
+        </table>
+        {/if}
         <table>
             <tr>
                 <th></th>

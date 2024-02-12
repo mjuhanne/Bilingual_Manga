@@ -1,12 +1,21 @@
 import fs from "fs"
 
+export const EVENT_TYPE = {
+    CONNECTED           : "OK",
+    UPDATING_STATS      : "Updating statistics",
+    UPDATING_ANALYSIS   : "Updating analysis",
+    UPDATED_STATS       : "Statistics updated",
+    UPDATED_ANALYSIS    : "Analysis updated",
+    CALCULATION_ERROR   : "Error calculating comprehension data",
+}
+
 const empty_reading_status = {
     'status':'Unread',
     'comprehension' : 0,
 };
 
 export const saveUserData = (db) => {
-    console.log("saveUserData: " + JSON.stringify(db['user_data']));
+    console.log("saveUserData"); // + JSON.stringify(db['user_data']));
 	fs.writeFile ("json/user_data.json", JSON.stringify(db['user_data']), function(err) {
 		if (err) throw err;
 		});
@@ -20,6 +29,79 @@ export const checkUserData = (user_data) => {
         user_data["chapter_reading_status"] = {};
     }
 }
+
+export const AugmentMetadataWithCustomLanguageSummary = (manga_metadata, custom_lang_summary) => {
+    let manga_titles = manga_metadata['0'].manga_titles;
+    let ls = custom_lang_summary['analysis']['series_analysis'];
+    console.log("Augment manga_metadata with custom language summary for " + Object.keys(ls).length + " titles");
+    
+    manga_metadata['0'].custom_lang_summary_timestamp = custom_lang_summary['timestamp']
+    manga_titles.forEach(element => {
+        let id = element.enid;
+
+        if (id in ls) {
+            let l = ls[id];
+            element['total_statistics']['pct_known_words'] = l['total_statistics']['words']['pct_known'];
+            element['unique_statistics']['pct_known_words'] = l['unique_statistics']['words']['pct_known'];
+
+            element['total_statistics']['pct_known_kanjis'] = l['total_statistics']['kanjis']['pct_known'];
+            element['unique_statistics']['pct_known_kanjis'] = l['unique_statistics']['kanjis']['pct_known'];
+
+            element['total_statistics']['num_unknown_words'] = l['total_statistics']['words']['num_unknown'];
+            element['unique_statistics']['num_unknown_words'] = l['unique_statistics']['words']['num_unknown'];
+
+            element['total_statistics']['num_unknown_kanjis'] = l['total_statistics']['kanjis']['num_unknown'];
+            element['unique_statistics']['num_unknown_kanjis'] = l['unique_statistics']['kanjis']['num_unknown'];
+
+            element['total_statistics']['jlpt_known_k_level_pct'] = l['total_statistics']['kanjis']['jlpt_level_pct'];
+            element['unique_statistics']['jlpt_known_k_level_pct'] = l['unique_statistics']['kanjis']['jlpt_level_pct'];
+            element['total_statistics']['jlpt_known_w_level_pct'] = l['total_statistics']['words']['jlpt_level_pct'];
+            element['unique_statistics']['jlpt_known_w_level_pct'] = l['unique_statistics']['words']['jlpt_level_pct'];
+            element['total_statistics']['jlpt_known_k_level_per_v'] = l['total_statistics']['kanjis']['jlpt_level_per_v'];
+            element['unique_statistics']['jlpt_known_k_level_per_v'] = l['unique_statistics']['kanjis']['jlpt_level_per_v'];
+            element['total_statistics']['jlpt_known_w_level_per_v'] = l['total_statistics']['words']['jlpt_level_per_v'];
+            element['unique_statistics']['jlpt_known_w_level_per_v'] = l['unique_statistics']['words']['jlpt_level_per_v'];
+        }
+    });
+
+    ls = custom_lang_summary['analysis']['next_unread_chapter_analysis'];
+    console.log("Augment manga_metadata with custom language summary for " + Object.keys(ls).length + " next unread chapters");
+    
+    manga_titles.forEach(element => {
+        let id = element.enid;
+
+        if (id in ls) {
+            let l = ls[id];
+            element['total_statistics']['pct_known_words_next_ch'] = l['total_statistics']['words']['pct_known'];
+            element['unique_statistics']['pct_known_words_next_ch'] = l['unique_statistics']['words']['pct_known'];
+
+            element['total_statistics']['pct_known_kanjis_next_ch'] = l['total_statistics']['kanjis']['pct_known'];
+            element['unique_statistics']['pct_known_kanjis_next_ch'] = l['unique_statistics']['kanjis']['pct_known'];
+
+            element['total_statistics']['num_unknown_words_next_ch'] = l['total_statistics']['words']['num_unknown'];
+            element['unique_statistics']['num_unknown_words_next_ch'] = l['unique_statistics']['words']['num_unknown'];
+
+            element['total_statistics']['num_unknown_kanjis_next_ch'] = l['total_statistics']['kanjis']['num_unknown'];
+            element['unique_statistics']['num_unknown_kanjis_next_ch'] = l['unique_statistics']['kanjis']['num_unknown'];
+
+        }
+    });
+
+    ls = custom_lang_summary['analysis']['series_analysis_for_jlpt'];
+    console.log("Augment manga_metadata with custom language summary for " + Object.keys(ls).length + " JLPT series analysis");
+    
+    manga_titles.forEach(element => {
+        let id = element.enid;
+
+        if (id in ls) {
+            let l = ls[id];
+            element['jlpt_improvement_pts'] = l['relative_points'];
+            element['jlpt_improvement_words'] = l['num_new_known_words'];
+            element['jlpt_improvement_kanjis'] = l['num_new_known_kanjis'];
+        }
+    });
+
+};
 
 export const AugmentMetadataWithUserData = (db) => {
 

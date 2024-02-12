@@ -13,6 +13,7 @@ export async function load(event)
      let jsonc = JSON.stringify(m);
      jsonc=JSON.parse(jsonc)
 
+    jsonc[0].user_data = db['user_data']
     jsonc[0].cdn1=jsonc[0].cdn1.replace("localhost",ip.address())
     jsonc[0].ipfsgate1=jsonc[0].ipfsgate1.replace("localhost",ip.address())
      if(true)

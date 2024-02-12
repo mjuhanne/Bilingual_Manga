@@ -15,6 +15,10 @@ let common_sort_options = {
     'Total words': { s:'total_statistics', field: 'num_words',     is_value:true, subheading_template:'_ words', rev:true },
     'Words/page': { s:'total_statistics', field: 'w_per_p',       is_value:true, subheading_template:'_ words/page', rev:true },
     'Kanji/word': { s:'total_statistics', field: 'k_per_w_pct',  is_value:true, subheading_template:'Kanjis/word _ %', rev:true },
+    'Comprehension': { s:'total_statistics', field: 'pct_known_words',  is_value:true, subheading_template:'Comprehension _ %', rev:true },
+    'Next chp comp': { s:'total_statistics', field: 'pct_known_words_next_ch',  is_value:true, subheading_template:'Next chapter comp _ %', rev:true },
+    'Next chp unkn words': { s:'unique_statistics', field: 'num_unknown_words_next_ch',  is_value:true, subheading_template:'_ unk w in next chp', rev:true },
+    'JLPT improvement': { s:'', field: 'jlpt_improvement_pts',  is_value:true, subheading_template:'_ pts', rev:true },
 };
 
 
