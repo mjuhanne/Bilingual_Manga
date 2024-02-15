@@ -1,9 +1,20 @@
 <script>
+	import { createEventDispatcher } from 'svelte';
+
+	const dispatch = createEventDispatcher();
 	export let showModal; // boolean
 
 	let dialog; // HTMLDialogElement
 
+	export let buttons = ['Close']
+
 	$: if (dialog && showModal) dialog.showModal();
+	$: if (dialog && !showModal) dialog.close();
+
+	function clicked(button) {
+		dispatch('buttonClicked', button);
+	}
+	
 </script>
 
 <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-noninteractive-element-interactions -->
@@ -19,13 +30,21 @@
 		<slot />
 		<hr />
 		<!-- svelte-ignore a11y-autofocus -->
-		<button autofocus on:click={() => dialog.close()}>Close</button>
+		<div class="buttons-div">
+			{#each buttons as b}
+				{#if b=='Close'}
+				<button autofocus on:click={() => dialog.close()}>Close</button>
+				{:else}
+				<button on:click={() => clicked(b)}>{b}</button>
+				{/if}
+			{/each}
+		</div>
 	</div>
 </dialog>
 
 <style>
 	dialog {
-		max-width: 32em;
+		max-width: 40em;
 		border-radius: 0.5em;
 		border: none;
 		padding: 0;
@@ -67,15 +86,20 @@
 
         text-decoration: none;
         padding:7px;
-        margin: 0 auto;
+        margin: 0;
+		margin-right: 10px;
         background:#333;
         border-radius:5px;
         font-size: 0.9rem;
         font-weight:bold;
+		display:inline-block;
 	}
     button:hover{
         cursor: pointer;
         background:rgb(125, 125, 125)
     }
+	.buttons-div {
+		text-align: right;
+	}
 
 </style>

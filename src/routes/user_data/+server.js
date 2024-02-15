@@ -52,19 +52,22 @@ const updateComprehensionSettings = (settings) => {
 	AugmentMetadataWithUserData(db);
 }
 
-const setReadingStatus = (chapter_ids,reading_data) => {
-    console.log("setReadingStatus")
+
+const massSetChapterReadingStatus = (status_list) => {
+    console.log("massSetChapterReadingStatus")
     let rs = db['user_data']['chapter_reading_status'];
-    for (let c_id of chapter_ids) {
-        console.log("Processing " + c_id);
+    for (const [c_id, reading_data] of Object.entries(status_list)) {
         if (c_id in rs) {
             if (reading_data.status == 'Unread') {
+                console.log(" * Unread " + c_id);
                 delete rs[c_id];
             } else {
+                console.log(" * Modified " + c_id + ": " + JSON.stringify(reading_data));
                 rs[c_id] = reading_data;
             }
         } else {
             if (reading_data.status != 'Unread') {
+                console.log(" * New " + c_id + ": " + JSON.stringify(reading_data));
                 rs[c_id] = reading_data;
             }
         }
@@ -72,24 +75,8 @@ const setReadingStatus = (chapter_ids,reading_data) => {
     db['user_data']['chapter_reading_status'] = rs;
     updateCustomLanguageAnalysis();
 	AugmentMetadataWithUserData(db);
-	return reading_data;
 }
 
-const updateComprehension = (chapter_ids, comprehension) => {
-    console.log("updateComprehension")
-    let rs = db['user_data']['chapter_reading_status'];
-    for (let c_id of chapter_ids) {
-        if (c_id in rs) {
-            rs[c_id].comprehension = comprehension;
-        } else {
-            throw ("Chapter " + c_id + " reading status not yet set!");
-        }
-    }
-    db['user_data']['chapter_reading_status'] = rs;
-    updateCustomLanguageAnalysis();
-	AugmentMetadataWithUserData(db);
-	return comprehension;
-}
 
 async function updateCustomLanguageAnalysis() {
     console.log("updateCustomLanguageAnalysis");
@@ -258,16 +245,9 @@ export async function POST({ request }) {
             success : true,
             'favourite' : toggleFavourite(data.manga_id)
         };
-	} else if (data.func == 'set_reading_status') {
-        ret= {
-            success : true,
-            'reading_status' : setReadingStatus(data.chapters, data.reading_data),
-        };
-	} else if (data.func == 'update_comprehension') {
-        ret= {
-            success : true,
-            'comprehension' : updateComprehension(data.chapters, data.comprehension),
-        };
+	} else if (data.func == 'mass_set_chapter_reading_status') {
+        massSetChapterReadingStatus(data.status_list),
+        ret= {success : true};
     } else if (data.func == 'get_suggested_preread') {
         ret= await getSuggestedPreread(data.manga_id);
         return json(ret);
