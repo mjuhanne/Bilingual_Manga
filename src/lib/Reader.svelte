@@ -14,6 +14,8 @@
 	let checkjp=false;
 	let pauseen=false;
 	let pausejp=false;
+	export let id=''; // manga id
+	export let cid=''; // chapter id
 	export let prel=0	
 	export let delayml=10000	
 	export let lang="JP";
@@ -28,8 +30,8 @@
 	export let volumesjp={};
 	export let vi=0;
 	export let vj=0;
-	export let iii;
-	export let jjj;
+	export let iii; // eng vol
+	export let jjj; // jap vol
 	export let updown=true;
 	export let upt="🡅";
 	let src_o={};
@@ -45,8 +47,8 @@
 	
 	$:j=0;
 	$: langds=lang==="JP"?"ENG":"JP";
-	export let jpp = [0];
-	export let enp = [0];
+	export let jpp = [0];  // jap page
+	export let enp = [0];  // eng page
 	let scrollon=false;
 	onMount(() => {refresh();imgloadercc();scrollon=true;});
 
@@ -437,28 +439,28 @@ for(let ixxx=0;ixxx<=prel;ixxx++)
 	<div id="twoxholder" style="display:flex;justify-content:center;margin:auto;max-height:100vh;max-width:95vw;">
 	<span>
 	<img id="ch-i1" src="/loader.svg" alt="ch-i1" style="margin-left:auto;max-width:47vw;" on:load={img_wid1} on:error={img_wid}/>
-	<Ocr ocr1={ocr} src={src_o1} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
+	<Ocr {id} {cid} bind:page_jp={jpp[0]} ocr1={ocr} src={src_o1} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
 	</span>
 	<span>
 	<img id="ch-i" src="/loader.svg" alt="ch-i" style="margin-right:auto;max-width:47vw;" on:load={img_wid1} on:error={img_wid}/>
-	<Ocr ocr1={ocr} src={src_o} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
+	<Ocr {id} {cid} bind:page_jp={jpp[0]} ocr1={ocr} src={src_o} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
 	</span>
 	</div>
 	{:else}
 	<div id="twoxholder" style="display:flex;justify-content:center;margin:auto;max-height:100vh;max-width:95vw;">
 		<span>
 		<img id="ch-i" src="/loader.svg" alt="ch-i" style="margin-right:auto;max-width:47vw;" on:load={img_wid1} on:error={img_wid}/>
-		<Ocr ocr1={ocr} src={src_o} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
+		<Ocr {id} {cid} bind:page_jp={jpp[0]} ocr1={ocr} src={src_o} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
 		</span>
 		<span>
 		<img id="ch-i1" src="/loader.svg" alt="ch-i1" style="margin-left:auto;max-width:47vw;" on:load={img_wid1} on:error={img_wid}/>
-		<Ocr ocr1={ocr} src={src_o1} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
+		<Ocr {id} {cid} bind:page_jp={jpp[0]} ocr1={ocr} src={src_o1} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
 		</span>
 		</div>
 	{/if}	
 	{:else}
 	<img id="ch-i" src="/loader.svg" alt="ch-i" style="margin:auto;" on:load={img_wid1} on:error={img_wid}/>
-	<Ocr ocr1={ocr} src={src_o} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
+	<Ocr {id} {cid} ocr1={ocr} bind:page_jp={jpp[0]} src={src_o} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
 	{/if}
 
 </div>

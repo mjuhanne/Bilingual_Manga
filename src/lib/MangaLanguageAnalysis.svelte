@@ -68,7 +68,7 @@ const set_jlpt_graph_set = () => {
             backgroundColor: '#eeeeee',
             },
             {
-            label: 'This manga (known)',
+            label: 'This manga (known / pre-known)',
             data: w_per_v_set ? current_set.jlpt_known_w_level_per_v : current_set.jlpt_known_w_level_pct,
             borderWidth: 1,
             borderColor: '#005500',
@@ -95,7 +95,7 @@ const set_jlpt_graph_set = () => {
             backgroundColor: '#eeeeee',
             },
             {
-            label: 'This manga (known)',
+            label: 'This manga (known / pre-known)',
             data: w_per_v_set ? current_set.jlpt_known_k_level_per_v : current_set.jlpt_known_k_level_pct,
             borderWidth: 1,
             borderColor: '#005500',

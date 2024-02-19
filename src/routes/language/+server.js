@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import db from "$lib/db";
 import { AugmentMetadataWithUserData, saveUserData } from "$lib/UserDataTools.js";
+import { STAGE } from '$lib/LearningStages.js'
 import fs from "fs";
 import {exec} from "node:child_process";
 import util from "node:util";
@@ -9,10 +10,6 @@ const execSync = util.promisify(exec);
 function delay(time) {
     return new Promise(resolve => setTimeout(resolve, time));
 }
-
-const DEFAULT_LEARNING_LEVEL = 2
-const DEFAULT_KNOWN_LEVEL = 5
-const DEFAULT_SKIPPED_LEVEL = 0
 
 const USER_DIR = 'lang/user';
 
@@ -25,16 +22,28 @@ function parseLanguageReactorJson(data) {
     for (let i in json_data) {
         let item = json_data[i];
         if (item['itemType'] == 'WORD') {
-            let stage = DEFAULT_SKIPPED_LEVEL;
+            let stage = STAGE.UNKNOWN;
             let ll_stage = item['learningStage']
             if (ll_stage == 'LEARNING') {
-                stage = DEFAULT_LEARNING_LEVEL;
+                stage = STAGE.LEARNING;
             } else if (ll_stage == 'KNOWN') {
-                stage = DEFAULT_KNOWN_LEVEL;
+                stage = STAGE.KNOWN;
+            } else if (ll_stage == 'SKIPPED') {
+                stage = STAGE.IGNORED;
             }
             let lemma = item['word']['text']
-            let timestamp = item['timeModified_ms']
-            words[lemma] = { 'stage':stage, 'timestamp':timestamp }
+            let timestamp = Math.trunc(item['timeModified_ms']/1000);
+
+            let comment = '';
+            try {
+                let ref = item.context.phrase.reference
+                comment = ref.source + ' / ' + ref.title;
+            } catch(err) {
+                comment = "Couldn't retrieve word reference";
+            }
+
+            let metadata = { 'comment' : comment };
+            words[lemma] = { 's':stage, 't':timestamp, 'm' : metadata }
         }
     }
     console.log(`Language Reactor word list with ${Object.keys(words).length} words`);

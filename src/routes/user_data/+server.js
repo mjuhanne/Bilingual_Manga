@@ -1,11 +1,13 @@
 import { json } from '@sveltejs/kit';
 import db from "$lib/db";
-import { AugmentMetadataWithUserData, AugmentMetadataWithCustomLanguageSummary, saveUserData, EVENT_TYPE } from "$lib/UserDataTools.js";
+import { AugmentMetadataWithUserData, AugmentMetadataWithCustomLanguageSummary, saveUserData, saveUserSetWords, EVENT_TYPE } from "$lib/UserDataTools.js";
 import fs from "fs";
 import {exec} from "node:child_process";
 import util from "node:util";
 const execSync = util.promisify(exec);
 import { EventEmitter } from 'node:events';
+
+const LEARNING_STAGE_CHANGE_REMORSE_PERIOD = 60*60; // 1 hour
 
 let clients = [];
 let update_process_lock = false;
@@ -43,10 +45,13 @@ const toggleFavourite = (manga_id) => {
 	return favourite;
 }
 
-const updateComprehensionSettings = (settings) => {
+const updateLearningSettings = (settings) => {
+    /*
     for (let k of Object.keys(settings)) {
         db['user_data'][k] = settings[k];
     }
+    */
+    db['user_data']['learning_settings'] = settings
 	saveUserData(db);
     updateCustomLanguageAnalysis();
 	AugmentMetadataWithUserData(db);
@@ -119,7 +124,7 @@ async function updateCustomLanguageAnalysis() {
         }
     } while(redo_process);
     console.log("updateCustomLanguageAnalysis - analysis done")
-    db['user_data']['timestamp'] = Math.trunc(Date.now()/1000); // use seconds instead of msec
+    db['user_data']['timestamp'] = Date.now()/1000;
     saveUserData(db); // save timestamp
     updateMetadata();
     broadcastEvent(EVENT_TYPE.UPDATED_ANALYSIS);
@@ -127,7 +132,7 @@ async function updateCustomLanguageAnalysis() {
 }
 
 async function doCustomLangAnalysis(cmd, manga_id) {
-    let exec_cmd = `python tools/bm_custom_lang_analysis.py ${cmd} ${manga_id}`
+    let exec_cmd = `python tools/bm_learning_engine.py ${cmd} ${manga_id}`
     try {
         const { stdout, stderr } = await execSync(exec_cmd);
         } catch (error) {
@@ -185,6 +190,30 @@ async function getSuggestedPreread(manga_id) {
     }
 }
 
+const updateManuallySetWordLearningStage = (data) => {
+    let word = data.word;
+    let stage = data.stage;
+    let word_metadata = data.metadata;
+    let timestamp = Math.trunc(Date.now()/1000);
+    let history_entry = { 't' : timestamp, 's':stage, 'm':word_metadata};
+    let replaced_last_entry = false;
+    if (word in db['user_set_words']) {
+        let word_history = db['user_set_words'][word];
+        let last_timestamp = word_history[word_history.length-1].t;
+        if (timestamp - last_timestamp < LEARNING_STAGE_CHANGE_REMORSE_PERIOD) {
+            word_history[word_history.length-1] = history_entry
+            replaced_last_entry = true;
+        } else {
+            word_history.push(history_entry);
+        }
+    } else {
+        db['user_set_words'][word] = [history_entry];
+    }
+	saveUserSetWords(db);
+    // TODO: We don't want to do this every time a single word status changes
+    //updateCustomLanguageAnalysis();
+    return replaced_last_entry;
+}
 
 function broadcastEvent(event_type) {
     console.log("broadcastEvent " + event_type);
@@ -251,8 +280,14 @@ export async function POST({ request }) {
     } else if (data.func == 'get_suggested_preread') {
         ret= await getSuggestedPreread(data.manga_id);
         return json(ret);
-    } else if (data.func == 'update_comprehension_settings') {
-        updateComprehensionSettings(data.settings);
+    } else if (data.func == 'update_learning_settings') {
+        updateLearningSettings(data.settings);
+        ret= {success : true};
+    } else if (data.func == 'update_manually_set_word_learning_stage') {        
+        ret= {
+            success : true, 
+            'replaced_last_entry' : updateManuallySetWordLearningStage(data.stage_data)
+        };
     }
     console.log("POST /user_data return: " + JSON.stringify(ret));
 	return json(ret);
