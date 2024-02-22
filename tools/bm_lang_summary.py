@@ -7,25 +7,14 @@ import json
 INVALID_VALUE = -1
 from helper import *
 
-jlpt_kanjis_file = base_dir + "lang/jlpt/jlpt_kanjis.json"
-jlpt_vocab_file =  base_dir + "lang/jlpt/jlpt_vocab.json"
-
 summary_file = base_dir + "json/lang_summary.json"
 
 volume_count_per_title = dict()
 
-jlpt_kanjis = dict()
-jlpt_words = dict()
-
-with open(jlpt_kanjis_file,"r",encoding="utf-8") as f:
-    data = f.read()
-    jlpt_kanjis = json.loads(data)
-
-with open(jlpt_vocab_file,"r",encoding="utf-8") as f:
-    d = f.read()
-    v = json.loads(d)
-    jlpt_words = v['words']
-    jlpt_word_reading_reverse = v['word_reading_reverse']
+jlpt_kanjis = get_jlpt_kanjis()
+read_jlpt_word_file()
+jlpt_words = get_jlpt_words()
+jlpt_word_reading_reverse = get_jlpt_word_reverse_readings()
 
 read_manga_metadata()
 

@@ -68,6 +68,7 @@ enable_forgetting = False
 chapter_comprehension = dict()
 
 jlpt_kanjis = get_jlpt_kanjis()
+read_jlpt_word_file()
 jlpt_words = get_jlpt_words()
 lemma_cache = dict()
 
@@ -117,6 +118,8 @@ def create_manual_event(item_type, item, stage, timestamp, metadata ):
         lifetime_freq[item_type][item] = 0
         learning_freq[item_type][item] = 0
 
+    if trace_item == item:
+        print(" + Created new manual event: " + TRACE_EVENT(event))
 
 # If a word hasn't been seen after remembering_period then downgrade
 # a KNOWN word/kanji to FORGOTTEN. Also PRE_KNOWN stage will be downgraded back to LEARNING
@@ -433,6 +436,11 @@ def update(args):
                 entry['m']['ci'] = idx
 
                 create_manual_event('words', word, entry['s'], entry['t'], entry['m'])
+    
+    if trace_item is not None:
+        if trace_item not in manual_events['words']:
+            if trace_item not in manual_events['kanjis']:
+                print(" !! %s does NOT exist in manual events!" % trace_item)
 
     learning_data['num_unique_known_words_user'] = get_num_manually_set_items('words',STAGE_KNOWN, SOURCE_USER)
     learning_data['num_unique_learning_words_user'] = get_num_manually_set_items('words',STAGE_LEARNING, SOURCE_USER)
