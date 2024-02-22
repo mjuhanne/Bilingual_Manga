@@ -59,6 +59,7 @@ const querys=(key,value)=>{
    let jj=0;
    let iii=0;
 	let jjj=0;
+	export let manga_id;
 	export let delayml=10000;
 	export let prel=0;
 	export let ipfsgate="";
@@ -82,7 +83,7 @@ const querys=(key,value)=>{
 	let vi;
 	let vj;
 	export let lang="JP";
-
+	let current_chapter_id;
 
 	imgs_engo=imgscon(endata.ch_en,endata.ch_enh);
 	imgs_jpo=imgscon(jpdata.ch_jp,jpdata.ch_jph);
@@ -283,7 +284,7 @@ if(imgs_jpo[Object.keys(imgs_jpo)[0]]!=undefined && jj>=0)
 	}
 
 	if (mounted) {
-
+		/*
 		fetch(`${cdncdn1}/ocr/${cid[(cid.length-seljs)]}.json`)
 		.then(response => response.json())
 		.then((data)=>jp_ocr=data)
@@ -293,6 +294,21 @@ if(imgs_jpo[Object.keys(imgs_jpo)[0]]!=undefined && jj>=0)
 		.then((data)=>jp_ocr=data)
 		.catch(err => {jp_ocr={};})
 		})
+		*/
+		current_chapter_id = cid[(cid.length-seljs)];
+		fetch( "/ocr", {
+            headers: {"Content-Type" : "application/json" },
+            method: 'POST',
+            body: JSON.stringify({'func': 'fetch_ocr', 'chapter_id':current_chapter_id}),
+        }).then(response => response.json()).then(
+			(response) => {
+			if (response.success) {
+				jp_ocr = response.ocr;
+			} else {
+				jp_ocr = {};
+			}
+		})
+
 	}
 
 	
@@ -346,7 +362,7 @@ $:{
 
 </script>
 {#if browser}
-<Reader delayml={delayml} prel={prel} bind:imgs_jap={imgs_jap} bind:imgs_eng={imgs_eng} bind:eng_ocr={eng_ocr} bind:jp_ocr={jp_ocr} bind:lang={lang} bind:enp={enp} bind:jpp={jpp} bind:indicator={indicator} bind:chaptersen={chaptersen} bind:iii={iii} bind:chaptersjp={chaptersjp} bind:jjj={jjj} 
+<Reader id={manga_id} cid={current_chapter_id} delayml={delayml} prel={prel} bind:imgs_jap={imgs_jap} bind:imgs_eng={imgs_eng} bind:eng_ocr={eng_ocr} bind:jp_ocr={jp_ocr} bind:lang={lang} bind:enp={enp} bind:jpp={jpp} bind:indicator={indicator} bind:chaptersen={chaptersen} bind:iii={iii} bind:chaptersjp={chaptersjp} bind:jjj={jjj} 
 bind:volumesen={volumesen} bind:volumesjp={volumesjp} bind:vi={vi} bind:vj={vj} bind:check={check}></Reader>
 {/if}
 <style>

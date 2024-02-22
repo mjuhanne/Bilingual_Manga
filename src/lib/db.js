@@ -17,6 +17,14 @@ if (response_cl.ok) {
     console.log("Custom language analysis file not yet created")
 }
 
+let user_set_words = {}
+const response_usw = await fetch('http://localhost:3300/json/user_set_words.json')
+if (response_usw.ok) {
+    user_set_words = await response_usw.json();
+} else {
+    console.log("User set words file not yet created")
+}
+
 let user_data;
 const response_ud = await fetch('http://localhost:3300/json/user_data.json')
 if (response_ud.ok) {
@@ -72,6 +80,7 @@ const admin={
     "lang_summary":lang_summary,
     "user_data":user_data,
     "custom_lang_summary":custom_lang_summary,
+    "user_set_words":user_set_words,
 }
 
 AugmentMetadataWithUserData(admin);

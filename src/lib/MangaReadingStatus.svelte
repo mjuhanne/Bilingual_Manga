@@ -1,6 +1,6 @@
 <script>
 import Modal from './Modal.svelte';
-import { deserialize } from '$app/forms';
+import { date2timestamp, today_timestamp, today_date, timestamp2date} from '$lib/LearningData.js'
 
 export let manga_data;
 export let chapter_ids;
@@ -35,23 +35,6 @@ let new_data = {};
 // for mass setting completion dates
 let first_chapter_completion_date = undefined;
 let last_chapter_completion_date = undefined;
-
-function date2timestamp(date) {
-    return new Date(date).getTime()
-}
-function today_timestamp() {
-    return new Date().getTime();
-}
-function today_date() {
-    return (new Date()).toISOString().substr(0, 10);
-}
-function timestamp2date(ts) {
-    if (ts === undefined) {
-        return today_date();
-    } else {
-        return (new Date(ts)).toISOString().substr(0, 10);
-    }
-}
 
 function updateLabel() {
     buttonLabel = current_data.status;
@@ -193,7 +176,6 @@ const statusChanged = (changed_status) => {
                 new_data.comprehension = various_comprehension;
             }
         }
-
     }
 }
 
@@ -224,7 +206,6 @@ const comprehensionChanged = (changed_comprehension) => {
         }
     }
 }
-
 
 function completionDateChanged() {
     console.log('*' + new_data.completion_date + '*');
@@ -275,7 +256,6 @@ function openDialog() {
 }
 
 function interpolateDates() {
-
     let num_read_chapters = 0
     for (let c_id of chapter_ids) {
         if (new_chapter_reading_status[c_id].status == 'Read') {
@@ -373,7 +353,6 @@ function interpolateDates() {
 </Modal>
 
 <style>
-
 .enclosure {
     color: #eee;
     font-size: 1.0rem;

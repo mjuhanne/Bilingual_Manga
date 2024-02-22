@@ -6,7 +6,8 @@ export const EVENT_TYPE = {
     UPDATING_ANALYSIS   : "Updating analysis",
     UPDATED_STATS       : "Statistics updated",
     UPDATED_ANALYSIS    : "Analysis updated",
-    CALCULATION_ERROR   : "Error calculating comprehension data",
+    ANALYSIS_WARNING    : "Warning during language engine processing",
+    ANALYSIS_ERROR      : "Error during language engine processing",
 }
 
 const empty_reading_status = {
@@ -18,7 +19,14 @@ export const saveUserData = (db) => {
     console.log("saveUserData"); // + JSON.stringify(db['user_data']));
 	fs.writeFile ("json/user_data.json", JSON.stringify(db['user_data']), function(err) {
 		if (err) throw err;
-		});
+    });
+};
+
+export const saveUserSetWords = (db) => {
+    console.log("saveUserSetWords");
+	fs.writeFile ("json/user_set_words.json", JSON.stringify(db['user_set_words']), function(err) {
+		if (err) throw err;
+    });
 };
 
 export const checkUserData = (user_data) => {
@@ -41,11 +49,11 @@ export const AugmentMetadataWithCustomLanguageSummary = (manga_metadata, custom_
 
         if (id in ls) {
             let l = ls[id];
-            element['total_statistics']['pct_known_words'] = l['total_statistics']['words']['pct_known'];
-            element['unique_statistics']['pct_known_words'] = l['unique_statistics']['words']['pct_known'];
+            element['total_statistics']['pct_known_words'] = l['total_statistics']['words']['pct_known_pre_known'];
+            element['unique_statistics']['pct_known_words'] = l['unique_statistics']['words']['pct_known_pre_known'];
 
-            element['total_statistics']['pct_known_kanjis'] = l['total_statistics']['kanjis']['pct_known'];
-            element['unique_statistics']['pct_known_kanjis'] = l['unique_statistics']['kanjis']['pct_known'];
+            element['total_statistics']['pct_known_kanjis'] = l['total_statistics']['kanjis']['pct_known_pre_known'];
+            element['unique_statistics']['pct_known_kanjis'] = l['unique_statistics']['kanjis']['pct_known_pre_known'];
 
             element['total_statistics']['num_unknown_words'] = l['total_statistics']['words']['num_unknown'];
             element['unique_statistics']['num_unknown_words'] = l['unique_statistics']['words']['num_unknown'];
@@ -72,11 +80,11 @@ export const AugmentMetadataWithCustomLanguageSummary = (manga_metadata, custom_
 
         if (id in ls) {
             let l = ls[id];
-            element['total_statistics']['pct_known_words_next_ch'] = l['total_statistics']['words']['pct_known'];
-            element['unique_statistics']['pct_known_words_next_ch'] = l['unique_statistics']['words']['pct_known'];
+            element['total_statistics']['pct_known_words_next_ch'] = l['total_statistics']['words']['pct_known_pre_known'];
+            element['unique_statistics']['pct_known_words_next_ch'] = l['unique_statistics']['words']['pct_known_pre_known'];
 
-            element['total_statistics']['pct_known_kanjis_next_ch'] = l['total_statistics']['kanjis']['pct_known'];
-            element['unique_statistics']['pct_known_kanjis_next_ch'] = l['unique_statistics']['kanjis']['pct_known'];
+            element['total_statistics']['pct_known_kanjis_next_ch'] = l['total_statistics']['kanjis']['pct_known_pre_known'];
+            element['unique_statistics']['pct_known_kanjis_next_ch'] = l['unique_statistics']['kanjis']['pct_known_pre_known'];
 
             element['total_statistics']['num_unknown_words_next_ch'] = l['total_statistics']['words']['num_unknown'];
             element['unique_statistics']['num_unknown_words_next_ch'] = l['unique_statistics']['words']['num_unknown'];

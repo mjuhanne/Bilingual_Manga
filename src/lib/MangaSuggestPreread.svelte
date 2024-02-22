@@ -13,7 +13,7 @@ let sort_reverse=false;
 
 $: custom_analysis_available = 'pct_known_words' in meta.total_statistics;
 
-let message = 'Analyzing..'
+let message = 'Analyzing.. (might take up to a minute)'
 
 export let meta;
 export let manga_data;
@@ -38,8 +38,8 @@ async function fetchData(meta_data) {
         for (let manga of meta_data) {
             if (manga.enid in data.suggested_preread) {
                 let preread = data.suggested_preread[manga.enid];
-                manga.ncuuw = preread['num_common_unique_unknown_words'];
-                manga.ncuuw_per_vol = preread['num_common_unique_unknown_words_per_vol'];
+                manga.ncuuw = preread['num_common_unique_weak_words'];
+                manga.ncuuw_per_vol = preread['num_common_unique_weak_words_per_vol'];
                 manga.improvement_pct = preread['improvement_pct'];
                 manga.relative_improvement = preread['relative_improvement'];
 
@@ -107,8 +107,8 @@ const sortReverseChanged = (e) => {
                 <th>Volumes</th>
                 <th>Rating</th>
                 <th>Comprehension</th>
-                <th>Common unknown words</th>
-                <th>Common unknown words / vol</th>
+                <th>Common weak words</th>
+                <th>Common weak words / vol</th>
                 <th>Comprehension % improvement</th>
                 <th>Relative improvement</th>
             </tr>

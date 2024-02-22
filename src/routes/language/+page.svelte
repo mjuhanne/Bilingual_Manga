@@ -2,15 +2,16 @@
     import {obj} from '$lib/store.js';
     import {onMount} from 'svelte'
     import { EVENT_TYPE } from "$lib/UserDataTools.js";
+    import LearningStageButtons from '$lib/LearningStageButtons.svelte'
+    import { 
+        STAGE, learning_stages, learning_stage_colors, DEFAULT_LEARNING_SETTINGS,
+        date2timestamp, today_date, timestamp2date,
+    } from '$lib/LearningData.js'
 
-    const DEFAULT_KNOWN_WORD_THRESHOLD = 5;
-    const DEFAULT_KNOWN_KANJI_THRESHOLD = 5;
-    const MAX_THRESHOLD = 50;
+    const MAX_THRESHOLD = 30;
+    const MAX_DAYS = 999
 
     let known_word_stats = {};
-    let known_word_threshold;
-    let known_kanji_threshold;
-    let learning_by_reading_enabled = false;
     let settings_changed = false;
     let jlpt_settings_changed = false;
     let cw_settings_changed = false;
@@ -18,18 +19,33 @@
 
     let custom_analysis_available = false;
 
+    let learning_settings = DEFAULT_LEARNING_SETTINGS;
+    let jlpt_word_level = String(DEFAULT_LEARNING_SETTINGS.jlpt_word_level)
+    let jlpt_kanji_level = String(DEFAULT_LEARNING_SETTINGS.jlpt_kanji_level)
+    let enable_jlpt_forgetting = false;
+    let learned_jlpt_date;
+    let enable_custom_forgetting = false;
+    let learned_custom_date;
+
     let eventSource;
     let files;
 
-    let user_data;
     let meta;
 
     obj.subscribe(value => { 
         meta=value;
-        user_data=meta['0'].user_data
-        known_word_threshold = user_data.known_word_threshold !== undefined ? user_data.known_word_threshold : DEFAULT_KNOWN_WORD_THRESHOLD;
-        known_kanji_threshold = user_data.known_kanji_threshold !== undefined ? user_data.known_kanji_threshold : DEFAULT_KNOWN_KANJI_THRESHOLD;
-        learning_by_reading_enabled = user_data.learning_by_reading_enabled !== undefined ? user_data.learning_by_reading_enabled : false;
+        let user_data=meta['0'].user_data
+        if ('learning_settings' in user_data) {
+            for (let k of Object.keys(user_data['learning_settings'])) {
+                learning_settings[k] = user_data['learning_settings'][k];
+            }
+            jlpt_word_level = String(learning_settings.jlpt_word_level)
+            jlpt_kanji_level = String(learning_settings.jlpt_kanji_level)
+            enable_jlpt_forgetting = learning_settings.learned_jlpt_timestamp > 0
+            enable_custom_forgetting = learning_settings.learned_custom_timestamp > 0
+            learned_jlpt_date = timestamp2date(learning_settings.learned_jlpt_timestamp)
+            learned_custom_date = timestamp2date(learning_settings.learned_custom_timestamp)
+        }
         if (!('custom_lang_summary_timestamp' in meta['0'])) {
             // Custom language analysis hasn't been run yet ever. Make settings stale
             settings_changed = true; 
@@ -44,7 +60,7 @@
     let status_msg = 'Not ready';
 
     async function fetchKnownStats() {
-		fetch(`${cdncdn1}/lang/user/known.json`)
+		fetch(`${cdncdn1}/lang/user/learning_data.json`)
 		.then(response => response.json())
 		.then((data)=> {
             known_word_stats=data;
@@ -56,9 +72,7 @@
     }
 
     onMount( () => {
-
         fetchKnownStats();
-
         eventSource = new EventSource('/user_data');
         eventSource.onmessage = (event) => {
             const parsedData = JSON.parse(event.data);
@@ -66,8 +80,9 @@
             if (status_msg == EVENT_TYPE.UPDATED_STATS) {
                 fetchKnownStats();
             } else if (status_msg == EVENT_TYPE.UPDATED_ANALYSIS) {
-                //updateMetadata();
                 status_msg = "Up to date";
+            } else if (status_msg== EVENT_TYPE.ANALYSIS_WARNING) {
+                alert(`${parsedData.msg}`)
             } else if (status_msg== EVENT_TYPE.ANALYSIS_ERROR) {
                 status_msg = "Error while updating"
                 alert(`Error: ${parsedData.msg}`)
@@ -77,18 +92,15 @@
                 }
             }
         };
-
         eventSource.onerror = (event) => {
             console.log("error: " + JSON.stringify(event));
         };
-
         return () => {
             if (eventSource.readyState === 1) {
                 eventSource.close();
             }
         };
     });
-
 
     async function onSettingsChanged() {
         settings_changed = true;
@@ -133,18 +145,14 @@
     }
 
     async function saveSettings() {
+        learning_settings.jlpt_word_level = parseInt(jlpt_word_level)
+        learning_settings.jlpt_kanji_level = parseInt(jlpt_kanji_level)
         const response = await fetch( "/user_data", {
             headers: {"Content-Type" : "application/json" },
             method: 'POST',
             body: JSON.stringify({
-                'func' : 'update_comprehension_settings', 
-                'settings' : {
-                'jlpt_word_level' : user_data.jlpt_word_level,
-                'jlpt_kanji_level' : user_data.jlpt_kanji_level,
-                'learning_by_reading_enabled':learning_by_reading_enabled,
-                'known_word_threshold' : known_word_threshold,
-                'known_kanji_threshold' : known_kanji_threshold,
-                }
+                'func' : 'update_learning_settings', 
+                'settings' : learning_settings,
              })
         });
        /*
@@ -154,6 +162,45 @@
         }
         */
     }
+
+function setLearningStageColor(stage) {
+    // TODO
+}
+
+function onChangedJlptForgetting() {
+    console.log("onChangedJlptForgetting " + enable_jlpt_forgetting)
+    if (enable_jlpt_forgetting) {
+        if (learning_settings.learned_jlpt_timestamp == 0) {
+            learned_jlpt_date=today_date()
+        }
+        learning_settings.learned_jlpt_timestamp=date2timestamp(learned_jlpt_date)
+    } else {
+        learning_settings.learned_jlpt_timestamp = 0
+    }
+    jlpt_settings_changed=true;
+    onSettingsChanged();
+}
+
+function onChangedCustomForgetting() {
+    console.log("onChangedCustomForgetting " + enable_custom_forgetting)
+    if (enable_custom_forgetting) {
+        if (learning_settings.learned_custom_timestamp == 0) {
+            learned_custom_date=today_date()
+        }
+        learning_settings.learned_custom_timestamp=date2timestamp(learned_custom_date)
+    } else {
+        learning_settings.learned_custom_timestamp = 0
+    }
+    onSettingsChanged();
+}
+
+function colorizeByStage(text,stage) {
+    return `<span style="color:${learning_stage_colors[stage]}">${text}</span>`
+}
+
+function colorizeStage(stage) {
+    return colorizeByStage(learning_stages[stage],stage);
+}
 
 </script>
 <div style="margin-top:20px;font-weight: bold;font-size: 2rem;">Language settings</div>
@@ -165,22 +212,31 @@
             <h4 class="subheading">Core knowledge</h4>
             <div class="knowledge-subsection">
                 <span>JLPT word level</span>
-                <select id='jlpt_word_level' bind:value={user_data.jlpt_word_level} on:change={() => {jlpt_settings_changed=true;onSettingsChanged()}}>
+                <select id='jlpt_word_level' bind:value={jlpt_word_level} on:change={() => {jlpt_settings_changed=true;onSettingsChanged()}}>
                     {#each Object.keys(jlpt_word_levels) as wl}
-                        <option value="{wl}">{jlpt_word_levels[wl]}</option>
+                        <option value={wl}>{jlpt_word_levels[wl]}</option>
                     {/each}
                 </select>
             </div>
             <div class="knowledge-subsection">
                 <span>JLPT kanji level</span>
-                <select id='jlpt_kanji_level' bind:value={user_data.jlpt_kanji_level} on:change={() => {jlpt_settings_changed=true;onSettingsChanged()}}>
+                <select id='jlpt_kanji_level' bind:value={jlpt_kanji_level} on:change={() => {jlpt_settings_changed=true;onSettingsChanged()}}>
                     {#each Object.keys(jlpt_kanji_levels) as kl}
-                        <option value="{kl}">{jlpt_kanji_levels[kl]}</option>
+                        <option value={kl}>{jlpt_kanji_levels[kl]}</option>
                     {/each}
                 </select>
             </div>
-            <div class="knowledge-table">
-                <table class:settings_changed={jlpt_settings_changed}>
+            
+            <div class="knowledge-subsection">
+                <label for="enable_jlpt_forgetting">Enable forgetting</label>
+                <input name="enable_jlpt_forgetting" type="checkbox" bind:checked={enable_jlpt_forgetting} on:change={onChangedJlptForgetting}/>
+                {#if enable_jlpt_forgetting}
+                <label for="jlpt_learned_date">Learned on</label>
+                <input class="datepicker" name="jlpt_learned_date" bind:value={learned_jlpt_date} on:change={onChangedJlptForgetting} type="date" />
+                {/if}
+            </div>
+            <div class="knowledge-table-div">
+                <table class="knowledge-table" class:settings_changed={jlpt_settings_changed}>
                     <tr>
                         <th>Unique known words</th>
                         <td>{known_word_stats.num_unique_jlpt_words}</td>
@@ -200,17 +256,17 @@
                 <input type="file" accept=".json"
                 bind:files on:change={ () => { uploadFile("language-reactor-json")} }
                 />
-                <p class="explanation">Upload here JSON file containing 'known' and 'learning' stage words exported from Language Reactor</p>
+                <p class="explanation">Upload here JSON file containing {@html colorizeByStage("known",STAGE.KNOWN)} and {@html colorizeByStage("learning",STAGE.LEARNING)} stage words exported from Language Reactor</p>
             </div>
             <div>
-                <div class="knowledge-table" class:settings_changed={lr_settings_changed}>
-                    <table>
+                <div class="knowledge-table-div" class:settings_changed={lr_settings_changed}>
+                    <table class="knowledge-table">
                         <tr>
                             <th>Unique known words</th>
                             <td>{known_word_stats.num_unique_known_words_lr}</td>
                         </tr>
                         <tr>
-                            <th>Unique learning stage words</th>
+                            <th>Unique {@html colorizeByStage("learning",STAGE.LEARNING)} stage words</th>
                             <td>{known_word_stats.num_unique_learning_words_lr}</td>
                         </tr>
                     </table>
@@ -236,8 +292,16 @@
                 </div>
                 <p class="explanation">Add here a .csv/.tsv file (1 item per line) containing known words and kanjis</p>
             </div>
-            <div class="knowledge-table" class:settings_changed={cw_settings_changed}>
-                <table>
+            <div class="knowledge-subsection">
+                <label for="enable_custom_forgetting">Enable forgetting</label>
+                <input name="enable_custom_forgetting" type="checkbox" bind:checked={enable_custom_forgetting} on:change={onChangedCustomForgetting}/>
+                {#if enable_custom_forgetting}
+                <label for="custom_learned_date">Learned on</label>
+                <input class="datepicker" name="custom_learned_date" bind:value={learned_custom_date} on:change={onChangedCustomForgetting} type="date" />
+                {/if}
+            </div>
+            <div class="knowledge-table-div" class:settings_changed={cw_settings_changed}>
+                <table class="knowledge-table">
                     <tr>
                         <th>Unique known words</th>
                         <td>{known_word_stats.num_unique_known_words_custom}</td>
@@ -247,14 +311,84 @@
                         <td>{known_word_stats.num_unique_known_kanjis_custom}</td>
                     </tr>
                     <tr>
-                        <th>Unique recognized words</th>
-                        <td>{known_word_stats.num_unique_recog_words_custom}</td>
+                        <th>Unique {@html colorizeStage(STAGE.LEARNING)} stage words</th>
+                        <td>{known_word_stats.num_unique_learning_words_custom}</td>
                     </tr>
                     <tr>
-                        <th>Unique recognized kanjis</th>
-                        <td>{known_word_stats.num_unique_recog_kanjis_custom}</td>
+                        <th>Unique {@html colorizeStage(STAGE.LEARNING)} stage kanjis</th>
+                        <td>{known_word_stats.num_unique_learning_kanjis_custom}</td>
                     </tr>
                 </table>
+            </div>
+        </div>
+    </div>
+    <div class="middle-container">
+        <div class="knowledge-section">
+            <h4 class="subheading">Learning stages</h4>
+            <div class="knowledge-subsection">
+                <LearningStageButtons on:clicked={setLearningStageColor} embedded_to_settings_screen=true/>
+            </div>
+            <div class="knowledge-subsection">
+                <table>
+                    <tr>
+                        <th>Colorize words in manga</th>
+                        <td>
+                            <input type="checkbox" bind:checked={learning_settings.colorize} on:change={onSettingsChanged}/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Enable Automatic learning</th>
+                        <td>
+                            <input type="checkbox" bind:checked={learning_settings.automatic_learning_enabled} on:change={onSettingsChanged}/>
+                        </td>
+                    </tr>
+                    <p class="explanation">This setting will automatically change the learning stage of read words and kanjis when their occurrence reaches the thresholds configured below</p>
+                    Occurrence thresholds
+                    <tr>
+                        <th>Graduate word to {@html colorizeStage(STAGE.LEARNING)} stage</th>
+                        <td>
+                            <input type="number" bind:value={learning_settings.learning_word_threshold} min="0" max="{MAX_THRESHOLD}" on:change={onSettingsChanged}/>
+                        </td>
+                        
+                    </tr>
+                    <tr>
+                        <th>Graduate kanji to  {@html colorizeStage(STAGE.LEARNING)} stage</th>
+                        <td>
+                            <input type="number" bind:value={learning_settings.learning_kanji_threshold} min="0" max="{MAX_THRESHOLD}" on:change={onSettingsChanged}/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Graduate word to {@html colorizeStage(STAGE.KNOWN)}/{@html colorizeStage(STAGE.PRE_KNOWN)} stage</th>
+                        <td>
+                            <input type="number" bind:value={learning_settings.known_word_threshold} min="0" max="{MAX_THRESHOLD}" on:change={onSettingsChanged}/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Graduate kanji to {@html colorizeStage(STAGE.KNOWN)}/{@html colorizeStage(STAGE.PRE_KNOWN)} stage</th>
+                        <td>
+                            <input type="number" bind:value={learning_settings.known_kanji_threshold} min="0" max="{MAX_THRESHOLD}" on:change={onSettingsChanged}/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Maximum # regarded encounters per chapter</th>
+                        <td>
+                            <input type="number" bind:value={learning_settings.max_encounters_per_chapter} min="0" max="{MAX_THRESHOLD}" on:change={onSettingsChanged}/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Automatic graduation to {@html colorizeStage(STAGE.KNOWN)}</th>
+                        <td>
+                            <input type="checkbox" bind:checked={learning_settings.automatic_graduation_to_known} on:change={onSettingsChanged}/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Set status to {@html colorizeStage(STAGE.FORGOTTEN)} if not encountered in x days (0 = disabled)</th>
+                        <td>
+                            <input type="number" bind:value={learning_settings.initial_remembering_period} min="0" max={MAX_DAYS} on:change={onSettingsChanged}/>
+                        </td>
+                    </tr>
+                </table>
+
             </div>
         </div>
     </div>
@@ -272,67 +406,64 @@
             </div>
         </div>
 
+
         <div class="knowledge-section">
-            <h4 class="subheading">Learning by reading</h4>
-            <div class="knowledge-subsection">
+            <h4 class="subheading">Reading statistics</h4>
+            <div class="knowledge-subsection" class:settings_changed={settings_changed}>
                 <table>
                     <tr>
-                        <th>Enabled</th>
-                        <td>
-                            <input type="checkbox" bind:checked={learning_by_reading_enabled} on:change={onSettingsChanged}/>
-                        </td>
+                        <th>Total words read</th>
+                        <td>{known_word_stats.num_words}</td>
                     </tr>
                     <tr>
-                        <th>Known word threshold</th>
-                        <td>
-                            <input type="number" bind:value={known_word_threshold} min="0" max="{MAX_THRESHOLD}" on:change={onSettingsChanged}/>
-                        </td>
+                        <th>Total kanjis read</th>
+                        <td>{known_word_stats.num_kanjis}</td>
                     </tr>
                     <tr>
-                        <th>Known kanji threshold</th>
-                        <td>
-                            <input type="number" bind:value={known_kanji_threshold} min="0" max="{MAX_THRESHOLD}" on:change={onSettingsChanged}/>
-                        </td>
+                        <th>Total pages read</th>
+                        <td>{known_word_stats.num_pages}</td>
                     </tr>
-                    <p class="explanation">This setting will automatically mark read words and kanjis known when their occurrence reaches the thresholds configured above</p>
-
-                    <table class:settings_changed={settings_changed}>
-                        <tr>
-                            <th>Total words read</th>
-                            <td>{known_word_stats.num_words}</td>
-                        </tr>
-                        <tr>
-                            <th>Total kanjis read</th>
-                            <td>{known_word_stats.num_kanjis}</td>
-                        </tr>
-                        <tr>
-                            <th>Total pages read</th>
-                            <td>{known_word_stats.num_pages}</td>
-                        </tr>
-                        <tr>
-                            <th>New words by reading</th>
-                            <td>{known_word_stats.num_unique_known_words_by_reading}</td>
-                        </tr>
-                        <tr>
-                            <th>New kanjis by reading</th>
-                            <td>{known_word_stats.num_unique_known_kanjis_by_reading}</td>
-                        </tr>
-                        <tr>
-                            <th>New recognized words</th>
-                            <td>{known_word_stats.num_unique_recog_words_by_reading}</td>
-                        </tr>
-                        <tr>
-                            <th>New recognized kanjis</th>
-                            <td>{known_word_stats.num_unique_recog_kanjis_by_reading}</td>
-                        </tr>
-                    </table>
+                    <tr>
+                        <th>New known words after reading</th>
+                        <td>{known_word_stats.num_unique_known_words_by_reading}</td>
+                    </tr>
+                    <tr>
+                        <th>New known kanjis after reading</th>
+                        <td>{known_word_stats.num_unique_known_kanjis_by_reading}</td>
+                    </tr>
+                    <tr>
+                        <th>New {@html colorizeByStage("pre-known",STAGE.PRE_KNOWN)} words after reading</th>
+                        <td>{known_word_stats.num_unique_pre_known_words_by_reading}</td>
+                    </tr>
+                    <tr>
+                        <th>New {@html colorizeByStage("pre-known",STAGE.PRE_KNOWN)} kanjis after reading</th>
+                        <td>{known_word_stats.num_unique_pre_known_kanjis_by_reading}</td>
+                    </tr>
+                    <tr>
+                        <th>New {@html colorizeByStage("learning",STAGE.LEARNING)} stage words</th>
+                        <td>{known_word_stats.num_unique_learning_words_by_reading}</td>
+                    </tr>
+                    <tr>
+                        <th>New {@html colorizeByStage("learning",STAGE.LEARNING)} stage kanjis</th>
+                        <td>{known_word_stats.num_unique_learning_kanjis_by_reading}</td>
+                    </tr>
+                    <tr>
+                        <th>{@html colorizeByStage("Forgotten",STAGE.FORGOTTEN)} words</th>
+                        <td>{known_word_stats.num_unique_forgotten_words}</td>
+                    </tr>
+                    <tr>
+                        <th>{@html colorizeByStage("Forgotten",STAGE.FORGOTTEN)} kanjis</th>
+                        <td>{known_word_stats.num_unique_forgotten_kanjis}</td>
+                    </tr>
+                </table>
             </div>
         </div>
+
 
         <div class="knowledge-section">
             <h4 class="subheading">Total statistics</h4>
             <div class="knowledge-subsection" class:settings_changed={settings_changed}>
-                <table>
+                <table class="knowledge-table">
                     <tr>
                         <th>Total # of unique words</th>
                         <td>{known_word_stats.num_unique_words}</td>
@@ -366,7 +497,7 @@
 }
 .main-container {
     display: grid;
-    grid-template-columns: 5fr 5fr;
+    grid-template-columns: 5fr 5fr 5fr;
     justify-items: start;
     grid-gap: 0px;
     margin: 10px;
@@ -392,9 +523,11 @@
 
 td {
     text-align: right;
+    font-size: 14px;
 }
 th {
     text-align: left;
+    font-size: 14px;
 }
 
 .subheading {
@@ -413,13 +546,19 @@ th {
 
 .knowledge-subsection {
     text-align: left;
-    padding: 15px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    padding-left: 15px;
+    padding-right: 15px;
 }
 
-.knowledge-table {
+.knowledge-table-div {
     padding-top: 0px;
     padding-left: 15px;
     padding-bottom: 15px;
+}
+.knowledge-table {
+    width: 90%;
 }
 
 .updatebutton {
@@ -443,4 +582,9 @@ th {
 .settings_changed {
     color: #666666;
 }
+
+input {
+    font-family: Arial, Helvetica,'Noto Sans Symbols 2',sans-serif;
+}
+
 </style>

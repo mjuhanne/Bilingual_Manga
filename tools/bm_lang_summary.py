@@ -2,26 +2,17 @@
 #
 # This script calculates aggregate kanji and word count data as well as word distribution
 # for each 5 JLPT levels. The resulting data is saved into lang_summary.json file.
-import os
 import json
 
-AVERAGE_PAGES_PER_VOLUME = 180
 INVALID_VALUE = -1
+from helper import *
 
-base_dir = "./"
-manga_metadata_file = base_dir + "json/admin.manga_metadata.json"
-manga_data_file = base_dir + "json/admin.manga_data.json"
-#chapter_dir = base_dir + "lang/chapters/"
-title_dir = base_dir + "lang/titles/"
 jlpt_kanjis_file = base_dir + "lang/jlpt/jlpt_kanjis.json"
 jlpt_vocab_file =  base_dir + "lang/jlpt/jlpt_vocab.json"
 
 summary_file = base_dir + "json/lang_summary.json"
 
-title_names = dict()
 volume_count_per_title = dict()
-
-unique_jlpt_words = dict()
 
 jlpt_kanjis = dict()
 jlpt_words = dict()
@@ -36,15 +27,7 @@ with open(jlpt_vocab_file,"r",encoding="utf-8") as f:
     jlpt_words = v['words']
     jlpt_word_reading_reverse = v['word_reading_reverse']
 
-with open(manga_metadata_file,"r",encoding="utf-8") as f:
-    data = f.read()
-    manga_metadata = json.loads(data)
-    manga_titles = manga_metadata[0]['manga_titles']
-    for t in manga_titles:
-        title_id = t['enid']
-        title_name = t['entit']
-        title_names[title_id] = title_name
-        #title_name_to_id[title_name] = title_id
+read_manga_metadata()
 
 volume_count_corrections = {
     'Bakemonogatari' : 13,
@@ -62,8 +45,7 @@ with open(manga_data_file,"r",encoding="utf-8") as f:
         volume_ids = [vid.split('/')[0] for vid in volume_ids]
         pages = m['jp_data']['ch_jp']
 
-        name = title_names[title_id]
-
+        name = get_title_by_id(title_id)
         # it's very complex to count how many volumes the manga has because
         # sometimes the listed chapters are actually volumes. Then there are extras 
         # and few times it's a mixed bag. 
@@ -110,16 +92,6 @@ with open(manga_data_file,"r",encoding="utf-8") as f:
 
         volume_count_per_title[title_id] = volume_count
 
- 
-katakana = list(
-    "ァアィイゥウェエォオカガキギクグケゲコゴサザシジスズ"
-    "セゼソゾタダチヂッツヅテデトドナニヌネノハバパヒビピ"
-    "フブプヘベペホボポマミムメモャヤュユョヨラリルレロワ"
-    "ヲンーヮヰヱヵヶヴヽヾ"
-)
-
-def is_katakana_word(word):
-    return all(c in katakana for c in word)
 
 # This calculates word and kanji distribution for each JLPT levels (1-5)
 # 0 = non-Katakana non-JLPT word, 6=Katakana non-JLPT word
@@ -235,6 +207,7 @@ def save_summary():
 
     summary = dict()
 
+    title_names = get_title_names()
     num_titles = len(title_names)
 
     total_pages = 0
@@ -244,7 +217,7 @@ def save_summary():
     for title_id, title_name in title_names.items():
 
         print(title_name)
-        title_filename = title_dir + title_id + ".json"
+        title_filename = title_analysis_dir + title_id + ".json"
         o_f = open(title_filename,"r",encoding="utf-8")
         title_data = json.loads(o_f.read())
         o_f.close()
