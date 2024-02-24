@@ -302,16 +302,17 @@
 		()=>{refreshImage(e.srcElement,srce);},delayml);
 	};
 	
-	
-
-	const img_wid1=(e)=>{			
-		if(document.getElementById("ch-i").src!=imgs_jp[j])
-		{
-			document.getElementById("ch-i").src=imgs_jp[j];
-			
-			
+	const setImage =(element_id, url) => {
+		let src = document.getElementById("ch-i").src;
+		let decoded_src = decodeURIComponent(src);
+		let decoded_url = decodeURIComponent(url);
+		if(decoded_src != decoded_url) {
+			document.getElementById(element_id).src = url;
 		}
+	};
 
+	const img_wid1=(e)=>{
+		setImage("ch-i", imgs_jp[j]);
 		src_o=document.getElementById("ch-i");
 
 		if(document.getElementById("ch-i").src===imgs_jp[j])
@@ -323,19 +324,11 @@
 		{
 			if(j>0)
 			{
-			if(document.getElementById("ch-i1").src!=imgs_jp[j-1])
-				{
-			document.getElementById("ch-i1").src=imgs_jp[j-1];
-			
-				}
+				setImage("ch-i1", imgs_jp[j-1]);
 			}
 		else if(j==0)
 			{
-			if(document.getElementById("ch-i1").src!=imgs_jp[0])
-				{
-			document.getElementById("ch-i1").src=imgs_jp[0];
-			
-				}
+				setImage("ch-i1", imgs_jp[0]);
 			}
 		src_o1=document.getElementById("ch-i1");
 		}
@@ -345,11 +338,7 @@
 
 	const img_wid2=(e)=>{
 		
-		if(document.getElementById("ch-i").src!=imgs_jp[j])
-		{
-			document.getElementById("ch-i").src=imgs_jp[j];
-			
-		}
+		setImage("ch-i", imgs_jp[j]);
 		src_o=document.getElementById("ch-i");
 
 
@@ -357,19 +346,11 @@
 		{
 			if(j>0)
 			{
-			if(document.getElementById("ch-i1").src!=imgs_jp[j-1])
-				{
-			document.getElementById("ch-i1").src=imgs_jp[j-1];
-			
-				}
+				setImage("ch-i1", imgs_jp[j-1]);
 			}
 		else if(j==0)
 			{
-			if(document.getElementById("ch-i1").src!=imgs_jp[0])
-				{
-			document.getElementById("ch-i1").src=imgs_jp[0];
-			
-				}
+				setImage("ch-i1", imgs_jp[0]);
 			}
 		src_o1=document.getElementById("ch-i1");
 		}
