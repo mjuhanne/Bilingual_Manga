@@ -284,17 +284,6 @@ if(imgs_jpo[Object.keys(imgs_jpo)[0]]!=undefined && jj>=0)
 	}
 
 	if (mounted) {
-		/*
-		fetch(`${cdncdn1}/ocr/${cid[(cid.length-seljs)]}.json`)
-		.then(response => response.json())
-		.then((data)=>jp_ocr=data)
-		.catch(err => {jp_ocr={};
-		fetch(`${cdncdn}/ocr/${cid[(cid.length-seljs)]}.json`)
-		.then(response => response.json())
-		.then((data)=>jp_ocr=data)
-		.catch(err => {jp_ocr={};})
-		})
-		*/
 		current_chapter_id = cid[(cid.length-seljs)];
 		fetch( "/ocr", {
             headers: {"Content-Type" : "application/json" },

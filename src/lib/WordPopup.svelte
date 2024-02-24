@@ -1,7 +1,6 @@
 <script>
 import { createEventDispatcher } from 'svelte';
-import { deserialize } from '$app/forms';
-import { STAGE, learning_stage_colors, SOURCE, source_to_name, 
+import { STAGE, learning_stage_colors, source_to_name, 
     word_classes, timestamp2date 
 } from '$lib/LearningData.js'
 import LearningStageButtons from '$lib/LearningStageButtons.svelte'
@@ -13,11 +12,6 @@ export let showModal = false;
 export let word;
 export let word_class;
 export let history = [];
-//export let manga_id;
-export let chapter_id;
-export let page;
-export let page_ref; // image name (without extension), also reference to entry in OCR file
-export let block; // OCR block number in current page
 export let learning_stage;
 
 let show_history = false;
@@ -58,51 +52,15 @@ $: {
 $: if (dialog && showModal) dialog.showModal();
 $: if (dialog && !showModal) dialog.close()
 
-async function sendChangedData() {
-    let body = JSON.stringify({
-        'func' : 'update_manually_set_word_learning_stage', 
-        'stage_data' : {
-            'word' : word,
-            'stage' : learning_stage,
-            'metadata' : {
-                //'id' : manga_id,
-                'cid' : chapter_id,
-                'p' : page,
-                'b' : block,
-                'pr' : page_ref,
-            },
-        }
-    })
-    const response = await fetch( "/user_data", {
-        headers: {"Content-Type" : "application/json" },
-        method: 'POST',
-        body: body,
-    });
-    const result = deserialize(await response.text());
-
-    // add to history temporarily like this before it gets updated after next page flip
-    let new_entry = {
-        's' : learning_stage,
-        't' : new Date()/1000,
-        'm' : {
-            'src' : SOURCE.USER,
-            'comment' : 'Current update',
-        }
-    };
-    if (result.replaced_last_entry) {
-        history[history.length-1] = new_entry;
-    } else {
-        history.push(new_entry);
-    }
-};
-
 const learningStageChanged = (e) => {
     let new_learning_stage = e.detail;
     if (new_learning_stage != learning_stage) {
         learning_stage = new_learning_stage;
         showModal = false;
-        sendChangedData();
-        dispatch('learning_stage_changed', { 'word':word, 'stage':new_learning_stage});
+        dispatch('learning_stage_changed', { 
+            'word':word, 
+            'stage':new_learning_stage,
+        });
     }
 }
 </script>

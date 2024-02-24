@@ -41,7 +41,7 @@
 	let jpcolor="";
 	let encolor="";
 	let checkpage=false;
-	let ocrbor=false;
+	let ocrbor="no_border";
 	let ocroff=false;
 	let ocron=false;
 	
@@ -368,6 +368,8 @@
 		else if(key=="ArrowLeft")
 		{
 			incdec(false);
+		} else if(key=='l') {
+			change();
 		}
 		}
 

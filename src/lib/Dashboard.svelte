@@ -38,7 +38,7 @@
 	let chfl = false;
 	export let ocron = false;
 	export let ocroff = false;
-	export let ocrbor = false;
+	export let ocrbor;
 
 	export let fitfunc;
 	
@@ -94,10 +94,10 @@ const allst=()=>{
 	else
 	{chfl=false;}	
 
-	if(localStorage.getItem("ocrbor")!=null)
-	{ocrbor=localStorage.getItem("ocrbor")==="false"?false:true;}
+	if(localStorage.getItem("ocrborder")!=null)
+	{ocrbor=localStorage.getItem("ocrborder")}
 	else
-	{ocrbor=false;}
+	{ocrbor="no_border";}
 
 	if(localStorage.getItem("ocron")!=null)
 	{ocron=localStorage.getItem("ocron")==="false"?false:true;}
@@ -147,7 +147,7 @@ const setfunc=()=>{
 	localStorage.setItem("check", check);
 	localStorage.setItem("checkpage", checkpage);
 	localStorage.setItem("chfl", chfl);
-	localStorage.setItem("ocrbor", ocrbor);
+	localStorage.setItem("ocrborder", ocrbor);
 	localStorage.setItem("ocron", ocron);
 	localStorage.setItem("ocroff", ocroff);
 	sessionStorage.setItem("checken", checken);
@@ -172,7 +172,11 @@ const setfunc=()=>{
 	</div>
 	<div>
 		OCR:
-		<input type=checkbox bind:checked={ocrbor} on:change={setfunc}>No-Border
+		<select id='border' bind:value={ocrbor} on:change={setfunc}>
+			<option value="no_border">No border</option>
+			<option value="colorize">Colorize border</option>
+			<option value="always_on">Border on</option>
+		</select>
 		<input type=checkbox bind:checked={ocron} on:change={setfunc}>Show
 		<input type=checkbox bind:checked={ocroff} on:change={setfunc}>Off
 	</div>
