@@ -302,6 +302,6 @@ def save_summary():
           % (num_valid_titles, len(title_names.keys()), avg_page_count))
 
     with open(summary_file,"w") as f:
-        f.write(json.dumps(summary))
+        f.write(json.dumps(summary, ensure_ascii=False))
 
 save_summary()
