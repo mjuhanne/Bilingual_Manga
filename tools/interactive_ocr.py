@@ -15,7 +15,10 @@ if len(sys.argv)>2:
     input_file_name = sys.argv[1]
     output_file_name = sys.argv[2]
 else:
-    raise Exception("Input and output files not given!")
+    #raise Exception("Input and output files not given!")
+    #input_file_name = "parsed_ocr/bafybeie5tsllsjaequc65c3enuusqili743xwyg4744v4zmcgqqhm5dqvu.json"
+    input_file_name = "parsed_ocr/bafybeigcep3esjli46hp5gbt54aw5i5e4hf53rcfomlf4sgkedhjmwejii.json"
+    output_file_name = "test.json"
 
 
 # During every page change in MangaReader causes a new OCR file fetch via interactive_ocr.py.
@@ -115,7 +118,9 @@ def create_interactive_ocr(input_file, output_file):
         index += 1
 
     # the lists and settings are kept as separate 'pages'. Ugly, but works.
-    ignored_pages = ['word_list','lemmas','word_class_list','word_learning_stages','word_history','settings','version']
+    ignored_pages = ['word_list','word_seq','word_class_list','lemmas',
+                     'word_learning_stages','word_history','settings',
+                     'phrase_list','phrase_seq','version','parser_version']
 
     for page_id,blocks in pages.items():
 
@@ -124,14 +129,23 @@ def create_interactive_ocr(input_file, output_file):
 
         for block in blocks:
 
-            parsed_lines = block['plines']
+            parsed_lines = block['jlines']
             i = 0
             for line in parsed_lines:
 
                 new_line = ''
                 for item in line:
-                    for word,index in item.items():
-                        new_line +=  '<span wid=' + str(index) + '>' + word + '</span>'
+                    for word,ref_list in item.items():
+                        # TODO: handle many word/phrase references for each unidict 
+                        # recognized word/particle. Now just use the largest phrase
+                        # and if not found, then first word
+                        idx = 0
+                        if len(ref_list) > 0:
+                            idx = ref_list[0]
+                        if idx < 0:
+                            # it's a phrase
+                            idx = -idx
+                        new_line +=  '<span wid=' + str(idx) + '>' + word + '</span>'
 
                 block['lines'][i] = new_line
                 i += 1
