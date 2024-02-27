@@ -13,6 +13,12 @@ max_jmdict_kanji_element_len = 0
 
 jmdict_file = base_dir + "lang/JMdict_e_s.tsv"
 
+# word flags
+NO_SCANNING = 1
+START_OF_SCAN_DISABLED = 2
+MERGE_PARTICLE = 4
+
+
 
 # DO NOT CHANGE THE ORDER
 unidic_word_classes = [
@@ -27,8 +33,8 @@ unidic_word_classes = [
     '動詞',
     '接尾辞',
     '副詞',
-    '代名詞',
-    '形容詞',
+    '代名詞', # pronoun
+    '形容詞', # adjective
     '感動詞',
     '形状詞',
     '接頭辞', # prefix
@@ -44,6 +50,9 @@ grammatical_particle_class_index = unidic_word_classes.index('助詞')
 noun_class_index = unidic_word_classes.index('名詞')
 prefix_class_index = unidic_word_classes.index('接頭辞')
 suffix_class_index = unidic_word_classes.index('接尾辞')
+
+adjective_class_index = unidic_word_classes.index('形状詞')
+
 
 # words/characters belonging to these classes are lumped
 # as one word with other class members. They aren't saved separately in the unique
@@ -163,7 +172,7 @@ def parse_line_with_unidic(line, kanji_count, lemmas):
                 collected_particles = ''
 
         if class_idx <= lumped_class_index:
-            # when many non-JP characters and puntuation marks are 
+            # when many non-JP characters and punctuation marks are 
             # in sequence we don't want to save them separately
             # but instead lump them together
             collected_particles += w
@@ -187,52 +196,81 @@ def parse_line_with_unidic(line, kanji_count, lemmas):
         else:
             kanji_count[k] = 1
 
-    words, word_ortho, word_classes = attempt_to_fuse_unidic_conjugations(words, word_ortho, word_classes)
-    return k_c, words, word_ortho, word_classes
+    words, word_ortho, word_classes, word_suppressed = clean_unidic_particles(words, word_ortho, word_classes)
+    return k_c, words, word_ortho, word_classes, word_suppressed
 
-def greedy_conjugations(pos,words,word_ortho,word_classes):
+def check_adjective_conjugations(pos,words,word_ortho,word_classes, word_flags):
     if pos == len(words) - 1:
-        return 0
-    #if words[pos] == 'し':
+        return
+    if words[pos+1] == 'な' and word_classes[pos+1] == aux_verb_class_index: 
+        # why is the な classified as 助動詞 ??
+        # Anyway, this is the な　after na-adjective so prevent scanning it further
+        word_flags[pos+1] |= NO_SCANNING
+    return
+
+def check_verb_conjugations(pos,words,word_ortho,word_classes, word_flags):
+    if pos == len(words) - 1:
+        return
     if words[pos+1] == 'て':
-        return 1
+        word_flags[pos+1] |= MERGE_PARTICLE
+        return
+    if words[pos+1] == 'ば' and word_classes[pos+1] == grammatical_particle_class_index:
+        # そういえば
+        word_flags[pos+1] |= MERGE_PARTICLE
+        return
     if word_classes[pos+1] == aux_verb_class_index:
-        return 1
-    return 0
+        word_flags[pos+1] |= MERGE_PARTICLE
+        return
+    if words[pos+1] == 'ん': # emphatetic particle. Suppress it so it won't be scanned
+        word_flags[pos+1] |= NO_SCANNING
+        return
+    return
     
 
-def attempt_to_fuse_unidic_conjugations(words, word_ortho, word_classes):
-    # test lumping
-    lump = ''
+def clean_unidic_particles(words, word_ortho, word_classes):
+    word_flags = [0] * len(words)
     processed_words = []
     processed_ortho = []
     processed_classes = []
-    verb_classes = [verb_class_index, aux_verb_class_index]
-    prev_cl = None
-    saved_ortho = None
+    processed_word_flags = []
     i = 0
     while i<len(words):
-        consumed_particles = 0
-        w = words[i]
         cl = word_classes[i]
         if cl == verb_class_index:
-            consumed_particles = greedy_conjugations(i,words,word_ortho,word_classes)
-        consumed_particles += 1
-        if consumed_particles > 1:
-            processed_words.append(''.join(words[i:i+consumed_particles]))
+            check_verb_conjugations(i,words,word_ortho,word_classes,word_flags)
+        elif cl == adjective_class_index:
+            check_adjective_conjugations(i,words,word_ortho,word_classes,word_flags)
+        elif cl <= punctuation_mark_class_index:
+            word_flags[i] |= NO_SCANNING
+        elif cl == grammatical_particle_class_index:
+            # do not allow jmdict to start scanning from this particle
+            # but allow it to be included in other parts
+            word_flags[i] |= START_OF_SCAN_DISABLED
+        elif cl == suffix_class_index:
+            # do not allow jmdict to start scanning from this particle
+            # but allow it to be included in other parts
+            word_flags[i] |= START_OF_SCAN_DISABLED
+        i += 1
+
+    # merge some particles, while shrinking the word list
+    pos = 0
+    for i in range(len(words)):
+        if word_flags[i] & MERGE_PARTICLE:
+            processed_words[pos-1] += words[i]
         else:
             processed_words.append(words[i])
-        processed_ortho.append(word_ortho[i])
-        processed_classes.append(word_classes[i])
-        i += consumed_particles
-    return processed_words, processed_ortho, processed_classes
+            processed_ortho.append(word_ortho[i])
+            processed_classes.append(word_classes[i])
+            processed_word_flags.append(word_flags[i])
+            pos += 1
 
+    return processed_words, processed_ortho, processed_classes, processed_word_flags
 
 
 # this will scan for all the possible dictionary entries in the jmdict set
 # (either kanji_elements or readings) using the given list of words 
 # and starting at position pos.  
-def greedy_jmdict_scanning(words, prevent_start_of_scan, word_ref, word_by_seq, searched_word_sets, start_pos, min_word_len, jmdict_set, jmdict_seq_dict, max_jmdict_len):
+def greedy_jmdict_scanning(words, word_flags, word_ref, word_by_seq, searched_word_sets, start_pos, min_word_len, jmdict_set, jmdict_seq_dict, max_jmdict_len):
     lw = len(words)
     
     cycle_pos = start_pos
@@ -241,8 +279,8 @@ def greedy_jmdict_scanning(words, prevent_start_of_scan, word_ref, word_by_seq, 
         i = cycle_pos
         wc = 0
         word_chunk = ''
-        if not prevent_start_of_scan[i]:
-            while (i + wc < lw) and words[i+wc] is not None:
+        if not ( word_flags[i] & START_OF_SCAN_DISABLED):
+            while (i + wc < lw) and not (word_flags[i+wc] & NO_SCANNING): # words[i+wc] is not None:
 
                 word_chunk += words[i+wc]
                 wc += 1
@@ -260,6 +298,7 @@ def greedy_jmdict_scanning(words, prevent_start_of_scan, word_ref, word_by_seq, 
                                     # add this seq reference for all the encompassing words
                                     for j in range(wc):
                                         word_ref[i+j].append(seq)
+                                    break
                     searched_word_sets[i].add(word_chunk)
 
         cycle_pos += 1
@@ -286,15 +325,18 @@ def create_phrase_permutations(words, alternative_forms, index=0):
     return [phrase]
 
 
-def scan_jmdict_for_selected_words( permutated_words, prevent_start_of_scan, word_ref, word_by_seq, searched_kanji_word_set, searched_reading_set):
+def scan_jmdict_for_selected_words( permutated_words, word_flags, word_ref, word_by_seq, searched_kanji_word_set, searched_reading_set):
 
-    greedy_jmdict_scanning(permutated_words, prevent_start_of_scan, word_ref, word_by_seq, searched_kanji_word_set, 0, 1, jmdict_kanji_elements, jmdict_kanji_element_seq, max_jmdict_kanji_element_len)
+    greedy_jmdict_scanning(permutated_words, word_flags, word_ref, word_by_seq, searched_kanji_word_set, 0, 1, jmdict_kanji_elements, jmdict_kanji_element_seq, max_jmdict_kanji_element_len)
 
+    """
     for i, seqs in enumerate(word_ref):
         if len(seqs) == 0:
             # look for readings only starting from the word for which kanji_element couldn't be found
-            greedy_jmdict_scanning(permutated_words, prevent_start_of_scan, word_ref, word_by_seq, searched_reading_set, i, 2, jmdict_readings, jmdict_reading_seq, max_jmdict_reading_len)
+            greedy_jmdict_scanning(permutated_words, word_flags, word_ref, word_by_seq, searched_reading_set, i, 2, jmdict_readings, jmdict_reading_seq, max_jmdict_reading_len)
             break
+    """
+    greedy_jmdict_scanning(permutated_words, word_flags, word_ref, word_by_seq, searched_reading_set, 0, 2, jmdict_readings, jmdict_reading_seq, max_jmdict_reading_len)
     return word_ref
 
 def attempt_adjective_fuse(i, words, ortho):
@@ -333,43 +375,25 @@ def attempt_to_fuse_conjugations(word_index_ref, words, ortho_list, jmdict_class
                                 pass
 
 
-def parse_with_jmdict(unidic_words, unidic_word_ortho, unidic_word_class, 
+
+def parse_with_jmdict(unidic_words, unidic_word_ortho, unidic_word_class, unidic_word_flags,
             jmdict_word_list, jmdict_word_count, jmdict_word_seq, jmdict_word_class_list, 
             word_count_per_unidict_class, 
             #jmdict_phrase_list, jmdict_phrase_count, jmdict_phrase_seq
     ):
-    # Construct a word list in basic form. Hide the non-JP characters
-    # as well as auxiliary verbs (って, ます..)
+    # By default we use a word list in basic (ortho) form. 
     # Example: お願いします -> お + 願う + する
-    # Then construct alternative forms of words in order to do more diligent searching.
-    # This allows searching with the original forms
+    # We also construct alternative forms of words (original form) 
+    # in order to do more exhaustive scanning from JMdict.
     # Example: お願いします -> お + 願い + します
-    words = []
     alternative_forms = []
-    prevent_start_of_scan = []
     wlen = len(unidic_words)
     for i, w in enumerate(unidic_words):
         cli = unidic_word_class[i]
-        if cli < aux_verb_class_index:
-            # non-JP character or alphanumeric string
-            words.append(None)
-            alternative_forms.append(None)
-            prevent_start_of_scan.append(True)
-        elif cli == grammatical_particle_class_index or cli == suffix_class_index:
-            # do not start scaning jmdict from this particle
-            # but allow it to be included in other parts
-            prevent_start_of_scan.append(True)
-            words.append(unidic_words[i])
-            alternative_forms.append(None)
+        if (unidic_words[i] != unidic_word_ortho[i]) and not (unidic_word_flags[i] & NO_SCANNING):
+            alternative_forms.append(unidic_words[i])
         else:
-            # verb/noun/adverb etc.. Use the basic form as default and 
-            # then add the current form as alternative if possible
-            words.append(unidic_word_ortho[i])
-            if unidic_words[i] != unidic_word_ortho[i]:
-                alternative_forms.append(unidic_words[i])
-            else:
-                alternative_forms.append(None)
-            prevent_start_of_scan.append(False)
+            alternative_forms.append(None)
 
     """
     This creates a list of permutations for words/alternative words.
@@ -379,19 +403,18 @@ def parse_with_jmdict(unidic_words, unidic_word_ortho, unidic_word_class,
         お + 願い + する
         お + 願い + します
     """
-    permutations = create_phrase_permutations(words, alternative_forms)
+    permutations = create_phrase_permutations(unidic_word_ortho, alternative_forms)
     searched_kanji_word_sets = [set() for x in range(wlen)]
     searched_reading_sets = [set() for x in range(wlen)]
-    word_seq_ref = [[] for x in range(len(words))]
+    word_seq_ref = [[] for x in range(len(unidic_words))]
     word_by_seq = dict()
     for permutated_words in permutations:
-        pos = 0
-        scan_jmdict_for_selected_words(permutated_words, prevent_start_of_scan, word_seq_ref, word_by_seq, searched_kanji_word_sets, searched_reading_sets)
+        scan_jmdict_for_selected_words(permutated_words, unidic_word_flags, word_seq_ref, word_by_seq, searched_kanji_word_sets, searched_reading_sets)
 
     # replace the jmdict seq reference with idx number to the word list
     word_index_ref = []
     idx_ref_count = dict()
-    particle_pos_in_word = dict()
+    #particle_pos_in_word = dict()
     for i, seqs in enumerate(word_seq_ref):
         refs = []
         for seq in seqs:
@@ -409,12 +432,13 @@ def parse_with_jmdict(unidic_words, unidic_word_ortho, unidic_word_class,
             # possibly ignore them if they are not useful (auxiliary verbs or 
             # grammar particles) AND they are isolated
             # (not detected as a part of bigger word)
+            # Also calculate the referenced word size (this is for prioritization)
             if idx not in idx_ref_count:
                 idx_ref_count[idx] = 1
             else:
                 idx_ref_count[idx] += 1
 
-            particle_pos_in_word[(i,idx)] = idx_ref_count[idx]
+            #particle_pos_in_word[(i,idx)] = idx_ref_count[idx]
 
             cl_list = jmdict_pos[seq]
             if jmdict_expression_class_index in cl_list:
@@ -431,14 +455,29 @@ def parse_with_jmdict(unidic_words, unidic_word_ortho, unidic_word_class,
         ud_cl = unidic_word_class[i]
         word_count_per_unidict_class[ud_cl] += 1
 
-        # sort the word/phrase reference by their size
+        # remove isolated references for particles
+        if ud_cl <= grammatical_particle_class_index:
+            new_refs = []
+            for rf in refs:
+                if rf > 0:
+                    if idx_ref_count[rf] == 1:
+                        # this particle is isolated in this reference
+                        pass
+                    else:
+                        new_refs.append(rf)
+                else:
+                        new_refs.append(rf)
+            word_index_ref[i] = new_refs
+
+        # sort each particle/word reference by the size of the word/phrase it's referencing
         if len(refs)>1:
             ref_sizes = dict()
             for rf in refs:
-                ref_sizes[rf] = idx_ref_count[abs(rf)]
+                ref_sizes[rf] = len(jmdict_word_list[abs(rf)])
             sorted_refs = dict(sorted(ref_sizes.items(), key=lambda x:x[1], reverse=True))
             word_index_ref[i] = list(sorted_refs.keys())
 
+            """
             if particle_pos_in_word[(i,abs(refs[0]))] != 1:
                 # the first reference for this particle is in a word in which
                 # it isn't a first particle. Let's see if however it is a first
@@ -453,26 +492,15 @@ def parse_with_jmdict(unidic_words, unidic_word_ortho, unidic_word_class,
                             refs[j+1] = rf0
                             word_index_ref[i] = refs
                             break
+            """
 
-        if ud_cl <= grammatical_particle_class_index:
-            new_refs = []
-            for rf in refs:
-                if rf > 0:
-                    if idx_ref_count[rf] == 1:
-                        # this particle is isolated in this reference
-                        pass
-                    else:
-                        new_refs.append(rf)
-                else:
-                        new_refs.append(rf)
-            word_index_ref[i] = new_refs
         
     attempt_to_fuse_conjugations(word_index_ref, unidic_words, unidic_word_ortho, jmdict_word_class_list)
 
     return word_index_ref
 
 
-def parse_block_with_jmdict(parsed_words, parsed_words_ortho, parsed_word_classes, 
+def parse_block_with_jmdict(parsed_words, parsed_words_ortho, parsed_word_classes, parsed_word_flags,
             jmdict_word_list, jmdict_word_count, jmdict_word_seq, jmdict_word_class_list, 
             word_count_per_unidict_class, 
     ):
@@ -480,9 +508,10 @@ def parse_block_with_jmdict(parsed_words, parsed_words_ortho, parsed_word_classe
     unidic_words = [w for x in parsed_words for w in x]
     unidic_word_ortho = [w for x in parsed_words_ortho for w in x]
     unidic_word_class = [w for x in parsed_word_classes for w in x]
+    unidic_word_flags = [w for x in parsed_word_flags for w in x]
 
     word_index_ref = parse_with_jmdict(
-        unidic_words, unidic_word_ortho, unidic_word_class, 
+        unidic_words, unidic_word_ortho, unidic_word_class, unidic_word_flags,
         jmdict_word_list, jmdict_word_count, jmdict_word_seq,  jmdict_word_class_list,
         word_count_per_unidict_class, 
     )

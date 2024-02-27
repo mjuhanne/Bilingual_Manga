@@ -74,25 +74,28 @@ def process_chapter(f_p, fo_p, chapter_data):
             parsed_lines = []
             parsed_lines_ortho = []
             parsed_lines_classes = []
+            parsed_lines_flags = []
             if any(len(l)>32 for l in lines):
                 # Blocks with any number of long lines have usually been 
                 # incorrectly recognized so ignore these when doing statistics
                 skipped_c += 1
             else:
                 for line in lines:
-                    kc, unidic_words, unidic_word_ortho, unidic_word_class = parse_line_with_unidic(line, kanji_count, lemmas)
+                    kc, ud_words, ud_word_ortho, ud_word_class, ud_word_flags, = \
+                        parse_line_with_unidic(line, kanji_count, lemmas)
 
                     k_c += kc
                     c_c += len(line)
-                    parsed_lines.append(unidic_words)
-                    parsed_lines_ortho.append(unidic_word_ortho)
-                    parsed_lines_classes.append(unidic_word_class)
+                    parsed_lines.append(ud_words)
+                    parsed_lines_ortho.append(ud_word_ortho)
+                    parsed_lines_classes.append(ud_word_class)
+                    parsed_lines_flags.append(ud_word_flags)
             
             block['plines'] = parsed_lines
 
             if len(parsed_lines)>0:
                 block['jlines'] = parse_block_with_jmdict(
-                    parsed_lines, parsed_lines_ortho, parsed_lines_classes, 
+                    parsed_lines, parsed_lines_ortho, parsed_lines_classes, parsed_lines_flags,
                     unique_jmdict_word_list, unique_jmdict_word_count, unique_jmdict_word_seq,  unique_jmdict_word_class_list,
                     word_count_per_class, 
                 )
@@ -101,7 +104,7 @@ def process_chapter(f_p, fo_p, chapter_data):
 
         page_count += 1
         if page_count % progress_bar_interval == 0:
-            print(".",end='')
+            print(".",end='',flush=True)
 
     pages['word_list'] = unique_jmdict_word_list
     pages['word_seq'] = unique_jmdict_word_seq
@@ -195,6 +198,9 @@ def process_chapters(keyword):
                     continue
 
             #try:
+            print("[%d/%d] Scanning %s [%d] " 
+                % (i, i_c, chapter_data['title'], chapter_data['chapter']),end='')
+
             c_c, w_c, k_c, skipped_c = process_chapter(input_ocr_file, parsed_ocr_filename, chapter_data)
             #except Exception as e:
             #    print("Error scanning %s [%d]" % ( chapter_data['title'], chapter_data['chapter']))
@@ -202,8 +208,8 @@ def process_chapters(keyword):
             #    error_count += 1
             #    continue
 
-            print("[%d/%d] Scanned %s [%d] with %d pages and %d/%d/%d/%d characters/words/kanjis/skipped_blocks" 
-                % (i, i_c, chapter_data['title'], chapter_data['chapter'], chapter_data['num_pages'], c_c, w_c, k_c, skipped_c))
+            print(" scanned with %d pages and %d/%d/%d/%d characters/words/kanjis/skipped_blocks" 
+                % ( chapter_data['num_pages'], c_c, w_c, k_c, skipped_c))
 
             chapter_data['version'] = CURRENT_OCR_SUMMARY_VERSION
 
