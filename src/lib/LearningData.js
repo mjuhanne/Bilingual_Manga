@@ -30,14 +30,14 @@ export const learning_stages = {
 }
 
 export const learning_stage_colors = {
-    [STAGE.NONE] : '#fff',
+    [STAGE.NONE] : '#ccc',
     [STAGE.UNKNOWN] : '#dbd',
     [STAGE.UNFAMILIAR] : '#bbf',
     [STAGE.LEARNING] :  '#F8C471',
     [STAGE.PRE_KNOWN] : '#7f7',
-    [STAGE.KNOWN] : "#fff",
+    [STAGE.KNOWN] : "#cfc",
     [STAGE.FORGOTTEN] : "#F977CB",
-    [STAGE.IGNORED] : '#ccc',
+    [STAGE.IGNORED] : '#aaa',
 }
 
 export const SOURCE = {

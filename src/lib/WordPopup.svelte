@@ -4,15 +4,21 @@ import { STAGE, learning_stage_colors, source_to_name,
     word_classes, timestamp2date 
 } from '$lib/LearningData.js'
 import LearningStageButtons from '$lib/LearningStageButtons.svelte'
+import { deserialize } from '$app/forms';
 const dispatch = createEventDispatcher();
 let dialog; // HTMLDialogElement
 
 export let showModal = false;
 
 export let word;
+export let word_seq_list;
 export let word_class;
 export let history = [];
 export let learning_stage;
+
+let first_meaning = '';
+$: meanings = [];
+$: if (meanings.length>0) {first_meaning=meanings[0][0]}
 
 let show_history = false;
 let processed_history;
@@ -49,7 +55,12 @@ $: {
     }
 }
 
-$: if (dialog && showModal) dialog.showModal();
+$: {
+    if (dialog && showModal) {
+        fetchMeanings(word_seq_list);
+        dialog.showModal();
+    }
+};
 $: if (dialog && !showModal) dialog.close()
 
 const learningStageChanged = (e) => {
@@ -63,6 +74,23 @@ const learningStageChanged = (e) => {
         });
     }
 }
+
+async function fetchMeanings(sequence_number_list) {
+    let body = JSON.stringify({
+        'func' : 'get_meanings', 
+        'seqs' : sequence_number_list,
+    });
+    const response = await fetch( "/jmdict", {
+        headers: {"Content-Type" : "application/json" },
+        method: 'POST',
+        body: body,
+    });
+    const result = deserialize(await response.text());
+    meanings = result.meanings;
+    console.log(JSON.stringify(result))
+};
+
+fetchMeanings([1052530,1160870]);
 </script>
 
 <dialog id="popup-dialog" class="popup-dialog" class:wide-dialog={show_history}
@@ -73,6 +101,7 @@ const learningStageChanged = (e) => {
 	<!-- svelte-ignore a11y-no-static-element-interactions -->
 	<div on:click|stopPropagation>
 		<div class="word" on:click={()=>{show_history=true}}>{word}</div>
+        <div class="first_meaning">{first_meaning}</div>
         <div class="enclosure">
             <div>
             <LearningStageButtons bind:selected_stage={learning_stage} on:clicked={learningStageChanged}/>
@@ -109,6 +138,11 @@ const learningStageChanged = (e) => {
     .word_class {
         color: rgb(8, 249, 229);
         font-size: 0.6rem;
+        padding-bottom: 3px;
+    }
+    .first_meaning {
+        color: #bbb;
+        font-size: 0.5rem;
         padding-bottom: 3px;
     }
     .history_table {

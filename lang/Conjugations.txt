@@ -1590,6 +1590,18 @@
       {
         "Formal" : false, 
         "Negative" : true, 
+        "Suffix" : "なくちゃ", 
+        "Tense" : "Colloquial for なくては"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : true, 
+        "Suffix" : "なきゃ", 
+        "Tense" : "Colloquial for なければ"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : true, 
         "Suffix" : "なかったり", 
         "Tense" : "Alternative"
       },

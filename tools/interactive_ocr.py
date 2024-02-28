@@ -129,6 +129,8 @@ def create_interactive_ocr(input_file, output_file):
 
         for block in blocks:
 
+            block['og_lines'] = block['lines'].copy()
+            
             parsed_lines = block['jlines']
             i = 0
             for line in parsed_lines:

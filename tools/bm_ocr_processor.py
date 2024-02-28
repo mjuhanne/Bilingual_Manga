@@ -27,14 +27,18 @@ import json
 import sys
 from helper import *
 from jp_parser import (
-    parse_line_with_unidic, parse_block_with_jmdict, load_jmdict,
+    parse_line_with_unidic, post_process_unidic_particles, parse_with_jmdict, 
+    load_jmdict, load_conjugations, reassemble_block,
     unidic_word_classes, ignored_classes_for_freq
 )
+# for loggin
+from jp_parser import open_log_file, close_log_file, set_verbose_level
 
 parsed_ocr_dir = base_dir + "parsed_ocr/"
 error_count = 0
 processed_chapter_count = 0
 processed_title_count = 0
+
 
 def process_chapter(f_p, fo_p, chapter_data):
 
@@ -71,36 +75,30 @@ def process_chapter(f_p, fo_p, chapter_data):
         for block in blocks:
             lines = block['lines']
 
-            parsed_lines = []
-            parsed_lines_ortho = []
-            parsed_lines_classes = []
-            parsed_lines_flags = []
             if any(len(l)>32 for l in lines):
-                # Blocks with any number of long lines have usually been 
-                # incorrectly recognized so ignore these when doing statistics
+                # Blocks with any number of very long lines have usually been 
+                # incorrectly recognized so ignore these
                 skipped_c += 1
+                block['jlines'] = []
             else:
-                for line in lines:
-                    kc, ud_words, ud_word_ortho, ud_word_class, ud_word_flags, = \
-                        parse_line_with_unidic(line, kanji_count, lemmas)
+                line = ''.join(lines)
+                #for line in lines:
+                kc, ud_words, ud_word_ortho, ud_word_class, = \
+                    parse_line_with_unidic(line, kanji_count, lemmas)
 
-                    k_c += kc
-                    c_c += len(line)
-                    parsed_lines.append(ud_words)
-                    parsed_lines_ortho.append(ud_word_ortho)
-                    parsed_lines_classes.append(ud_word_class)
-                    parsed_lines_flags.append(ud_word_flags)
-            
-            block['plines'] = parsed_lines
+                k_c += kc
+                c_c += len(line)
 
-            if len(parsed_lines)>0:
-                block['jlines'] = parse_block_with_jmdict(
-                    parsed_lines, parsed_lines_ortho, parsed_lines_classes, parsed_lines_flags,
+                ud_words, ud_word_ortho, ud_word_class, ud_word_flags = \
+                    post_process_unidic_particles(ud_words, ud_word_ortho, ud_word_class)
+
+                word_ref  = parse_with_jmdict(
+                    ud_words, ud_word_ortho, ud_word_class, ud_word_flags,
                     unique_jmdict_word_list, unique_jmdict_word_count, unique_jmdict_word_seq,  unique_jmdict_word_class_list,
                     word_count_per_class, 
                 )
-            else:
-                block['jlines'] = []
+
+                block['jlines'] = reassemble_block(lines, ud_words, word_ref)
 
         page_count += 1
         if page_count % progress_bar_interval == 0:
@@ -141,6 +139,9 @@ def process_chapter(f_p, fo_p, chapter_data):
     return c_c, w_c, k_c, skipped_c
 
 def is_file_up_to_date(filename, version, parser_version):
+    ## TESTING
+    return False
+
     if os.path.exists(filename):
         f = open(filename, "r", encoding="utf-8")
         temp_data = json.loads(f.read())
@@ -317,7 +318,10 @@ def process_titles(keyword):
 read_manga_metadata()
 read_manga_data()
 
-keyword = "dream"
+keyword = "keaton" #"dream"
+if len(sys.argv)>1:
+    keyword = sys.argv[1]
+
 
 if not os.path.exists(title_analysis_dir):
     os.mkdir(chapter_analysis_dir)
@@ -328,8 +332,14 @@ if not os.path.exists(parsed_ocr_dir):
 
 
 load_jmdict()
+load_conjugations()
 
+
+open_log_file("ocr-log.txt")
+set_verbose_level(0)
 process_chapters(keyword)
 process_titles(keyword)
+
+close_log_file()
 
 print("Total errors: %d. Processed %d titles and %d chapters" % (error_count, processed_title_count, processed_chapter_count))
