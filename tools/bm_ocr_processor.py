@@ -25,14 +25,16 @@ Using this script requires installing also the fugashi dependencies:
 import os
 import json
 import sys
+import argparse
 from helper import *
 from jp_parser import (
     parse_line_with_unidic, post_process_unidic_particles, parse_with_jmdict, 
     load_jmdict, load_conjugations, reassemble_block,
-    unidic_word_classes, ignored_classes_for_freq
+    unidic_item_classes, ignored_classes_for_freq
 )
 # for loggin
 from jp_parser import open_log_file, close_log_file, set_verbose_level
+import time
 
 parsed_ocr_dir = base_dir + "parsed_ocr/"
 error_count = 0
@@ -48,11 +50,14 @@ def process_chapter(f_p, fo_p, chapter_data):
 
     # this is the word list of basic forms which are referred to by individual parsed words
     # initialized with a placeholder for non-parseable/non-JP characters and auxiliary verbs
-    unique_jmdict_word_list = ['','*','-'] 
+    unique_jmdict_word_list = ['','*','-']
     unique_jmdict_word_count = [0,0,0]
-    unique_jmdict_word_class_list = [[],[],[]] 
     unique_jmdict_word_seq = [0,0,0]
-    word_count_per_class = [0] * len(unidic_word_classes)
+    unique_jmdict_word_senses = [0,0,0]
+    word_count_per_class = [0 for x in range(len(unidic_item_classes))] 
+    jmdict_sense_list = []
+    jmdict_sense_word_idx = []
+    jmdict_sense_class_list = []
 
     kanji_count = dict()
     lemmas = dict()
@@ -83,37 +88,50 @@ def process_chapter(f_p, fo_p, chapter_data):
             else:
                 line = ''.join(lines)
                 #for line in lines:
-                kc, ud_words, ud_word_ortho, ud_word_class, = \
+                kc, ud_items, ud_item_ortho, ud_item_class, = \
                     parse_line_with_unidic(line, kanji_count, lemmas)
 
                 k_c += kc
                 c_c += len(line)
 
-                ud_words, ud_word_ortho, ud_word_class, ud_word_flags = \
-                    post_process_unidic_particles(ud_words, ud_word_ortho, ud_word_class)
+                ud_items, ud_item_ortho, ud_item_class, ud_item_flags = \
+                    post_process_unidic_particles(ud_items, ud_item_ortho, ud_item_class)
 
-                word_ref  = parse_with_jmdict(
-                    ud_words, ud_word_ortho, ud_word_class, ud_word_flags,
-                    unique_jmdict_word_list, unique_jmdict_word_count, unique_jmdict_word_seq,  unique_jmdict_word_class_list,
-                    word_count_per_class, 
+                sense_ref  = parse_with_jmdict(
+                    ud_items, ud_item_ortho, ud_item_class, ud_item_flags,
+                    jmdict_sense_list, jmdict_sense_word_idx, 
+                    unique_jmdict_word_list, unique_jmdict_word_count, unique_jmdict_word_senses,
+                    jmdict_sense_class_list, word_count_per_class, 
                 )
 
-                block['jlines'] = reassemble_block(lines, ud_words, word_ref)
+                block['jlines'] = reassemble_block(lines, ud_items, sense_ref)
 
         page_count += 1
         if page_count % progress_bar_interval == 0:
             print(".",end='',flush=True)
 
+    # Every word/particle in each block['jlines] will have a index number to these lists:
+    # JMDict sequence number and sense index number separated by /
+    pages['sense_list'] = jmdict_sense_list 
+    # index number for the word list below
+    pages['sense_word_idx'] = jmdict_sense_word_idx
+    # list of lexical item classes that each seq/sense item in the above list belongs to
+    pages['sense_class_list'] = jmdict_sense_class_list
+
+    # list of unique words in the chapter
     pages['word_list'] = unique_jmdict_word_list
-    pages['word_seq'] = unique_jmdict_word_seq
-    pages['word_class_list'] = unique_jmdict_word_class_list
+    # back-reference: For each of the word from the word list there is a list of 
+    # sense idx numbers back to the sense_list
+    # warning: This mixes all the homophones together so back-referencing is not 1:1
+    pages['word_senses'] = unique_jmdict_word_senses
+
     pages['lemmas'] = lemmas
     pages['version'] = CURRENT_PARSED_OCR_VERSION
     pages['parser_version'] = CURRENT_LANUGAGE_PARSER_VERSION
 
     # the total word count excluding words belonging to ignored classes 
     # (alphanumeric words, punctuation, auxialiary verbs, grammatical particles)
-    w_c = sum([word_count_per_class[i] for i in range(len(unidic_word_classes)) if unidic_word_classes[i] not in ignored_classes_for_freq])
+    w_c = sum([word_count_per_class[i] for i in range(len(unidic_item_classes)) if unidic_item_classes[i] not in ignored_classes_for_freq])
 
     f = open(fo_p, "w", encoding="utf-8")
     f.write(json.dumps(pages, ensure_ascii=False))
@@ -139,8 +157,6 @@ def process_chapter(f_p, fo_p, chapter_data):
     return c_c, w_c, k_c, skipped_c
 
 def is_file_up_to_date(filename, version, parser_version):
-    ## TESTING
-    return False
 
     if os.path.exists(filename):
         f = open(filename, "r", encoding="utf-8")
@@ -158,7 +174,9 @@ def is_file_up_to_date(filename, version, parser_version):
     else:
         return False
 
-def process_chapters(keyword):
+def process_chapters(args):
+    keyword = args['keyword']
+
     global error_count, processed_chapter_count
     
     files = [f_name for f_name in os.listdir(ocr_dir) if os.path.isfile(ocr_dir + f_name)]
@@ -189,14 +207,18 @@ def process_chapters(keyword):
                 if keyword.lower() not in chapter_data['title'].lower():
                     continue
 
+            if args['first']:
+                if get_chapter_number_by_chapter_id(chapter_id) != 1:
+                    continue
+
             target_freq_filename = chapter_analysis_dir + chapter_id + ".json"
             parsed_ocr_filename = parsed_ocr_dir + chapter_id + ".json"
             
-
-            if is_file_up_to_date(target_freq_filename, CURRENT_OCR_SUMMARY_VERSION, CURRENT_LANUGAGE_PARSER_VERSION) and \
-                is_file_up_to_date(parsed_ocr_filename, CURRENT_PARSED_OCR_VERSION, CURRENT_LANUGAGE_PARSER_VERSION):
-                    print("Skipping %s [chapter %d]" % (chapter_data['title'],chapter_data['chapter']))
-                    continue
+            if not args['force']:
+                if is_file_up_to_date(target_freq_filename, CURRENT_OCR_SUMMARY_VERSION, CURRENT_LANUGAGE_PARSER_VERSION) and \
+                    is_file_up_to_date(parsed_ocr_filename, CURRENT_PARSED_OCR_VERSION, CURRENT_LANUGAGE_PARSER_VERSION):
+                        print("Skipping %s [chapter %d]" % (chapter_data['title'],chapter_data['chapter']))
+                        continue
 
             #try:
             print("[%d/%d] Scanning %s [%d] " 
@@ -222,13 +244,13 @@ def process_chapters(keyword):
             processed_chapter_count += 1
 
 
-def process_titles(keyword):
+def process_titles(args):
     global processed_title_count
 
     for title_id, title_name in get_title_names().items():
 
-        if keyword is not None:
-            if keyword.lower() not in title_name.lower():
+        if args['keyword'] is not None:
+            if args['keyword'].lower() not in title_name.lower():
                 continue
 
         title_data = dict()
@@ -244,7 +266,7 @@ def process_titles(keyword):
         title_data['kanji_frequency'] = dict()
         title_data['lemmas'] = dict()
 
-        total_word_count_per_class = [0] * len(unidic_word_classes)
+        total_word_count_per_class = [0] * len(unidic_item_classes)
 
         word_list = []
         word_freq = []
@@ -272,7 +294,7 @@ def process_titles(keyword):
                     title_data['num_kanjis'] += chapter_data['num_kanjis']
                     title_data['num_pages'] += chapter_data['num_pages']
 
-                    for i in range(len(unidic_word_classes)):
+                    for i in range(len(unidic_item_classes)):
                         total_word_count_per_class[i] += chapter_data['word_count_per_class'][i]
 
                     chd = chapter_data
@@ -318,10 +340,21 @@ def process_titles(keyword):
 read_manga_metadata()
 read_manga_data()
 
-keyword = "keaton" #"dream"
-if len(sys.argv)>1:
-    keyword = sys.argv[1]
+parser = argparse.ArgumentParser(
+    prog="bm_ocr_processor",
+    description="Bilingual Manga OCR processing tool",
+)
 
+#parser.add_parser('analyze', help='Do comprehension analysis per title')
+parser.add_argument('--force', '-f', action='store_true', help='Force reprocessing')
+parser.add_argument('--first', '-1', action='store_true', help='Process only first chapter per title')
+parser.add_argument('keyword', nargs='?', type=str, default=None, help='Title has to (partially) match the keyword in order to processed')
+
+args = vars(parser.parse_args())
+
+
+#keyword = "keaton" 
+#keyword = "dream"
 
 if not os.path.exists(title_analysis_dir):
     os.mkdir(chapter_analysis_dir)
@@ -331,15 +364,18 @@ if not os.path.exists(parsed_ocr_dir):
     os.mkdir(parsed_ocr_dir)
 
 
-load_jmdict()
+load_jmdict(True)
 load_conjugations()
 
 
 open_log_file("ocr-log.txt")
 set_verbose_level(0)
-process_chapters(keyword)
-process_titles(keyword)
+t = time.time()
+process_chapters(args)
+process_titles(args)
 
+t2 =  time.time()
+print("Elapsed ",(t2-t))
 close_log_file()
 
 print("Total errors: %d. Processed %d titles and %d chapters" % (error_count, processed_title_count, processed_chapter_count))

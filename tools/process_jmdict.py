@@ -17,6 +17,7 @@ entries = root.findall('entry')
 print("Converting %d entries..." % len(entries))
 
 parts_of_speech_counter = dict()
+entries_with_many_senses = 0
 
 for p in jmdict_parts_of_speech_list:
     parts_of_speech_counter[p] = 0
@@ -46,10 +47,10 @@ for elem in entries:
     k_freq_elems = []
     r_freq_elems = []
 
-    pos_list = [] # parts of speech (verb, noun, expression etc)
+    pos_list_per_sense = [] # parts of speech (verb, noun, expression etc)
     ent_seq = elem.find('ent_seq').text
     k_elems = elem.findall('k_ele')
-    gloss = []
+    gloss_list_per_sense = []
     for k_elem in k_elems:
         keb = k_elem.find('keb')
         kanji_elements.append(keb.text)
@@ -75,36 +76,42 @@ for elem in entries:
             else:
                 r_freq_elems.append(pr)
 
-    s_ele = elem.find('sense')
-    if s_ele is not None:
+    s_elems = elem.findall('sense')
+    for s_ele in s_elems:
         pos_elems = s_ele.findall('pos')
+        gloss_list  = []
+        pos_list = []
         for pos_elem in pos_elems:
             pos = pos_elem.text
             if pos not in jmdict_parts_of_speech_list:
                 jmdict_parts_of_speech_list.append(pos)
                 parts_of_speech_counter[pos] = 0
                 pos_list_updated = True
-            pos_list.append(str(jmdict_parts_of_speech_list.index(pos)))
+            pos_list.append(int(jmdict_parts_of_speech_list.index(pos)))
             parts_of_speech_counter[pos] += 1
 
         gl_elems = s_ele.findall('gloss')
         for gl_elem in gl_elems:
-            gloss.append(gl_elem.text)
+            gloss_list.append(gl_elem.text)
+        pos_list_per_sense.append(pos_list)
+        gloss_list_per_sense.append(gloss_list)
+    if len(s_elems)>1:
+        entries_with_many_senses += 1
 
     if k_freq is None:
         k_freq = calculate_frequency_ranking(k_freq_elems)
     if r_freq is None:
         r_freq = calculate_frequency_ranking(r_freq_elems)
 
-    pos_list=list(set(pos_list))
-    gloss_str = json.dumps(gloss)    
+    pos_list=json.dumps(pos_list_per_sense)
+    gloss_str = json.dumps(gloss_list_per_sense)    
     row = "%s\t%s\t%s\t%s\t%d\t%s\n" % \
         (ent_seq, ','.join(kanji_elements), ','.join(readings), 
-         ','.join(pos_list), k_freq, r_freq)
+        pos_list, k_freq, r_freq)
 
     row_m = "%s\t%s\t%s\t%s\t%d\t%s\t%s\n" % \
         (ent_seq, ','.join(kanji_elements), ','.join(readings), 
-         ','.join(pos_list), k_freq, r_freq, gloss_str)
+         pos_list, k_freq, r_freq, gloss_str)
     
     if pos_list_updated:
         sorted_pos = dict(sorted(parts_of_speech_counter.items(), key=lambda x:x[1], reverse=True))
@@ -118,3 +125,5 @@ for elem in entries:
     o_f2.write(row_m)
 o_f.close()
 o_f2.close()
+
+print("Wrote %d entries, of which %d had more than 1 sense" % (len(entries), entries_with_many_senses))

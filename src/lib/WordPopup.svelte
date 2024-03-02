@@ -11,7 +11,7 @@ let dialog; // HTMLDialogElement
 export let showModal = false;
 
 export let word;
-export let word_seq_list;
+export let word_sense_list;
 export let word_class;
 export let history = [];
 export let learning_stage;
@@ -57,7 +57,7 @@ $: {
 
 $: {
     if (dialog && showModal) {
-        fetchMeanings(word_seq_list);
+        fetchMeanings(word_sense_list);
         dialog.showModal();
     }
 };
@@ -75,10 +75,10 @@ const learningStageChanged = (e) => {
     }
 }
 
-async function fetchMeanings(sequence_number_list) {
+async function fetchMeanings(sense_list) {
     let body = JSON.stringify({
         'func' : 'get_meanings', 
-        'seqs' : sequence_number_list,
+        'seq_sense_list' : sense_list,
     });
     const response = await fetch( "/jmdict", {
         headers: {"Content-Type" : "application/json" },
@@ -90,7 +90,7 @@ async function fetchMeanings(sequence_number_list) {
     console.log(JSON.stringify(result))
 };
 
-fetchMeanings([1052530,1160870]);
+fetchMeanings(['1052530','1160870']);
 </script>
 
 <dialog id="popup-dialog" class="popup-dialog" class:wide-dialog={show_history}

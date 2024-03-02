@@ -28,6 +28,23 @@ function loadJMDict() {
 
 loadJMDict();
 
+function get_meanings(seq_sense_list) {
+    let m_list = [];
+    console.log("seqs: "+seq_sense_list);
+    for (let seq_sense of seq_sense_list) {
+        let s = seq_sense.split('/');
+        let seq = s[0];
+        if (s.length==1) {
+            for (let m of meanings[seq]) {
+                m_list.push(m);
+            } 
+        } else {
+            m_list.push(meanings[seq][s[1]]);
+        }
+    }
+    return m_list;
+}
+
 async function parse(text) {
     let exec_cmd = `python tools/jp_parser_tool.py '${JSON.stringify(text)}'`
     console.log(exec_cmd);
@@ -46,13 +63,9 @@ export async function POST({ request }) {
 	console.log("POST /jmdict: " + JSON.stringify(data) );
 	let ret = { success : false};
 	if (data.func == 'get_meanings') {
-        let m_list = [];
-        for (let seq of data.seqs) {
-            m_list.push(meanings[seq]);
-        }
         ret= {
             success : true,
-            'meanings' : m_list,
+            'meanings' : get_meanings(data.seq_sense_list),
         };
     }
 	if (data.func == 'parse') {

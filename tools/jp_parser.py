@@ -7,17 +7,15 @@ parser = fugashi.Tagger('')
 
 jmdict_readings = dict()
 jmdict_reading_seq = dict()
-#jmdict_reading_freq = dict()
+jmdict_reading_freq = dict()
 jmdict_kanji_elements = dict()
 jmdict_kanji_element_seq = dict()
-#jmdict_kanji_element_freq = dict()
-jmdict_pos = dict()
-jmdict_meanings = dict()
+jmdict_kanji_element_freq = dict()
+jmdict_class_list_per_sense = dict()
+jmdict_flat_class_list = dict()
+jmdict_meaning_per_sense = dict()
 max_jmdict_reading_len = 0
 max_jmdict_kanji_element_len = 0
-
-jmdict_file = base_dir + "lang/JMdict_e_s.tsv"
-jmdict_with_meanings_file = base_dir + "lang/JMdict_e_m.tsv"
 
 verb_conjugations = dict()
 adj_conjugations = dict()
@@ -25,6 +23,8 @@ adj_conjugations = dict()
 verbose_level = 0
 log_file = None
 
+def get_jmdict_data():
+    return jmdict_kanji_elements, jmdict_kanji_element_seq, jmdict_readings, jmdict_reading_seq, jmdict_meaning_per_sense, max_jmdict_kanji_element_len, max_jmdict_reading_len
 
 stats_no_refs = dict()
 def STATS_NO_REFS(word,cl):
@@ -32,6 +32,12 @@ def STATS_NO_REFS(word,cl):
         stats_no_refs[(word,cl)] = 1
     else:
         stats_no_refs[(word,cl)] += 1
+
+incidences = dict()
+def INCIDENCE_COUNTER(incidence, target_word, words):
+    if incidence not in incidences:
+        incidences[incidence] = []
+    incidences[incidence].append((target_word,words))
 
 def LOG_HEADING(level=2):
     if level <= verbose_level:
@@ -58,6 +64,13 @@ def close_log_file():
     print("No refs statistics:", file=log_file)
     for (word,cl),count in sorted_stats.items():
         print("%s %s %s" % ( str(count).ljust(3), unidic_class_to_string(cl).ljust(10),word), file=log_file)
+    print("No refs statistics:", file=log_file)
+    for (incidence_msg,i_list) in incidences.items():
+        print("**** %s ****" % incidence_msg, file=log_file)
+        for (target_word, words) in i_list:
+            print("%s : %s" %(target_word.ljust(6,'　'),''.join(words)), file=log_file)
+        print("-- Total %d incidences" % len(i_list), file=log_file)
+
     log_file.close()
 
 def is_all_alpha(word):
@@ -107,7 +120,7 @@ def parse_line_with_unidic(line, kanji_count, lemmas):
         class_name = wr[1]
 
         try:
-            cl = unidic_word_classes.index(class_name)
+            cl = unidic_item_classes.index(class_name)
         except:
             raise Exception("Unknown class %d in word %s" % (class_name, w))
 
@@ -164,24 +177,13 @@ def parse_line_with_unidic(line, kanji_count, lemmas):
 
     return k_c, words, word_ortho, word_classes
 
-def check_adjectival_nouns(pos,words,word_ortho,word_classes, word_flags):
+def check_adjectival_nouns(pos,words,word_ortho,word_classes, item_flags):
     if pos == len(words) - 1:
         return
-    if words[pos+1] == 'に' and word_classes[pos+1] == aux_verb_class: 
-        # why is the に classified as 助動詞 ??
-        # adjectival noun + に　-> adverb 
-        # Example: 早め + に
-        word_flags[pos+1] |= MERGE_PARTICLE
-        word_flags[pos] |= DISABLE_ORTHO
-        word_classes[pos] = adverb_class
     if word_classes[pos+1] == aux_verb_class:
-        word_flags[pos+1] |= DISABLE_ORTHO
-    if word_classes[pos+1] == suffix_class and word_ortho[pos+1] == 'がる':
-        # 嫌がる 
-        word_classes[pos] = verb_class
-        word_flags[pos+1] |= MERGE_PARTICLE
-        word_flags[pos] |= PROCESS_AFTER_MERGING # have to scan this word again as a verb
-
+        # disable the ortho form for the erroneously detected aux verb
+        # (most likely な in みたいな or に in 早めに)
+        item_flags[pos+1] |= DISABLE_ORTHO
     return
 
 def attempt_conjugation(i, words, stem, conj):
@@ -197,15 +199,9 @@ def attempt_conjugation(i, words, stem, conj):
                     return k+1
     return 0
 
-def check_adjectives(pos,words,word_ortho,word_classes, word_flags):
+def check_adjectives(pos,words,word_ortho,word_classes, item_flags):
     if pos == len(words) - 1:
         return
-    """
-    if words[pos+1] == 'な' and word_classes[pos+1] == aux_verb_class: 
-        # why is the な classified as 助動詞 ??
-        # Anyway, this is the な　after na-adjective so prevent scanning it further
-        word_flags[pos+1] |= NO_SCANNING
-    """
     ortho = word_ortho[pos]
     if ortho[-1] == 'い':
         ending, conj = adj_conjugations[jmdict_adj_i_class]
@@ -214,8 +210,10 @@ def check_adjectives(pos,words,word_ortho,word_classes, word_flags):
         ending, conj = adj_conjugations[jmdict_adjectival_noun_class] # the な　adjectives
         stem = ortho
     detected_num = attempt_conjugation(pos, words, stem, conj)
-    for i in range(detected_num):
-        word_flags[pos+i+1] = MERGE_PARTICLE
+    # TODO
+
+    #for i in range(detected_num):
+    #    item_flags[pos+i+1] = MERGE_PARTICLE
 
     return
 
@@ -228,7 +226,7 @@ def get_verb_conjugations(ortho):
             if ortho in jmdict_reading_seq[len(ortho)]:
                 seqs = jmdict_reading_seq[len(ortho)][ortho]
         for seq in seqs:
-            cl_list = jmdict_pos[seq]
+            cl_list = jmdict_flat_class_list[seq]
             for cl in cl_list:
                 cl_txt = jmdict_parts_of_speech_list[cl]
                 if cl in verb_conjugations:
@@ -244,7 +242,7 @@ def get_verb_conjugations(ortho):
         pass
     return None, '', None
 
-def check_verbs(pos,words,word_ortho,word_classes, word_flags):
+def check_verbs(pos,words,word_ortho,word_classes, item_flags):
     if pos + 1 == len(words):
         # nothing further to check
         return
@@ -255,406 +253,593 @@ def check_verbs(pos,words,word_ortho,word_classes, word_flags):
         detected_num = attempt_conjugation(pos, words, stem, conj)
         if detected_num > 0:
             for i in range(detected_num):
-                word_flags[pos+i+1] = MERGE_PARTICLE
-                #word_flags[pos+i+1] = START_OF_SCAN_DISABLED
+                item_flags[pos+i+1] = MERGE_PARTICLE
+                #item_flags[pos+i+1] = START_OF_SCAN_DISABLED
         else:
             if word_classes[pos+1] == aux_verb_class:
                 if words[pos+1] == "てる": 
                     # accept the colloquial form, e.g. 持っ + てる
-                    word_flags[pos+1] = MERGE_PARTICLE
+                    item_flags[pos+1] = MERGE_PARTICLE
     else:
         LOG(1,"No verb conjugations found for %s/%s" % (words[pos], word_ortho[pos]),words)
-        word_flags[pos] |= ERROR_VERB_CONJUGATION
-
-
-    """
-    if words[pos+1] == 'て':
-        word_flags[pos+1] |= MERGE_PARTICLE
-        return
-    if words[pos+1] == 'ば' and word_classes[pos+1] == grammatical_particle_class:
-        # そういえば
-        word_flags[pos+1] |= MERGE_PARTICLE
-        return
-    if word_classes[pos+1] == aux_verb_class:
-        # merge conjucations
-        word_flags[pos+1] |= MERGE_PARTICLE
-        if pos + 2 < len(words) and word_classes[pos+2] == aux_verb_class:
-            word_flags[pos+2] |= MERGE_PARTICLE
-        return
-    if words[pos+1] == 'ん': # emphatetic particle. Suppress it so it won't be scanned
-        word_flags[pos+1] |= NO_SCANNING
-        return
-    """
+        item_flags[pos] |= ERROR_VERB_CONJUGATION
     return
 
-def check_nouns(pos,words,word_ortho,word_classes,word_flags):
+def check_nouns(pos,words,word_ortho,word_classes,item_flags):
     if pos + 1 == len(words):
         # nothing further to check
         return
-    """
-    if words[pos+1] == 'な' and word_classes[pos+1] == aux_verb_class:
-        if word_ortho[pos+1] == 'だ':
-            # for some reason the ortho in this is case is 'だ' and 
-            # for example in phrase 一人なの？ the parser finds 'だの' in addition to 'なの'
-            # ..  let's get rid of it
-            word_ortho[pos+1] = 'な'
-    if words[pos+1] == 'に' and word_classes[pos+1] == aux_verb_class:
-        if word_ortho[pos+1] == 'だ':
-            # the same as above..
-            # In the phrase 別にいいでしょ the parser finds 'だいい' 
-            word_ortho[pos+1] = 'に'
-            pass
-    """
     if word_classes[pos+1] == aux_verb_class:
-        # the reason is above
-        word_flags[pos+1] |= DISABLE_ORTHO
-
+        if words[pos+1] == 'に' and word_ortho[pos+1] == 'だ':
+            # Erroneously detected aux verb. Disable the ortho form to prevent false results
+            # For example in the phrase 別にいいでしょ the scanner would try 'だいい' 
+            item_flags[pos+1] |= DISABLE_ORTHO
+        if words[pos+1] == 'な' and word_ortho[pos+1] == 'だ':
+            # the reason is same as above
+            item_flags[pos+1] |= DISABLE_ORTHO
     return
 
-def check_explicit_words(pos,words,word_ortho,word_classes,word_flags):
+def handle_explicit_words(pos,words,word_ortho,word_classes,item_flags):
+    if words[pos] in alternative_forms.keys():
+        word_ortho[pos] = alternative_forms[words[pos]]
+
     lw = len(words)
-    for (p_list,target_class) in explicit_words:
+    for (p_list,p_classes,target_class,condition,extra_tasks) in explicit_words:
         lp = len(p_list)
         if pos + lp <= lw:
             i = 0
-            while (i<lp) and (words[pos+i]==p_list[i]):
+            while (i<lp) and (words[pos+i]==p_list[i]) and (word_classes[pos+i]==p_classes[i]):
                 i += 1
             if i == lp:
-                # match. Change the class of the first particle and mark the next ones to be merged
-                word_classes[pos] = target_class
-                for i in range(1,lp):
-                    word_flags[pos+i] = MERGE_PARTICLE
-                return True
+                # All items match. Check extra conditions yet.
+                allowed = True
+                if condition == COND_BLOCK_START and pos>0:
+                    allowed = False
+
+                if allowed:
+                    # Change the class of the first particle and mark the next ones to be merged
+                    word_classes[pos] = target_class
+                    for i in range(1,lp):
+                        item_flags[pos+i] = MERGE_PARTICLE
+                    if extra_tasks == TASK_CLEAR_ORTHO:
+                        for i in range(0,lp):
+                            word_ortho[pos+i] = ''
+                    return True
     return False
 
-def particle_post_processing(pos, words, word_ortho, word_classes, word_flags):
-    if not check_explicit_words(pos,words,word_ortho,word_classes,word_flags):
+def particle_post_processing(pos, words, word_ortho, word_classes, item_flags):
+    if not handle_explicit_words(pos,words,word_ortho,word_classes,item_flags):
         cl = word_classes[pos]
         if cl == verb_class:
-            return check_verbs(pos,words,word_ortho,word_classes,word_flags)
+            return check_verbs(pos,words,word_ortho,word_classes,item_flags)
         elif cl == adjective_class:
-            return check_adjectives(pos,words,word_ortho,word_classes,word_flags)
+            return check_adjectives(pos,words,word_ortho,word_classes,item_flags)
         elif cl == adjectival_noun_class:
-            return check_adjectival_nouns(pos,words,word_ortho,word_classes,word_flags)
+            return check_adjectival_nouns(pos,words,word_ortho,word_classes,item_flags)
         elif cl <= punctuation_mark_class:
-            word_flags[pos] |= NO_SCANNING
+            item_flags[pos] |= NO_SCANNING
             return True
         elif cl == noun_class:
-            return check_nouns(pos,words,word_ortho,word_classes,word_flags)
+            return check_nouns(pos,words,word_ortho,word_classes,item_flags)
+        elif cl == aux_verb_class:
+            if words[pos] == 'な':
+                # The parser usually thinks it has detected な like 
+                # in なければ. In this case the ortho form is だ 
+                # However usually the detection of な is erroneous,
+                # for example: な in どうなんでしょう.
+                # The ortho form creates problems when later using it in phrase
+                # permutations (どうだ in addition to どうな). 
+                # It's safe to delete the ortho for な　because
+                # we already handle verb conjugations without relying on the 
+                # ortho forms from auxiliary verb particles
+                word_ortho[pos] = words[pos]
+                # な might often modify the preceding (adjectival) noun
+                # like 素敵(すてき) + な
+                # but JMDict doesn't recognize these forms, nor does it
+                # have an entry to な as a particle in this case, so 
+                # we want to fuse な　into the preceding word later after scanning
+                # is complete
+                item_flags[pos] |= BIND_TO_PREVIOUS_ITEM_IF_LEFT_UNTETHERED
+
         elif cl == grammatical_particle_class:
             # do not allow jmdict to start scanning from this grammatical particle
             # if it's too small (easily mixed up with other words)
             # but allow it to be included in other parts. Only exception
             # is just at the beginning of the sentence (it could be mistake in Unidic)
-            if (pos > 0) and (len(words[pos]) <= SMALL_PARTICLE_THRESHOLD):
-                word_flags[pos] |= START_OF_SCAN_DISABLED
-                return True
+            #if (pos > 0) and (len(words[pos]) <= SMALL_PARTICLE_THRESHOLD):
+            #    item_flags[pos] |= START_OF_SCAN_DISABLED
+            #    return True
             return False
         elif cl == suffix_class:
             # do not allow jmdict to start scanning from this particle
             # but allow it to be included in other parts
-            #word_flags[i] |= START_OF_SCAN_DISABLED
+            #item_flags[i] |= START_OF_SCAN_DISABLED
             return False
     else:
         return True
 
 # merge those particles that are marked
-def merge_particles(words, word_ortho, word_classes, word_flags):
+def merge_particles(words, word_ortho, word_classes, item_flags):
     pos = 0
     processed_words = []
     processed_ortho = []
     processed_classes = []
-    processed_word_flags = []
+    processed_item_flags = []
 
     for i in range(len(words)):
-        if word_flags[i] & MERGE_PARTICLE:
+        if item_flags[i] & MERGE_PARTICLE:
             processed_words[pos-1] += words[i]
         else:
             processed_words.append(words[i])
             processed_ortho.append(word_ortho[i])
             processed_classes.append(word_classes[i])
-            processed_word_flags.append(word_flags[i])
+            processed_item_flags.append(item_flags[i])
             pos += 1
-    return processed_words, processed_ortho, processed_classes, processed_word_flags
+    return processed_words, processed_ortho, processed_classes, processed_item_flags
 
 
 def post_process_unidic_particles(words, word_ortho, word_classes):
-    word_flags = [0] * len(words)
+    item_flags = [0] * len(words)
 
     cont = True
     while cont:
         for i in range(len(words)):
-            word_flags[i] &= (~PROCESS_AFTER_MERGING) # clear the flag
-            if word_flags[i] != MERGE_PARTICLE: 
-                particle_post_processing(i, words, word_ortho, word_classes, word_flags)
+            item_flags[i] &= (~PROCESS_AFTER_MERGING) # clear the flag
+            if item_flags[i] != MERGE_PARTICLE: 
+                particle_post_processing(i, words, word_ortho, word_classes, item_flags)
 
         # merge those particles that are marked
-        words, word_ortho, word_classes, word_flags = \
-            merge_particles( words, word_ortho, word_classes, word_flags )
+        words, word_ortho, word_classes, item_flags = \
+            merge_particles( words, word_ortho, word_classes, item_flags )
 
         cont = False
-        if any(flag & PROCESS_AFTER_MERGING for flag in word_flags):
+        if any(flag & PROCESS_AFTER_MERGING for flag in item_flags):
             # do another round
             cont = True
 
-    return words, word_ortho, word_classes, word_flags
+    return words, word_ortho, word_classes, item_flags
+
+ALL_SENSES = 100
+
+"""
+This makes sure that only appropriate jmdict senses are assigned to 
+the unidic lex items that make up the scanned word.
+Example:
+    お母さん with seq number 1002650 and following senses (each having)
+            1# ['mother', 'mom', 'mum', 'ma']
+                noun (common) (futsuumeishi)
+            2# ['wife']
+                noun (common) (futsuumeishi)
+            3# ['you (of an elderly person older than the speaker)', 'she', 'her']
+                pronoun
+The matching lexical items were お + 母 + さん
+"""
+def get_valid_senses_for_scanned_word(scanned_word, pos,num_items,words,word_classes,seq):
+    global messages # for debugging
+
+    if scanned_word in hard_coded_seqs.keys():
+        (unidic_class, wanted_seq) = hard_coded_seqs[scanned_word]
+        if num_items == 1 and word_classes[pos]==unidic_class:
+            # いる / する / 私 clutter prevention: Don't carry any 
+            # references to these words other than the sequence number selected here
+            # User can check the other 9 homophones elsewhere though
+            if seq == wanted_seq:
+                return [ALL_SENSES]
+            else:
+                return []
+
+    scanned_word_jmd_classes_per_sense = jmdict_class_list_per_sense[seq]
+    valid_senses = [set() for x in range(num_items)]
+
+    for i in range(num_items):
+        word = words[pos+i]
+        unidic_classes = set([word_classes[pos+i]])
+        if word in alternative_classes:
+            unidic_classes.update(alternative_classes[word])
+        is_last = (i==num_items-1)
+        next_word = None
+        next_word_class = None
+        if not is_last:
+            next_word = words[pos+i+1]
+            next_word_class = word_classes[pos+i+1]
+
+        prev_word_in_block = None
+        prev_word_in_block_classes = set()
+        if pos + i - 1 >= 0:
+            prev_word_in_block = words[pos+i-1]
+            prev_word_in_block_classes = set([word_classes[pos+i-1]])
+            if prev_word_in_block in alternative_classes:
+                prev_word_in_block_classes.update(alternative_classes[prev_word_in_block])
+
+        """
+        if prefix_class in unidic_classes:
+            if i != 0:
+                # prefix must be the first particle in the word
+                return []
+        """
+
+        for s_idx, scanned_word_jmd_classes in enumerate(scanned_word_jmd_classes_per_sense):
+            for jmd_cl in scanned_word_jmd_classes:
+                if jmd_cl == jmdict_expression_class:
+                        # everything is allowed as expression/phrase
+                        valid_senses[i].update([s_idx])
+
+                if jmd_cl == jmdict_suffix_class:
+                    if noun_class in unidic_classes and i>0:
+                        # nouns can act as suffix (like -家)
+                        # as long as they are not alone or at the beginning
+                        valid_senses[i].update([s_idx])
+
+                if jmd_cl == jmdict_prefix_class:
+                    if noun_class in unidic_classes and i == 0:
+                        # nouns can act as prefix (like 全-)
+                        # as long as they are at the beginning. Not being
+                        # standalone is not enforced because sometimes
+                        # they are indeed isolated in the dictionary (like 全) 
+                        valid_senses[i].update([s_idx])
+
+                if jmd_cl == jmdict_adverb_class:
+                    if adjectival_noun_class in unidic_classes or noun_class in unidic_classes:
+                        if next_word == 'に':
+                            # (adjectival) noun + に can be adverb
+                            valid_senses[i].update([s_idx])
+                            valid_senses[i+1].update([s_idx])
+                    if adverb_class in unidic_classes:
+                        if next_word_class == verb_class or next_word_class == grammatical_particle_class:
+                            # Allow adverbs to stay as adverbs when followed by 
+                            # a verb or a grammatical particle
+                            # どう + して,  もし + も、、少し + ずつ
+                            valid_senses[i].update([s_idx])
+                            valid_senses[i+1].update([s_idx])
+
+                if jmd_cl == jmdict_pronoun_class:
+                    if pronoun_class in unidic_classes:
+                        if next_word == 'か':
+                            # pronoun + か can still be pronoun (誰か).
+                            valid_senses[i].update([s_idx])
+                            valid_senses[i+1].update([s_idx])
+
+                if jmd_cl in jmdict_noun_classes:
+                    if prefix_class in unidic_classes and i == 0:
+                        if num_items > 1:
+                            # allow prefix for noun if it's the first item and not alone
+                            valid_senses[i].update([s_idx])
+                    if suffix_class in unidic_classes and is_last:
+                        if num_items > 1:
+                            # allow suffix for noun if it's the last item and not alone
+                            valid_senses[i].update([s_idx])
+
+                if jmd_cl == jmdict_conjunction_class:
+                    if noun_class in unidic_classes and next_word == 'に':
+                        # 癖に
+                        valid_senses[i].update([s_idx])
+                        valid_senses[i+1].update([s_idx])
+
+                if jmd_cl in jmdict_verb_classes:
+                    if noun_class in unidic_classes and verb_class == next_word_class:
+                        # sometimes item detected as noun precede a verb:
+                        # 風邪ひく, ご覧なさる, 旅する, 役立つ...
+                        valid_senses[i].update([s_idx])
+
+                # more general allow rules based on jmdict <-> unidic class bindings
+                if s_idx not in valid_senses:
+                    if jmd_cl in jmdict_noun_classes:
+                        if not (unidic_classes & allowed_noun_bindings):
+                            messages[pos+i].append("%s(%s) not in allowed noun bindings for %s(%s)" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_parts_of_speech_list[jmd_cl]))
+                        else:
+                            valid_senses[i].update([s_idx])
+                    if jmd_cl in jmdict_verb_classes:
+                        if not (unidic_classes & allowed_verb_bindings):
+                            messages[pos+i].append("%s(%s) not in allowed verb bindings for %s(%s)" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_parts_of_speech_list[jmd_cl]))
+                        else:
+                            valid_senses[i].update([s_idx])
+                    if jmd_cl in allowed_other_class_bindings:
+                        if not (unidic_classes & set(allowed_other_class_bindings[jmd_cl])):
+                            messages[pos+i].append("%s(%s) not allowed for %s(%s)" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_parts_of_speech_list[jmd_cl]))
+                        else:
+                            valid_senses[i].update([s_idx])
+
+        if len(valid_senses[i]) == 0:
+
+            if num_items >= 4:
+                INCIDENCE_COUNTER("acceptance by scanned items length>=4",scanned_word,words)
+            if len(scanned_word) >= 6:
+                INCIDENCE_COUNTER("acceptance by scanned word length>=6",scanned_word,words)
+
+            for scanned_word_jmd_classes in scanned_word_jmd_classes_per_sense:
+                for jmd_cl in scanned_word_jmd_classes:
+                    if jmd_cl in jmdict_noun_classes:
+                        # Sometimes Unidict just fails to parse pure Hiragana words..
+                        # For example ばんそうこう (bandage) becomes:
+                        #  ば (grammatical particle)
+                        #  ん (interjection)
+                        #  そうこう (adverb) ..
+                        # To allow matching these kinds of words we disregard the parsed classes
+                        # if the candidate word is a noun and has a length of minimum of 5 characters 
+                        if len(scanned_word) >= HOMOPHONE_MATCHING_WORD_MINIMUM_LENGTH:
+                            messages[pos+i].append("%s(%s) failed otherwise but matching %s(%s) just due to length" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_parts_of_speech_list[jmd_cl]))
+                            return [ALL_SENSES] # no need to check other words
+
+            messages[pos+i].append("%s(%s) has no matching class for %s(%s)" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_parts_of_speech_list[jmd_cl]))
+            # This lexical item matched none of the senses for this word so no need to check other items
+            return []
+        
+    # get those senses that match all lexical items
+    final_valid_senses = set.intersection(*valid_senses)
+    if len(final_valid_senses) == len(scanned_word_jmd_classes_per_sense):
+        return [ALL_SENSES]
+    return list(final_valid_senses)
+
 
 
 # this will scan for all the possible dictionary entries in the jmdict set
-# (either kanji_elements or readings) using the given list of words 
+# (either kanji_elements or readings) using the given phrase
 # and starting at position pos.  
-def greedy_jmdict_scanning(words, word_flags, word_ref, word_by_seq, searched_word_sets, start_pos, min_word_len, jmdict_set, jmdict_seq_dict, max_jmdict_len):
-    lw = len(words)
+def greedy_jmdict_scanning(phrase, items, item_classes, item_flags, sense_ref, word_by_seq, searched_chunk_sets, start_pos, min_word_len, jmdict_set, jmdict_seq_dict, max_jmdict_len):
+    lp = len(phrase) # length of phrase in particles
     
-    cycle_pos = start_pos
+    cycle_pos = 0
     while True:
 
-        i = cycle_pos
-        wc = 0
-        word_chunk = ''
-        if not ( word_flags[i] & START_OF_SCAN_DISABLED):
-            while (i + wc < lw) and not (word_flags[i+wc] & NO_SCANNING): # words[i+wc] is not None:
+        i = start_pos + cycle_pos
+        clen = 0
+        chunk = ''
+        if not ( item_flags[i] & START_OF_SCAN_DISABLED):
+            while (cycle_pos + clen < lp):
 
-                word_chunk += words[i+wc]
-                wc += 1
+                chunk += phrase[cycle_pos + clen]
+                clen += 1
 
                 # first check that this chunk hasn't been yet searched for this position
-                if word_chunk not in searched_word_sets[i]:
-                    wc_l = len(word_chunk)
-                    if wc_l >= min_word_len and wc_l <= max_jmdict_len:
-                        # then check if the word chunk is in the jmdict_set.. (this is much faster)
-                        if word_chunk in jmdict_set[wc_l]:
+                if chunk not in searched_chunk_sets[i]:
+                    clen_c = len(chunk) # chunk size in characters, not particles
+                    if clen_c >= min_word_len and clen_c <= max_jmdict_len:
+                        # then check if the word chunk is in the jmdict set.. (this is much faster)
+                        if chunk in jmdict_set[clen_c]:
                             # .. found. Now we can use a bit more time to find the sequence number in the dict
-                            seqs = jmdict_seq_dict[wc_l][word_chunk]
+                            seqs = jmdict_seq_dict[clen_c][chunk]
                             for seq in seqs:
-                                word_by_seq[seq] = word_chunk
-                                # add this seq reference for all the encompassing words
-                                for j in range(wc):
-                                    word_ref[i+j].append(seq)
+                                senses = get_valid_senses_for_scanned_word(chunk,i,clen,items,item_classes,seq)
+                                if len(senses)>0:
+                                    word_by_seq[seq] = chunk
+                                    # add this seq/sense reference for all the encompassing lexical items
+                                    for sense in senses:
+                                        seq_s = (seq,sense)
+                                        for j in range(clen):
+                                            sense_ref[i+j].append(seq_s)
 
-                    searched_word_sets[i].add(word_chunk)
+                    searched_chunk_sets[i].add(chunk)
 
         cycle_pos += 1
-        if cycle_pos > lw - 1:
-            return word_ref
+        if cycle_pos > lp - 1:
+            return
 
-
-def create_phrase_permutations(words, alternative_forms, index=0):
-    phrase = []
-    i = index
+# Returns a list of phrase permutations and a new start position for next round.
+# Permutations are created using original particles/words and ending with 
+# an ortho/basic form. Scanning stops when non-Hiragana/Katakana/Kanji character was
+# detected
+def create_phrase_permutations(original_words, ortho_forms, item_flags, start=0):
+    i = start
     permutations = []
-    while i<len(alternative_forms):
-        if alternative_forms[i] is None:
-            phrase.append(words[i])
-            i += 1
+    while i<len(original_words) and (not (item_flags[i] & NO_SCANNING) ):
+        if ortho_forms[i] is not None:
+            permutations.append(original_words[start:i] + [ortho_forms[i]])
+        i += 1
+    
+    if i> 0:
+        # finally add the whole original as one permutation
+        permutations.append(original_words[start:i])
+    if i<len(original_words):
+        i += 1  # add one because the last one was a punctuation etc..
+    return permutations, i
+
+
+def scan_jmdict_for_phrase( phrase, pos, items, item_classes, item_flags, sense_ref, word_by_seq, searched_kanji_word_set, searched_reading_set):
+
+    greedy_jmdict_scanning(phrase, items, item_classes, item_flags, sense_ref, word_by_seq, searched_kanji_word_set, pos, 1, jmdict_kanji_elements, jmdict_kanji_element_seq, max_jmdict_kanji_element_len)
+    greedy_jmdict_scanning(phrase, items, item_classes, item_flags, sense_ref, word_by_seq, searched_reading_set, pos, 1, jmdict_readings, jmdict_reading_seq, max_jmdict_reading_len)
+    return sense_ref
+
+
+# Expand the sense reference into a tuple of seq + sense lists: (seq,[senses])
+#  For example "203943/1" results in (203943,[1]) whereas
+# ALL_SENSES is denoted with a reference without slash+sense index number
+# so return all the senses: (203943,[1,2,...,n])
+def expand_sense_ref(seq_sense):
+    s = seq_sense.split('/')
+    seq = int(s[0])
+    if len(s) > 1:
+        exp_list = [int(s[1])]
+    else:
+        exp_list = []
+        for i in range(len(jmdict_class_list_per_sense[seq])):
+            exp_list.append((i))
+    return (seq,exp_list)
+
+
+def expand_sense_tuple(seq_senses):
+    exp_list = []
+    for seq, sense in seq_senses:
+        if sense == ALL_SENSES:
+            for i in range(len(jmdict_class_list_per_sense[seq])):
+                exp_list.append((seq,i))
         else:
-            p1 = create_phrase_permutations(words,alternative_forms, i+1)
-            for p in p1:
-                permutations.append(phrase + [words[i]] + p)
-            p2 = create_phrase_permutations(words,alternative_forms, i+1)
-            for p in p2:
-                permutations.append(phrase + [alternative_forms[i]] + p)
-            return permutations
-    return [phrase]
+            exp_list.append((seq,sense))
+    return exp_list
 
-
-def scan_jmdict_for_selected_words( permutated_words, word_flags, word_ref, word_by_seq, searched_kanji_word_set, searched_reading_set):
-
-    greedy_jmdict_scanning(permutated_words, word_flags, word_ref, word_by_seq, searched_kanji_word_set, 0, 1, jmdict_kanji_elements, jmdict_kanji_element_seq, max_jmdict_kanji_element_len)
-
-    """
-    for i, seqs in enumerate(word_ref):
-        if len(seqs) == 0:
-            # look for readings only starting from the word for which kanji_element couldn't be found
-            greedy_jmdict_scanning(permutated_words, word_flags, word_ref, word_by_seq, searched_reading_set, i, 2, jmdict_readings, jmdict_reading_seq, max_jmdict_reading_len)
-            break
-    """
-    greedy_jmdict_scanning(permutated_words, word_flags, word_ref, word_by_seq, searched_reading_set, 0, 2, jmdict_readings, jmdict_reading_seq, max_jmdict_reading_len)
-    return word_ref
-
-
-def check_illegal_class_combinations(word, scanned_word, unidic_class, scanned_word_jmdict_classes, messages):
-    for cl in scanned_word_jmdict_classes:
-        if cl == jmdict_expression_class:
-            # everything is allowed in expression/phrase
-            return False
-        if cl in jmdict_noun_classes:
-            if unidic_class not in allowed_noun_bindings:
-                messages.append("%s(%s) not in allowed noun bindings for %s(%s)" % (word, unidic_class_to_string(unidic_class), scanned_word, jmdict_parts_of_speech_list[cl]))
-            else:
-                return False
-        if cl in jmdict_verb_classes:
-            if unidic_class not in allowed_verb_bindings:
-                messages.append("%s(%s) not in allowed verb bindings for %s(%s)" % (word, unidic_class_to_string(unidic_class), scanned_word, jmdict_parts_of_speech_list[cl]))
-            else:
-                return False
-        if cl in allowed_other_class_bindings:
-            if unidic_class not in allowed_other_class_bindings[cl]:
-                messages.append("%s(%s) not allowed for %s(%s)" % (word, unidic_class_to_string(unidic_class), scanned_word, jmdict_parts_of_speech_list[cl]))
-            else:
-                return False
-    messages.append("%s(%s) has no matching class for %s(%s)" % (word, unidic_class_to_string(unidic_class), scanned_word, jmdict_parts_of_speech_list[cl]))
-    return True
-
-
-def parse_with_jmdict(unidic_words, unidic_word_ortho, unidic_word_class, unidic_word_flags,
-            jmdict_word_list, jmdict_word_count, jmdict_word_seqs, jmdict_word_class_list, 
+def parse_with_jmdict(unidic_items, unidic_item_ortho, unidic_item_class, item_flags,
+            jmdict_sense_list, jmdict_sense_word_index, 
+            jmdict_word_list, jmdict_word_count, jmdict_word_senses, jmdict_sense_class_list,
             word_count_per_unidict_class,
     ):
-    # By default we use a word list in basic (ortho) form. 
-    # Example: お願いします -> お + 願う + する
+    global messages
+    # By default we use lexical items in the form they word in the original text
+    # Example: お願いします -> お + 願い + します
 
     # In order to do more exhaustive scanning we also construct 
-    # a list of original word forms (as they were in the text)
-    # if they differ from the basic form.
-    # Example: お願いします -> お + 願い + します
-    original_forms = []
-    wlen = len(unidic_words)
-    words = []
-    for i, w in enumerate(unidic_words):
-        cli = unidic_word_class[i]
-        if (unidic_words[i] != unidic_word_ortho[i]) \
-                and not (unidic_word_flags[i] & (NO_SCANNING | DISABLE_ORTHO)):
-            original_forms.append(unidic_words[i])
+    # a list of basic/ortho forms if they differ from the originals.
+    # Example: お願いします -> お + 願う + する
+    ortho_forms = []
+    wlen = len(unidic_items)
+    for i, w in enumerate(unidic_items):
+        cli = unidic_item_class[i]
+        if (unidic_items[i] != unidic_item_ortho[i]) \
+                and not (item_flags[i] & (NO_SCANNING | DISABLE_ORTHO)):
+            ortho_forms.append(unidic_item_ortho[i])
         else:
-            original_forms.append(None)
-        if unidic_word_flags[i] & DISABLE_ORTHO:
-            words.append(unidic_words[i])
-        else:
-            words.append(unidic_word_ortho[i])
-    """
-    This creates a list of permutations for words/alternative words.
-    For example:
-        お + 願う + する
-        お + 願う + します
-        お + 願い + する
-        お + 願い + します
-    """
-    permutations = create_phrase_permutations(words, original_forms)
-    if verbose_level>=1:
-        LOG(2,"Permutations:")
-        for p in permutations:
-            p_str = [x.ljust(6) for x in p]
-            LOG(2, "  %s" % (''.join(p_str)))
-        LOG(2,"***********")
+            ortho_forms.append(None)
 
-    # Scan this block with each permutation and for every word/particle get references 
-    # (sequence numbers) to JMDict entries
     searched_kanji_word_sets = [set() for x in range(wlen)]
     searched_reading_sets = [set() for x in range(wlen)]
-    word_seq_ref = [[] for x in range(len(unidic_words))]
+    item_sense_ref = [[] for x in range(len(unidic_items))]
     word_by_seq = dict()
-    for permutated_words in permutations:
-        scan_jmdict_for_selected_words(permutated_words, unidic_word_flags, word_seq_ref, word_by_seq, searched_kanji_word_sets, searched_reading_sets)
+    
+    """
+    Create a list of permutations of for phrases based on the original and basic/ortho form 
+    of each word. 
+    For example:
+        お願いします 
+        ----------------
+        お + 願う
+        お + 願い + する
+        お + 願い + します
 
-    seq_count = dict()
-    for i, seqs in enumerate(word_seq_ref):
-        # calculate how many particles reference each jmdict word/phrase
-        for seq in seqs:
-            if seq not in seq_count:
-                seq_count[seq] = 1
+    Phrases are constructed from original words from the block, separated by any punctuation marks
+    """
+    pos = 0
+    messages = [[] for _ in range(len(unidic_items))]
+    while pos < len(unidic_items):
+        permutations, next_pos = create_phrase_permutations(unidic_items, ortho_forms, item_flags, pos)
+        if verbose_level>=1:
+            LOG(2,"Permutations:")
+            for p in permutations:
+                p_str = [x.ljust(6) for x in p]
+                LOG(2, "  %s" % (''.join(p_str)))
+            LOG(2,"***********")
+
+        # Scan this chunk with each permutation and for every lexical item get references 
+        # (sequence number+sense index) to JMDict entries
+        for permutated_items in permutations:
+            scan_jmdict_for_phrase(permutated_items, pos, unidic_items, unidic_item_class, item_flags, item_sense_ref, word_by_seq, searched_kanji_word_sets, searched_reading_sets)
+
+        pos = next_pos
+
+    ### POST PROCESSING
+    """
+    sense_references = dict()
+    for i, seq_senses in enumerate(item_sense_ref):
+        # calculate the particles that reference each jmdict word/phrase
+        for seq_sense in seq_senses:
+            if seq_sense not in sense_references:
+                sense_references[seq_sense] = [i]
             else:
-                seq_count[seq] += 1
+                sense_references[seq_sense].append(i)
+    """
 
-    # Remove references for those small particles that are isolated
+    # Fuse small particles when they are left isolated
     # (not part of bigger phrase)
-    for i,(seqs) in enumerate(word_seq_ref):
-        cl = unidic_word_class[i]
+    
+    for i,(seq_senses) in enumerate(item_sense_ref):
+        cl = unidic_item_class[i]
         # keep count of word occurrence by class
         word_count_per_unidict_class[cl] += 1
 
-        messages = []
-        new_seqs = []
-        for seq in seqs:
-            remove_ref = False
-            if cl <= grammatical_particle_class:
-                if seq_count[seq] == 1:
-                    if len(word_by_seq[seq]) <= SMALL_PARTICLE_THRESHOLD:
-                        # this particle is isolated for this reference
-                        if verbose_level>0:
-                            messages.append("Removed isolated small particle reference for %s[%d]" % (word_by_seq[seq],seq ))
-                        remove_ref = True
+        if item_flags[i] &  BIND_TO_PREVIOUS_ITEM_IF_LEFT_UNTETHERED:
+            if len(seq_senses)==0 and i>0:
+                # grab the references from previous item
+                item_sense_ref[i] = item_sense_ref[i-1]
 
-            if not remove_ref:
-                remove_ref = check_illegal_class_combinations(unidic_words[i], word_by_seq[seq], cl, jmdict_pos[seq], messages)
-
-            if not remove_ref:
-                new_seqs.append(seq)
-            #else:
-            #    if verbose_level>=2:
-            #        print(" %d : %s Removed reference %s[%d]" % (i,unidic_words[i].ljust(6), word_by_seq[seq],seq ))
-
+        # log missing references
         if verbose_level >= 1:
-            if len(new_seqs) == 0:
-                STATS_NO_REFS(unidic_words[i], unidic_word_class[i])
+            if len(seq_senses) == 0:
                 l_level = 1
-                if cl <= grammatical_particle_class:
-                    l_level = 2
-                LOG_HEADING()
-                LOG(l_level," %d : %s Has no references because.. " % (i,unidic_words[i]))
-                if len(seqs) == 0:
-                    LOG(l_level," .. no matches in scanning",words=unidic_words)
+                if cl <= punctuation_mark_class:
+                    l_level = 3
                 else:
-                    for msg in messages:
+                    STATS_NO_REFS(unidic_items[i], unidic_item_class[i])
+                LOG_HEADING()
+                LOG(l_level," %d : %s Has no references because.. " % (i,unidic_items[i]))
+                if len( messages[i]) == 0:
+                    LOG(l_level," .. no matches in scanning",words=unidic_items)
+                else:
+                    for msg in messages[i]:
                         LOG(l_level,"  %s" % msg)
-                    LOG(l_level,"",words=unidic_words)
+                    LOG(l_level,"",words=unidic_items)
             elif verbose_level >= 2:
-                if len(messages)>0:
+                if len(messages[i])>0:
                     LOG_HEADING()
-                    LOG(2," %d : %s Removed references.. " % (i,unidic_words[i]))
-                    for msg in messages:
+                    LOG(2," %d : %s Removed references.. " % (i,unidic_items[i]))
+                    for msg in messages[i]:
                         print("\t%s" % (msg))
                     LOG(2,"\t.. remaining references:")
-                    for seq in new_seqs:
-                        cl_list = jmdict_pos[seq]
+                    exp_seq_senses = expand_sense_tuple(seq_senses)
+                    for seq, sense in exp_seq_senses:
+                        cl_list = jmdict_class_list_per_sense[seq][sense]
                         if len(cl_list) == 1:
-                            LOG(2,"\t%s[%d] %s" % (word_by_seq[seq].ljust(6,'　'),seq, jmdict_parts_of_speech_list[cl_list[0]] ))
+                            LOG(2,"\t%s[%d/%d] %s %s" % (word_by_seq[seq].ljust(6,'　'),seq,sense, jmdict_parts_of_speech_list[cl_list[0]], jmdict_meaning_per_sense[seq][sense]))
                         else:
-                            LOG(2,"\t%s[%d] with classes:" % (word_by_seq[seq].ljust(6,'　'),seq))
+                            LOG(2,"\t%s[%d/%d] %s with classes:" % (word_by_seq[seq].ljust(6,'　'),seq, sense,jmdict_meaning_per_sense[seq][sense]))
                             for cl in cl_list:
                                 LOG(2,"\t\t\t- %s" % (jmdict_parts_of_speech_list[cl]))
 
-        word_seq_ref[i] = new_seqs
-        seqs = new_seqs
 
         # sort each particle/word reference by the size of the word/phrase it's referencing
-        if len(seqs)>1:
+        if len(seq_senses)>1:
             ref_sizes = dict()
-            for seq in seqs:
-                ref_sizes[seq] = len(word_by_seq[seq])
+            for seq,sense in seq_senses:
+                ref_sizes[(seq,sense)] = len(word_by_seq[seq])
             sorted_refs = dict(sorted(ref_sizes.items(), key=lambda x:x[1], reverse=True))
-            word_seq_ref[i] = list(sorted_refs.keys())
+            item_sense_ref[i] = list(sorted_refs.keys())
 
-    # replace the jmdict seq reference with idx number to the word list
-    word_index_ref = []
-    for i, seqs in enumerate(word_seq_ref):
+    # replace the jmdict seq_sense reference with idx number to the seq/sense list
+    item_sense_idx_ref = []
+    for i, seq_senses in enumerate(item_sense_ref):
         refs = []
-        for seq in seqs:
+        for seq,sense in seq_senses:
+            if sense == ALL_SENSES:
+                seq_s = str(seq)
+            else:
+                seq_s = str(seq) + '/' + str(sense)
+
             try:
-                idx = jmdict_word_list.index(word_by_seq[seq])
-                if seq not in jmdict_word_seqs[idx]:
-                    jmdict_word_seqs[idx] += [seq]
-                    #jmdict_word_class_list.append([jmdict_pos[seq]])
-                jmdict_word_count[idx] += 1
+                w_idx = jmdict_word_list.index(word_by_seq[seq])
+                if seq_s not in jmdict_word_senses[w_idx]:
+                    jmdict_word_senses[w_idx] += [seq_s]
+                jmdict_word_count[w_idx] += 1
             except:
                 jmdict_word_list.append(word_by_seq[seq])
-                jmdict_word_seqs.append([seq])
-                #jmdict_word_class_list.append([jmdict_pos[seq]])
+                jmdict_word_senses.append([seq_s])
                 jmdict_word_count.append(0)
-                idx = len(jmdict_word_list) - 1
+                w_idx = len(jmdict_word_list) - 1
 
+            try:
+                s_idx = jmdict_sense_list.index(seq_s)
+            except:
+                jmdict_sense_list.append(seq_s)
+                jmdict_sense_word_index.append(w_idx)
+                seq_cl_lists = jmdict_class_list_per_sense[seq]
+                if sense == ALL_SENSES:
+                    cl_list = [ cl for cls_per_sense in seq_cl_lists for cl in cls_per_sense]
+                else:
+                    cl_list = jmdict_class_list_per_sense[seq][sense]
+                cl_list = list(set(cl_list)) # get rid of duplicates
+                jmdict_sense_class_list.append(cl_list)
+                s_idx = len(jmdict_sense_list) - 1
+
+            """
             cl_list = jmdict_pos[seq]
             if jmdict_expression_class in cl_list:
                 # this is a phrase
                 # we use negative idx for phrases (just for signaling purposes)
                 idx = -idx
-            if idx not in refs:
-                refs.append(idx)
-        word_index_ref.append(refs)
+            """
+            if s_idx not in refs:
+                refs.append(s_idx)
+        item_sense_idx_ref.append(refs)
 
-    return word_index_ref
+    return item_sense_idx_ref
 
-def reassemble_block(original_lines, unidic_words, word_index_ref):
+def reassemble_block(original_lines, unidic_items, word_index_ref):
     # re-assemble this block back into lines (list of lists)
     i = 0
     block_word_ref = []
@@ -666,7 +851,7 @@ def reassemble_block(original_lines, unidic_words, word_index_ref):
         next_new_line = ''
         next_new_line = []
         while line not in new_line_str:
-            w = unidic_words[i]
+            w = unidic_items[i]
             refs = word_index_ref[i]
             new_line_str += w
 
@@ -779,13 +964,17 @@ def load_jmdict(load_meanings=False):
 
             if l > max_jmdict_reading_len:
                 max_jmdict_reading_len = l
-        pos_elems = [int(x) for x in d[3].split(',')]
-        jmdict_pos[seq] = pos_elems
 
-        # TOOD: need frequencies?
+        l_l = json.loads(d[3])
+        jmdict_class_list_per_sense[seq] = l_l
+        # flatten the class list for faster lookup
+        jmdict_flat_class_list[seq] = [x for sense_cl_l in l_l for x in sense_cl_l]
+
+        jmdict_kanji_element_freq[seq] = d[4]
+        jmdict_reading_freq[seq] = d[5]
 
         if load_meanings:
-            jmdict_meanings[seq] = json.loads(d[6])
+            jmdict_meaning_per_sense[seq] = json.loads(d[6])
 
     # make sure every length has at least empty entry. 
     # Also create sets consisting of just a word for faster lookup
@@ -800,10 +989,19 @@ def load_jmdict(load_meanings=False):
 
     print("Read %d JMdict entries" % len(lines))
 
+    # manual fixes to class references
+    """
+    for seq, jmdict_cl_list in manual_additions_to_jmdict_classes.items():
+        for cl in jmdict_cl_list:
+            jmdict_pos[seq].append(cl)
+    """
+
     # create combined verb and noun classes for easier lookup
     for cl in jmdict_parts_of_speech_list:
         idx = jmdict_parts_of_speech_list.index(cl)
         if 'verb' in cl and idx not in allowed_other_class_bindings.keys():
+            jmdict_verb_classes.append(idx)
+        if 'copula' in cl:
             jmdict_verb_classes.append(idx)
         elif 'noun' in cl and idx not in allowed_other_class_bindings.keys():
             jmdict_noun_classes.append(idx)

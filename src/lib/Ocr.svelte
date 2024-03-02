@@ -18,7 +18,7 @@
   let interactive_ocr = false;
   let colorize = false;
   let word_list;
-  let word_seq;
+  let word_sense_list;
   let word_class_list;
   let word_learning_stages;
   let word_history;
@@ -28,7 +28,7 @@
   let page_ref = undefined;
 
   let selected_word;
-  let selected_word_seq_list;
+  let selected_word_senses;
   let selected_word_class;
   let selected_word_stage;
   let selected_word_history;
@@ -59,8 +59,8 @@
   function clicked(word_id, block_id) {
     selected_block = block_id;
     selected_word = word_list[word_id];
-    selected_word_seq_list = word_seq[word_id];
-    selected_word_class = word_class_list[word_id];
+    selected_word_senses = word_sense_list[word_id];
+    selected_word_class = "NA"; // word_class_list[word_id];
     selected_word_stage = word_learning_stages[word_id];
     selected_word_history = word_history[word_id];
     console.log("clicked " + JSON.stringify(selected_word));
@@ -263,8 +263,8 @@
 
         if ('version' in ocr1) {
           word_list = ocr1['word_list']
-          word_seq = ocr1['word_seq']
-          word_class_list = ocr1['word_class_list']
+          word_sense_list = ocr1['word_senses']
+          //word_class_list = ocr1['word_class_list']
           word_learning_stages = ocr1['word_learning_stages']
           word_history = ocr1['word_history']
           interactive_ocr = true;
@@ -331,7 +331,7 @@
 
 <div bind:this={ocr_root}>
 
-<WordPopup bind:word={selected_word} bind:word_class={selected_word_class} bind:word_seq_list={selected_word_seq_list} bind:history={selected_word_history} bind:learning_stage={selected_word_stage} bind:showModal on:learning_stage_changed={learningStageChangedFromPopUpDialog}/>
+<WordPopup bind:word={selected_word} bind:word_class={selected_word_class} bind:word_sense_list={selected_word_senses} bind:history={selected_word_history} bind:learning_stage={selected_word_stage} bind:showModal on:learning_stage_changed={learningStageChangedFromPopUpDialog}/>
 
 {#each tocr as tdi}
   <div class="ocrsp" on:mouseenter={hoverm} on:mouseleave={hovero}>

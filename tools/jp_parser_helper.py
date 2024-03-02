@@ -1,3 +1,7 @@
+from helper import base_dir
+
+jmdict_file = base_dir + "lang/JMdict_e_s.tsv"
+jmdict_with_meanings_file = base_dir + "lang/JMdict_e_m.tsv"
 
 # DO NOT CHANGE THE ORDER
 jmdict_parts_of_speech_list = [
@@ -165,36 +169,41 @@ jmdict_parts_of_speech_codes = {
 jmdict_noun_classes = []
 jmdict_verb_classes = []
 
+#jmdict_noun_class = jmdict_parts_of_speech_list.index('noun (common) (futsuumeishi)')
+jmdict_prefix_class = jmdict_parts_of_speech_list.index('prefix')
+jmdict_suffix_class = jmdict_parts_of_speech_list.index('suffix')
+jmdict_noun_as_suffix_class = jmdict_parts_of_speech_list.index('noun, used as a suffix')
+
+jmdict_prenominal_class = jmdict_parts_of_speech_list.index('noun or verb acting prenominally')
+
 jmdict_suru_verb_class = jmdict_parts_of_speech_list.index('suru verb - included')
 jmdict_godan_ru_i_verb_class = jmdict_parts_of_speech_list.index("Godan verb with 'ru' ending (irregular verb)")
 
+jmdict_adjectival_noun_class = jmdict_parts_of_speech_list.index('adjectival nouns or quasi-adjectives (keiyodoshi)')
+jmdict_adj_i_class = jmdict_parts_of_speech_list.index('adjective (keiyoushi)')
+jmdict_adj_ii_class = jmdict_parts_of_speech_list.index('adjective (keiyoushi) - yoi/ii class')
 jmdict_adj_pn_class = jmdict_parts_of_speech_list.index('pre-noun adjectival (rentaishi)')
 
 jmdict_pronoun_class = jmdict_parts_of_speech_list.index('pronoun')
 
 jmdict_interjection_class = jmdict_parts_of_speech_list.index('interjection (kandoushi)')
 
-jmdict_adjectival_noun_class = jmdict_parts_of_speech_list.index('adjectival nouns or quasi-adjectives (keiyodoshi)')
-jmdict_adj_i_class = jmdict_parts_of_speech_list.index('adjective (keiyoushi)')
-#jmdict_noun_class = jmdict_parts_of_speech_list.index('noun (common) (futsuumeishi)')
 jmdict_expression_class = jmdict_parts_of_speech_list.index('expressions (phrases, clauses, etc.)')
+
 jmdict_adverb_class = jmdict_parts_of_speech_list.index('adverb (fukushi)')
+jmdict_adverb_to_class = jmdict_parts_of_speech_list.index("adverb taking the 'to' particle")
 
 jmdict_conjunction_class = jmdict_parts_of_speech_list.index('conjunction')
-
-jmdict_adj_ii_class = jmdict_parts_of_speech_list.index('adjective (keiyoushi) - yoi/ii class')
-
-jmdict_suffix_class = jmdict_parts_of_speech_list.index('suffix')
-
-jmdict_prenominal_class = jmdict_parts_of_speech_list.index('noun or verb acting prenominally')
-
 jmdict_particle_class = jmdict_parts_of_speech_list.index('particle')
+
 jmdict_numeric_class = jmdict_parts_of_speech_list.index('numeric')
+jmdict_counter_class = jmdict_parts_of_speech_list.index('counter')
 
-
+jmdict_aux_adj_class = jmdict_parts_of_speech_list.index('auxiliary adjective')
+jmdict_auxiliary_class = jmdict_parts_of_speech_list.index('auxiliary')
 
 # DO NOT CHANGE THE ORDER
-unidic_word_classes = [
+unidic_item_classes = [
     'non_jp_char',
     'alphanum',
     '補助記号',
@@ -214,8 +223,9 @@ unidic_word_classes = [
     '接続詞', # conjunction
     '連体詞', ## その、そんな、そんな、あの、どんな。。
     '記号',
-    '接頭詞',
+    '接頭詞', # different prefix? 超〜, 真〜, 大〜, 小〜, ぶっ〜 ＋ 叩く ＝ ぶっ叩く
     'フィラー',  # failure?
+    'counter', # pseudo-class for か月
 ]
 
 unidic_class_name_strings = {
@@ -243,32 +253,41 @@ unidic_class_name_strings = {
 }
 
 def unidic_class_to_string(class_id):
-    return unidic_class_name_strings[unidic_word_classes[class_id]]
+    return unidic_class_name_strings[unidic_item_classes[class_id]]
+
+def unidic_classes_to_string(class_ids):
+    return '/'.join([unidic_class_name_strings[unidic_item_classes[class_id]] for class_id in class_ids])
+
 
 # words/characters belonging to these classes are lumped
 # as one word with other class members. They aren't saved separately in the unique
 # words list but instead are lumped into combined word slot, for examlple
 # all sequential alphanumerical characters are saved into LUMPED_ALPHANUM_CHARACTER_INDEX
-aux_verb_class = unidic_word_classes.index('助動詞')
-alphanum_class = unidic_word_classes.index('alphanum')
-non_jp_char_class = unidic_word_classes.index('non_jp_char')
-punctuation_mark_class = unidic_word_classes.index('補助記号')
+aux_verb_class = unidic_item_classes.index('助動詞')
+alphanum_class = unidic_item_classes.index('alphanum')
+non_jp_char_class = unidic_item_classes.index('non_jp_char')
+punctuation_mark_class = unidic_item_classes.index('補助記号')
 # all classes up to this index are lumped together
 lumped_class = punctuation_mark_class
 
-verb_class = unidic_word_classes.index('動詞')
-grammatical_particle_class = unidic_word_classes.index('助詞')
-interjection_class = unidic_word_classes.index('感動詞')
-noun_class = unidic_word_classes.index('名詞')
-prefix_class = unidic_word_classes.index('接頭辞')
-suffix_class = unidic_word_classes.index('接尾辞')
-adjective_class = unidic_word_classes.index('形容詞')
-adjectival_noun_class = unidic_word_classes.index('形状詞')
-adverb_class = unidic_word_classes.index('副詞')
-conjunction_class = unidic_word_classes.index('接続詞')
-pronoun_class = unidic_word_classes.index('代名詞')
+verb_class = unidic_item_classes.index('動詞')
 
-rentaishi_class = unidic_word_classes.index('連体詞') # その、そんな、そんな、あの、どんな。。
+interjection_class = unidic_item_classes.index('感動詞')
+noun_class = unidic_item_classes.index('名詞')
+prefix_class = unidic_item_classes.index('接頭辞')
+suffix_class = unidic_item_classes.index('接尾辞')
+adjective_class = unidic_item_classes.index('形容詞')
+adjectival_noun_class = unidic_item_classes.index('形状詞')
+adverb_class = unidic_item_classes.index('副詞')
+conjunction_class = unidic_item_classes.index('接続詞')
+pronoun_class = unidic_item_classes.index('代名詞')
+
+rentaishi_class = unidic_item_classes.index('連体詞') # その、そんな、そんな、あの、どんな。。
+
+grammatical_particle_class = unidic_item_classes.index('助詞')
+gp_class = grammatical_particle_class # shorthand
+
+counter_pseudoclass = unidic_item_classes.index('counter')
 
 LUMPED_NON_JP_CHARACTER_INDEX = 0
 LUMPED_ALPHANUM_CHARACTER_INDEX = 1
@@ -279,17 +298,12 @@ LUMPED_GRAM_PARTICLE_INDEX = 3
 allowed_other_class_bindings = {
     jmdict_adjectival_noun_class : [adjectival_noun_class, adjective_class, noun_class],
 
-    jmdict_adverb_class : [adverb_class,
-        # 一緒(名詞), に(助詞) /  別(名詞) に(助動詞)　/
-        noun_class,grammatical_particle_class, aux_verb_class,
-        #  して(動詞) -> どうして
-        verb_class,
-        # なん(代名詞)
-        #pronoun_class,
-    ],
+    jmdict_adverb_class : [adverb_class],
+    jmdict_adverb_to_class : [adverb_class],
+
     jmdict_conjunction_class : [conjunction_class,
             # 癖(名詞)+ に(助詞)
-        noun_class, grammatical_particle_class,
+        #noun_class, grammatical_particle_class,
         # それ(代名詞) -> それに(conjunction)
         #pronoun_class,
     ],
@@ -303,31 +317,134 @@ allowed_other_class_bindings = {
 
     jmdict_interjection_class : [interjection_class],
     jmdict_adj_pn_class : [rentaishi_class],
+    
     #jmdict_adj_pn_class :  [adverb_class, verb_class] # そういう
 
     #jmdict_noun_class : [noun_class, prefix_class, suffix_class],
 
-    jmdict_suffix_class : [noun_class, suffix_class],
+    jmdict_prefix_class : [prefix_class],
+    jmdict_suffix_class : [suffix_class],
+    jmdict_noun_as_suffix_class : [suffix_class],
 
     jmdict_prenominal_class : [rentaishi_class],
     jmdict_particle_class : [grammatical_particle_class],
 
     jmdict_numeric_class : [noun_class], # 百，万　are noun in Unidic
 
+    jmdict_counter_class : [
+         # ３５歳
+        suffix_class, 
+        counter_pseudoclass,
+    ],
+
+    # this is for volitional ーたい eg (見たい、やりたい)
+    jmdict_aux_adj_class : [aux_verb_class], 
+
+    jmdict_auxiliary_class : [aux_verb_class]
 }
 
-allowed_noun_bindings = [noun_class, prefix_class, suffix_class]
-allowed_verb_bindings = [verb_class, adverb_class, aux_verb_class]
+allowed_noun_bindings = set([noun_class, adjectival_noun_class]) #, prefix_class, suffix_class]
+allowed_verb_bindings = set([verb_class, aux_verb_class]) #, adverb_class, ]
 
+
+# Merge these particles together while forcing the result explicitely 
+# to a proper class that works well with JMDict
+# ( [particle list], [unidic_detected_classes_per_particle], proper_unidic_class)
+COND_NONE = 0
+COND_BLOCK_START = 1
+TASK_NONE = 0
+TASK_CLEAR_ORTHO = 1
 explicit_words = [
-    (['だ','も','の'],noun_class),
-    (['そこ','ら'],noun_class),
-    (['だ','けど'],conjunction_class),
-    (['でしょ'],verb_class),
-    (['それ','に'],conjunction_class),
-    (['だれ','か'],pronoun_class),
-    (['自分'],pronoun_class),
+    #nouns
+    (['そこ','ら'],[pronoun_class,suffix_class], noun_class,COND_NONE,TASK_NONE),
+
+    # verbs
+    (['でしょ'],[aux_verb_class],verb_class,COND_NONE,TASK_NONE),
+    (['だ','も','の'],[aux_verb_class,gp_class,gp_class],verb_class,COND_NONE,TASK_NONE),
+
+    # adjectives
+    (['らしい'],[aux_verb_class],adjective_class,COND_NONE,TASK_NONE),
+    (['や','ばい'],[aux_verb_class,gp_class],adjective_class,COND_NONE,TASK_NONE),
+
+    # conjunctions
+    (['だ','から'],[aux_verb_class,gp_class],conjunction_class,COND_NONE,TASK_NONE), 
+    (['だ','けど'],[aux_verb_class,gp_class],conjunction_class,COND_NONE,TASK_NONE),
+    (['それ','に'],[pronoun_class,gp_class],conjunction_class,COND_NONE,TASK_NONE),
+    (['ところ','で'],[noun_class,gp_class],conjunction_class,COND_NONE,TASK_NONE),
+    (['だっ','たら'],[aux_verb_class,aux_verb_class],conjunction_class,COND_NONE,TASK_NONE),
+    (['それ','より'],[pronoun_class,gp_class],conjunction_class,COND_NONE,TASK_NONE), 
+    (['そう','し','たら'],[adverb_class,verb_class,aux_verb_class],conjunction_class,COND_NONE,TASK_NONE), 
+    (['そう','し','て'],[adverb_class,verb_class,gp_class],conjunction_class,COND_NONE,TASK_NONE), 
+    (['で','も'],[aux_verb_class,gp_class],conjunction_class,COND_BLOCK_START,TASK_CLEAR_ORTHO),
+    (['こう','やっ','て'],[adverb_class,verb_class,gp_class],conjunction_class,COND_NONE,TASK_NONE),
+
+
+    # Forcing these as conjunctions shouldn't affect the verb conjugations
+    # because they are done greedily regardless of the unidict class
+    (['って'],[aux_verb_class],conjunction_class,COND_NONE,TASK_NONE),
+    (['じゃ'],[gp_class],conjunction_class,COND_NONE,TASK_NONE),
+
+    # pronouns
+    #(['だれ','か'],[pronoun_class,gp_class],pronoun_class),
+    #(['誰','か'],[pronoun_class,gp_class],pronoun_class),
+    (['自分'],[noun_class],pronoun_class,COND_NONE,TASK_NONE),
+
+    # interjection
+    (['ごめん'],[noun_class],interjection_class,COND_NONE,TASK_NONE),
+    (['さあ'],[gp_class],interjection_class,COND_NONE,TASK_NONE),
+    (['な','ん','だ'],[aux_verb_class,gp_class,aux_verb_class],interjection_class,COND_NONE,TASK_NONE),
+    (['や','だ'],[aux_verb_class,aux_verb_class],interjection_class,COND_BLOCK_START,TASK_NONE),
+
+    # adverbs
+    #(['もし','も'],[adverb_class,gp_class],adverb_class,COND_NONE,TASK_NONE),
+    (['な','ん'],[aux_verb_class,gp_class],adverb_class,COND_NONE,TASK_NONE),
+    (['なん','で'],[pronoun_class,gp_class],adverb_class,COND_NONE,TASK_NONE),
+    (['なる','ほど'],[verb_class,gp_class],adverb_class,COND_NONE,TASK_NONE),
+    (['なる','ほど'],[aux_verb_class,gp_class],adverb_class,COND_NONE,TASK_NONE),
+    (['ほど'],[gp_class],adverb_class,COND_NONE,TASK_NONE),
+    (['いつ','で','も'],[pronoun_class,gp_class,gp_class],adverb_class,COND_NONE,TASK_NONE),
+    (['いつ','も'],[pronoun_class,gp_class],adverb_class,COND_NONE,TASK_NONE),
+
+    # rentaishi_class.  (あなたの)ような..
+    (['よう','な'],[adjectival_noun_class,aux_verb_class],rentaishi_class,COND_NONE,TASK_NONE),
+    
 ]
+
+# alternative unidic classes for certain words to allow for bettering
+# searching from JMDic
+alternative_classes = {
+    'ねえ' : [interjection_class, grammatical_particle_class],
+    '一番' : [noun_class],
+    'また' : [adverb_class],
+    'ほとんど' : [adverb_class],
+    '後' : [adverb_class],
+    '一見' : [noun_class],
+    'で' : [conjunction_class],
+    'まさか' : [interjection_class],
+    '大変' : [adverb_class],
+    'なんだ' : [interjection_class],
+    '確か' : [adjectival_noun_class],
+    'と' : [conjunction_class],
+
+    # Pre-noun Adjectivals, detected originally as adjectival nouns
+    'そんな' : [rentaishi_class],
+    'こんな' : [rentaishi_class],
+
+
+    # we put this explicitely here because don't want to allow all nouns to be possible counters
+    'か月' : [counter_pseudoclass], 
+
+    'そっくり' : [adverb_class], # originally adjectival noun
+
+    'なかっ' : [suffix_class], # TODO: leave it here or try to improve verb conjugation?
+    'や' : [gp_class],
+
+
+    '議' : [noun_class],
+}
+alternative_forms = {
+    'っちゃん' : 'ちゃん'
+}
 
 # some common auxiliary verbs, particles and markings which we ignore for frequency analysis
 ignored_classes = [
@@ -346,8 +463,30 @@ ignored_classes_for_freq = [
 
 SMALL_PARTICLE_THRESHOLD = 2
 
+# this is for clutter prevention. Too many homophones for these common words
+hard_coded_seqs = {
+    'いる' : (verb_class, 1577980),
+    'する' : (verb_class, 1157170),
+    '私' : (pronoun_class, 1311110),
+}
+
+
+manual_additions_to_jmdict_classes = {
+    1956330 : [jmdict_suffix_class],  # 師 works also as a suffix
+}
+
+# Sometimes Unidict just fails to parse pure Hiragana words..
+# For example ばんそうこう (bandage) becomes:
+#  ば (grammatical particle)
+#  ん (interjection)
+#  そうこう (adverb) ..
+# To allow matching these kinds of words we disregard the parsed classes
+# if the candidate word is a noun and has a length of minimum of 5 characters 
+HOMOPHONE_MATCHING_WORD_MINIMUM_LENGTH = 5
+
 # words consisting of these wide characters will be ignored
 ignored_full_width_characters = "ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ０１２３４５６７８９％"
+
 
 # word flags
 NO_SCANNING = 1
@@ -356,3 +495,4 @@ MERGE_PARTICLE = 4
 DISABLE_ORTHO = 8
 PROCESS_AFTER_MERGING = 16
 ERROR_VERB_CONJUGATION = 32
+BIND_TO_PREVIOUS_ITEM_IF_LEFT_UNTETHERED = 64
