@@ -88,7 +88,7 @@ def fetch_jlpt_levels(data, calc, total):
 
     ## WORDS
     jlpt_word_count_per_level = [ 0 for i in range(7) ]
-    for w,c in data['word_frequency'].items():
+    for w,c in zip(data['words'], data['word_frequency']):
         if w in jlpt_words:
             level = jlpt_words[w]
         else:

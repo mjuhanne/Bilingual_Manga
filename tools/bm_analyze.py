@@ -44,10 +44,12 @@ def read_dataset(data_set, item_type, learning_dataset, retain_changes=False,
     known_dataset = learning_dataset[item_type]
 
     if item_type == 'words':
-        title_data_set = data_set['word_frequency']
+        #title_data_set = data_set['word_frequency']
+        title_data_list =  zip(data_set['words'], data_set['word_frequency'])
         known_threshold = learning_settings['known_word_threshold']
     else:
-        title_data_set = data_set['kanji_frequency']
+        #title_data_set = data_set['kanji_frequency']
+        title_data_list = data_set['kanji_frequency'].items()
         known_threshold = learning_settings['known_kanji_threshold']
 
     # these counters contain occurrences per learning stage
@@ -69,8 +71,9 @@ def read_dataset(data_set, item_type, learning_dataset, retain_changes=False,
     for stage in save_items_for_these_stages:
         saved_items[stage] = []
 
-
-    for w,freq in title_data_set.items():
+    num_all_total = 0
+    num_all_unique = 0
+    for w, freq in title_data_list:
 
         if w in known_dataset:
             l_freq = known_dataset[w]['lf'] # learning phase occurrence
@@ -79,6 +82,9 @@ def read_dataset(data_set, item_type, learning_dataset, retain_changes=False,
             l_freq = 0
             l_stage = STAGE_UNKNOWN
         old_stage = l_stage
+
+        num_all_unique += 1
+        num_all_total += freq
 
         # counters pre-read
         total_counter[l_stage] += freq
@@ -120,17 +126,19 @@ def read_dataset(data_set, item_type, learning_dataset, retain_changes=False,
         if analysis_type == 'unique_statistics':
             counter = unique_counter
             post_read_counter = unique_post_read_counter
-            if item_type == 'words':
-                num_all = data_set['num_unique_words']
-            else:
-                num_all = data_set['num_unique_kanjis']
+            #if item_type == 'words':
+            #    num_all = data_set['num_unique_words']
+            #else:
+            #    num_all = data_set['num_unique_kanjis']
+            num_all = num_all_unique
         else:
             counter = total_counter
             post_read_counter = total_post_read_counter
-            if item_type == 'words':
-                num_all = data_set['num_words']
-            else:
-                num_all = data_set['num_kanjis']
+            #if item_type == 'words':
+            #    num_all = data_set['num_words']
+            #else:
+            #    num_all = data_set['num_kanjis']
+            num_all = num_all_total
 
         an = dict()
         an['num_all'] = num_all
@@ -173,7 +181,7 @@ def fetch_known_jlpt_levels(data, calc, total):
 
     ## WORDS
     jlpt_word_count_per_level = [ 0 for i in range(7) ]
-    for w,c in data['word_frequency'].items():
+    for w,c in zip(data['words'], data['word_frequency']):
         if w in learning_data['words']:
             s = learning_data['words'][w]['s']
             if s == STAGE_KNOWN or s == STAGE_PRE_KNOWN:
@@ -386,9 +394,8 @@ def suggest_preread(args):
         if candidate_pct_known < target_pct_known:
             print("Skipping %s with comprehension %.1f" % (title_name,candidate_pct_known))
             continue
-
         # calculate number of common unique weak (unfamiliar or learning) words
-        w_set = set( title_data['word_frequency'].keys())
+        w_set = set(title_data['words'])
         common_unique_weak_words = w_set.intersection(weak_words)
         cuww = len(common_unique_weak_words)
         title_analysis['num_common_unique_weak_words'] = cuww
@@ -573,7 +580,7 @@ parser_suggest_preread.add_argument('title', type=str, help='Target manga title'
 args = vars(parser.parse_args())
 cmd = args.pop('command')
 
-#analyze(args)
+analyze(args)
 if cmd is not None:
     try:
         locals()[cmd](args)

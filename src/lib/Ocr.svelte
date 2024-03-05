@@ -262,8 +262,8 @@
       if (`${nam}` in ocr1 && ocr1[`${nam}`] != undefined && !ocroff) {
 
         if ('version' in ocr1) {
-          word_list = ocr1['word_list']
-          word_sense_list = ocr1['word_senses']
+          word_list = ocr1['parsed_data']['word_list']
+          word_sense_list = ocr1['parsed_data']['word_senses']
           //word_class_list = ocr1['word_class_list']
           word_learning_stages = ocr1['word_learning_stages']
           word_history = ocr1['word_history']

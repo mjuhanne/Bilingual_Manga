@@ -8,12 +8,17 @@ from jp_parser_tool import print_scanning_results
 
 # できたら
 #朝から南さんとお話できたらどんなに素敵なことか
+#その子を寂しがらせることもない
+#かしこくて本のこともよく知ってるのよ
 
 tests = [
-{'c':'honorific in front of adjective (medetai)','line':'おめでとう','jlines':[[{'お': [0, 1, 2]}, {'めでとう': [0, 3]}]], 'slist':['2077340', '2268350', '2826528', '1608630'], 'word_list':['', '*', '-', 'おめでとう', 'お', 'めでたい']},
-{'c':'honorific + suffix','line':'お父さん','jlines':[[{'お': [0, 1, 2, 3, 4]}, {'父': [0, 1, 5, 2, 6]}, {'さん': [0, 1, 5, 7, 8, 9]}]], 'slist':['1002590/0', '1002590/1', '2709500', '2268350', '2826528', '1610490', '1497610', '1005340', '2085690', '2106250/2'], 'word_list':['', '*', '-', 'お父さん', 'お父', 'お', '父さん', '父', 'さん']},
-{'c':'prefix/suffix must be detected even when not found in the dictionary together with the stem word','line':'議師料','jlines':[[{'議': [0]}, {'師': [1, 2]}, {'料': [3]}]], 'slist':['2273760', '1956330/1', '1956330/2', '1554270'], 'word_list':['', '*', '-', '議', '師', '料']},
-{'c':'iya nara / hayame+ni / tsukenakya','line':'嫌なら早めにやっつけなきゃ','jlines':[[{'嫌': [0, 1]}, {'なら': [2, 3]}, {'早め': [4, 5]}, {'に': [4]}, {'やっつけなきゃ': [6]}]], 'slist':['1587610/0', '1587610/1', '1009470/0', '1009470/1', '1400350', '2078850', '1612950'], 'word_list':['', '*', '-', '嫌', 'なら', '早めに', '早め', 'やっつける']},
+{'c':'honorific in front of adjective (medetai)','line':'おめでとう','jlines':[[{'お': [3, 0, 1]}, {'めでとう': [3, 2]}]], 'slist':['2268350', '2826528', '1608630', '2077340'], 'swi':[3, 3, 4, 5], 'word_list':['', '*', '-', 'お', 'めでたい', 'おめでとう']},
+
+{'c':'honorific + suffix','line':'お父さん','jlines':[[{'お': [1, 2, 0, 5, 6]}, {'父': [1, 2, 4, 0, 3]}, {'さん': [1, 2, 4, 7, 8, 9]}]], 'slist':['2709500', '1002590/0', '1002590/1', '1497610', '1610490', '2268350', '2826528', '1005340', '2085690', '2106250/2'], 'swi':[3, 4, 4, 5, 6, 7, 7, 8, 8, 8], 'word_list':['', '*', '-', 'お父', 'お父さん', '父', '父さん', 'お', 'さん']},
+
+{'c':'prefix/suffix must be detected even when not found in the dictionary together with the stem word','line':'議師料','jlines':[[{'議': [0]}, {'師': [1, 2]}, {'料': [3]}]], 'slist':['2273760', '1956330/1', '1956330/2', '1554270'], 'swi':[3, 4, 4, 5], 'word_list':['', '*', '-', '議', '師', '料']},
+{'c':'iya nara / hayame+ni / tsukenakya','line':'嫌なら早めにやっつけなきゃ','jlines':[[{'嫌': [0, 1]}, {'なら': [4, 5]}, {'早め': [3, 2]}, {'に': [3]}, {'やっつけなきゃ': [6]}]], 'slist':['1587610/0', '1587610/1', '2078850', '1400350', '1009470/0', '1009470/1', '1612950'], 'swi':[3, 3, 4, 5, 6, 6, 7], 'word_list':['', '*', '-', '嫌', '早め', '早めに', 'なら', 'やっつける']},
+
 {'c':'long phrase','line':'よろしくお願いします','jlines':[[{'よろしく': [0, 1, 2, 3]}, {'お': [0, 4, 5, 6, 7]}, {'願い': [0, 4, 5, 8]}, {'します': [0, 4, 9]}]], 'slist':['2133750', '1224890', '2835139', '2846370', '1001720', '2036870/0', '2268350', '2826528', '1217950', '1157170'],'swi':[3, 4, 4, 4, 5, 6, 7, 7, 8, 9],'word_list':['', '*', '-', 'よろしくお願いします', 'よろしく', 'お願いします', 'お願い', 'お', '願う', 'する']},
 {'c':'past tense','line':'あやしかった','jlines':[[{'あやしかっ': [0, 1]}, {'た': [2]}]], 'slist':['1586700', '2843261', '2654250'],'swi':[3, 3, 4],'word_list':['', '*', '-', 'あやしい', 'た']},
 {'c':'streched sentence','line':'だーからあるいていくんだね～','jlines':[[{'だー': [0]}, {'から': [1]}, {'あるいて': [2]}, {'いく': [3, 4, 5, 6]}, {'ん': [7, 8, 9]}, {'だ': [7, 0]}, {'ね': [10, 11, 12, 13, 14, 15]}, {'～': []}]], 'slist':['2089020', '1002980', '1514320', '1157500', '1578850', '2783550', '2856718', '2849387', '2139720/3', '2139720/4', '2029080/0', '2029080/2', '2029080/3', '2029080/4', '2029080/5', '2841117/0'],'swi':[3, 4, 5, 6, 6, 6, 6, 7, 8, 8, 9, 9, 9, 9, 9, 9],'word_list':['', '*', '-', 'だ', 'から', 'あるく', 'いく', 'んだ', 'ん', 'ね']},
@@ -42,108 +47,79 @@ def do_tests():
             slist = []
         kanji_count = dict()
         lemmas = dict()
-        word_list = ['','*','-'] 
-        word_seq = [0,0,0]
-        word_count = [0,0,0]
-        word_count_per_class = [0 for x in range(len(unidic_item_classes))] 
-        sense_list = []
-        sense_word_index = []
-        sense_class_list = []
+
+        results = init_scan_results()
 
         print("Testing:",line)
-        kc, ud_words, ud_word_ortho, ud_word_class = \
-            parse_line_with_unidic(line,kanji_count, lemmas)
+        kc, unidic_items = parse_line_with_unidic(line,kanji_count, lemmas)
         
-        ud_words, ud_word_ortho, ud_word_class, ud_word_flags = \
-            post_process_unidic_particles(ud_words, ud_word_ortho, ud_word_class)
+        unidic_items = post_process_unidic_particles(unidic_items)
 
         sense_ref = parse_with_jmdict(
-            ud_words, ud_word_ortho, ud_word_class, ud_word_flags,
-            sense_list, sense_word_index, word_list, word_count, word_seq,
-            word_count_per_class, sense_class_list,
+            unidic_items, results
         )
-        jlines = reassemble_block([line], ud_words, sense_ref)
-
-        ud_word_class_txt = [(w,unidic_item_classes[cl]) for w,cl in zip(ud_words, ud_word_class)]
-        unique_jmdict_word_class_list_txt = []
-        """
-        for w,cl in zip(word_list, word_class_list):
-            if len(cl)>0:
-                unique_jmdict_word_class_list_txt.append((w,jmdict_parts_of_speech_list[cl[0]]))
-            else:
-                unique_jmdict_word_class_list_txt.append((w,''))
-        """
+        jlines = reassemble_block([line], unidic_items, results['item_sense_idx_ref'])
 
         print("\nAfter jmdict scanning:")
-        print_scanning_results(jlines, sense_list, sense_word_index, word_list, ud_word_class)
+        print_scanning_results(jlines, results, unidic_items)
 
+        print("{'c':'%s','line':'%s','jlines':%s, 'slist':%s, 'swi':%s, 'word_list':%s}" % (c, line,str(jlines),str(results['sense_list']),str(results['sense_word_index']),str(results['word_list'])))
 
-        jlines_str = str(jlines)
-        print("{'c':'%s','line':'%s','jlines':%s, 'slist':%s,'swi':%s,'word_list':%s}" % (c,line,str(jlines),str(sense_list),str(sense_word_index),str(word_list)))
+        for i, (a,b) in enumerate(zip(jlines[0], test['jlines'][0])):
+            (w1, refs1) =list(a.items())[0]
+            (w2,refs2) = list(b.items())[0]
+            w_idx1 = [results['sense_word_index'][idx] for idx in refs1]
+            words1 = [results['word_list'][idx] for idx in w_idx1]
 
+            words2 = []
 
+            try:
+                swi = test['swi']
+                wl = test['word_list']
+                w_idx2 = [swi[idx] for idx in refs2]
+                words2 = [wl[idx] for idx in w_idx2]
+            except:
+                pass
 
-        if jlines != test['jlines']:
-            for i, (a,b) in enumerate(zip(jlines[0], test['jlines'][0])):
-                (w1, refs1) =list(a.items())[0]
-                (w2,refs2) = list(b.items())[0]
-                #seqs1 = [sense_list[idx] for idx in refs1]
-                w_idx1 = [sense_word_index[idx] for idx in refs1]
-                words1 = [word_list[idx] for idx in w_idx1]
-
-                words2 = []
-
-                try:
-                    swi = test['swi']
-                    wl = test['word_list']
-                    w_idx2 = [swi[idx] for idx in refs2]
-                    words2 = [wl[idx] for idx in w_idx2]
-                except:
-                    pass
-
-                if words1 != words2:
-                    print("%d : %s [%s] != %s [%s]" % (i,w1,words1,w2,words2))
-            #raise Exception("Error in references!")
-        if word_list != test['word_list']:
+            if words1 != words2:
+                print("%d : %s [%s] != %s [%s]" % (i,w1,words1,w2,words2))
+                raise Exception("Error in references!")
+        if set(results['word_list']) != set(test['word_list']):
             raise Exception("Error in word list!")
-        if 'slist' not in test or sense_list != test['slist']:
 
-            a_ref_set = set(sense_list)
-            b_ref_set = set(slist)
-            extra_in_a = a_ref_set - b_ref_set
-            missing_in_a = b_ref_set - a_ref_set
+        a_ref_set = set(results['sense_list'])
+        b_ref_set = set(slist)
+        extra_in_a = a_ref_set - b_ref_set
+        missing_in_a = b_ref_set - a_ref_set
 
-            if len(extra_in_a)>0:
-                print("Extra:")
-                for seq_sense in extra_in_a:
-                    s = seq_sense.split('/')
-                    seq = int(s[0])
-                    if len(s)>1:
-                        sense = int(s[1])
-                        meanings = jmdict_meaning_per_sense[seq][sense]
-                    else:
-                        sense = '*'
-                        meanings = jmdict_meaning_per_sense[seq][0] # print just the first
-                    print("\t[%d] %s : %s" % (seq, sense, meanings))
-                    #cl_list = jmdict_pos[seq]
-                    #for cl in cl_list:
-                    #    print("\t\t%s" % jmdict_parts_of_speech_list[cl])
-
-            if len(missing_in_a)>0:
-                print("Missing:")
-                for seq in missing_in_a:
-                    s = seq_sense.split('/')
-                    seq = s[0]
-                    if len(s)>1:
-                        sense = s[1]
-                        meanings = jmdict_meaning_per_sense[seq][sense]
-                    else:
-                        sense = '*'
-                        meanings = jmdict_meaning_per_sense[seq][0] # print just the first
-                    print("\t[%d] %s : %s" % (seq, meanings))
-
-                print("%d : %s != %s" % (i,a,b))
+        if len(extra_in_a)>0:
+            print("Extra:")
+            for seq_sense in extra_in_a:
+                s = seq_sense.split('/')
+                seq = int(s[0])
+                if len(s)>1:
+                    sense = int(s[1])
+                    meanings = jmdict_meaning_per_sense[seq][sense]
+                else:
+                    sense = '*'
+                    meanings = jmdict_meaning_per_sense[seq][0] # print just the first
+                print("\t[%d] %s : %s" % (seq, sense, meanings))
             raise Exception("Error in sense list!")
+
+        if len(missing_in_a)>0:
+            print("Missing:")
+            for seq in missing_in_a:
+                s = seq_sense.split('/')
+                seq = s[0]
+                if len(s)>1:
+                    sense = s[1]
+                    meanings = jmdict_meaning_per_sense[seq][sense]
+                else:
+                    sense = '*'
+                    meanings = jmdict_meaning_per_sense[seq][0] # print just the first
+                print("\t[%d] %s : %s" % (seq, meanings))
+            raise Exception("Error in sense list!")
+        print("%s ok")
     print("Tests ok")
 
 
@@ -206,7 +182,6 @@ def test_jmdict():
 
     c = 'honorific + suffix'
     line = '議師料'
-    line = 'お父さん'
     line = '喰えるな'
     line = '自分よりスリムなやしの木や"'
 
@@ -215,36 +190,24 @@ def test_jmdict():
     line = 'でもやっぱり'
     line = 'もったいないわよ'
     line = 'どうだい元気にしてた'
+    line = 'お父さん'
 
     kanji_count = dict()
     lemmas = dict()
-    word_count_per_class = [0 for x in range(len(unidic_item_classes))] 
 
-    jmdict_word_list = ['','*','-'] 
-    jmdict_word_senses = [None,None,None]
-    jmdict_word_count = [0,0,0]
-    jmdict_sense_list = []
-    jmdict_sense_word_index = []
-    jmdict_sense_class_list = []
+    scan_results = init_scan_results()
 
-    kc, ud_words, ud_word_ortho, ud_word_class = parse_line_with_unidic(line,kanji_count, lemmas)
+    kc, ud_items = parse_line_with_unidic(line,kanji_count, lemmas)
 
-    ud_words, ud_word_ortho, ud_word_class, ud_word_flags = \
-        post_process_unidic_particles(ud_words, ud_word_ortho, ud_word_class)
+    ud_items = \
+        post_process_unidic_particles(ud_items)
 
-    sense_ref = parse_with_jmdict(
-        ud_words, ud_word_ortho, ud_word_class, ud_word_flags,
-        jmdict_sense_list, jmdict_sense_word_index,
-        jmdict_word_list, jmdict_word_count, jmdict_word_senses,
-        word_count_per_class, jmdict_sense_class_list,
+    parse_with_jmdict(
+        ud_items, scan_results
     )
-    jlines = reassemble_block([line], ud_words, sense_ref)
-
-    ud_word_class_txt = [(w,unidic_item_classes[cl]) for w,cl in zip(ud_words, ud_word_class)]
-    unique_jmdict_word_class_list_txt = []
-
+    jlines = reassemble_block([line], ud_items, scan_results['item_sense_idx_ref'])
     jlines_str = str(jlines)
-    print("{'c':'%s','line':'%s','jlines':%s, 'slist':%s, 'word_list':%s}" % (c, line,str(jlines),str(jmdict_sense_list),str(jmdict_word_list)))
+    print("{'c':'%s','line':'%s','jlines':%s, 'slist':%s, 'word_list':%s}" % (c, line,str(jlines),str(scan_results['sense_list']),str(scan_results['word_list'])))
           
     pass
 

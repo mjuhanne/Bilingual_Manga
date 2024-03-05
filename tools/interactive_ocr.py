@@ -85,7 +85,7 @@ def create_interactive_ocr(input_file, output_file):
     pages['word_learning_stages'] = []
     pages['word_history'] = []
     index = 0
-    for word in pages['word_list']:
+    for word in pages['parsed_data']['word_list']:
         stage = STAGE_UNKNOWN
         history = []
         last_timestamp = 0
@@ -118,11 +118,9 @@ def create_interactive_ocr(input_file, output_file):
         index += 1
 
     # the lists and settings are kept as separate 'pages'. Ugly, but works.
-    ignored_pages = ['word_list',
-                     'word_senses','sense_word_idx','sense_list','sense_class_list',
-                     'lemmas',
+    ignored_pages = ['parsed_data',
                      'word_learning_stages','word_history','settings',
-                     'phrase_list','phrase_seq','version','parser_version']
+                     'version','parser_version']
 
     for page_id,blocks in pages.items():
 
@@ -146,7 +144,7 @@ def create_interactive_ocr(input_file, output_file):
                         idx = 0
                         if len(ref_list) > 0:
                             s_idx = ref_list[0]
-                            idx = pages['sense_word_idx'][s_idx]
+                            idx = pages['parsed_data']['sense_word_index'][s_idx]
 
                         new_line +=  '<span wid=' + str(idx) + '>' + word + '</span>'
 

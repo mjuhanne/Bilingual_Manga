@@ -28,9 +28,9 @@ import sys
 import argparse
 from helper import *
 from jp_parser import (
-    parse_line_with_unidic, post_process_unidic_particles, parse_with_jmdict, 
-    load_jmdict, load_conjugations, reassemble_block,
-    unidic_item_classes, ignored_classes_for_freq
+    init_scan_results, parse_line_with_unidic, post_process_unidic_particles, parse_with_jmdict, 
+    load_jmdict, load_conjugations, reassemble_block, get_highest_freq_class_list_with_particle_priority,
+    unidic_class_list, ignored_classes_for_freq
 )
 # for loggin
 from jp_parser import open_log_file, close_log_file, set_verbose_level
@@ -50,15 +50,7 @@ def process_chapter(f_p, fo_p, chapter_data):
 
     # this is the word list of basic forms which are referred to by individual parsed words
     # initialized with a placeholder for non-parseable/non-JP characters and auxiliary verbs
-    unique_jmdict_word_list = ['','*','-']
-    unique_jmdict_word_count = [0,0,0]
-    unique_jmdict_word_seq = [0,0,0]
-    unique_jmdict_word_senses = [0,0,0]
-    word_count_per_class = [0 for x in range(len(unidic_item_classes))] 
-    jmdict_sense_list = []
-    jmdict_sense_word_idx = []
-    jmdict_sense_class_list = []
-
+    results = init_scan_results()
     kanji_count = dict()
     lemmas = dict()
 
@@ -88,50 +80,50 @@ def process_chapter(f_p, fo_p, chapter_data):
             else:
                 line = ''.join(lines)
                 #for line in lines:
-                kc, ud_items, ud_item_ortho, ud_item_class, = \
+                kc, ud_items = \
                     parse_line_with_unidic(line, kanji_count, lemmas)
 
                 k_c += kc
                 c_c += len(line)
 
-                ud_items, ud_item_ortho, ud_item_class, ud_item_flags = \
-                    post_process_unidic_particles(ud_items, ud_item_ortho, ud_item_class)
+                ud_items = \
+                    post_process_unidic_particles(ud_items)
 
-                sense_ref  = parse_with_jmdict(
-                    ud_items, ud_item_ortho, ud_item_class, ud_item_flags,
-                    jmdict_sense_list, jmdict_sense_word_idx, 
-                    unique_jmdict_word_list, unique_jmdict_word_count, unique_jmdict_word_senses,
-                    jmdict_sense_class_list, word_count_per_class, 
+                parse_with_jmdict(
+                    ud_items, results,
                 )
 
-                block['jlines'] = reassemble_block(lines, ud_items, sense_ref)
+                block['jlines'] = reassemble_block(lines, ud_items, results['item_sense_idx_ref'])
 
         page_count += 1
         if page_count % progress_bar_interval == 0:
             print(".",end='',flush=True)
 
+    results['lemmas'] = lemmas
+
+    pages['parsed_data'] = results
     # Every word/particle in each block['jlines] will have a index number to these lists:
     # JMDict sequence number and sense index number separated by /
-    pages['sense_list'] = jmdict_sense_list 
+    #pages['sense_list'] = results['sense_list'] 
     # index number for the word list below
-    pages['sense_word_idx'] = jmdict_sense_word_idx
+    #pages['sense_word_idx'] = results['sense_word_idx']
     # list of lexical item classes that each seq/sense item in the above list belongs to
-    pages['sense_class_list'] = jmdict_sense_class_list
+    #pages['sense_class_list'] = results['sense_class_list']
 
     # list of unique words in the chapter
-    pages['word_list'] = unique_jmdict_word_list
+    #pages['word_list'] = results['word_list']
     # back-reference: For each of the word from the word list there is a list of 
     # sense idx numbers back to the sense_list
     # warning: This mixes all the homophones together so back-referencing is not 1:1
-    pages['word_senses'] = unique_jmdict_word_senses
+    #pages['word_senses'] = results['word_senses']
 
-    pages['lemmas'] = lemmas
+    #pages['lemmas'] = lemmas
     pages['version'] = CURRENT_PARSED_OCR_VERSION
     pages['parser_version'] = CURRENT_LANUGAGE_PARSER_VERSION
 
     # the total word count excluding words belonging to ignored classes 
     # (alphanumeric words, punctuation, auxialiary verbs, grammatical particles)
-    w_c = sum([word_count_per_class[i] for i in range(len(unidic_item_classes)) if unidic_item_classes[i] not in ignored_classes_for_freq])
+    w_c = sum([results['word_count_per_unidict_class'][i] for i in range(len(unidic_class_list)) if unidic_class_list[i] not in ignored_classes_for_freq])
 
     f = open(fo_p, "w", encoding="utf-8")
     f.write(json.dumps(pages, ensure_ascii=False))
@@ -144,35 +136,39 @@ def process_chapter(f_p, fo_p, chapter_data):
     chapter_data['num_words'] = w_c
     chapter_data['num_kanjis'] = k_c
     chapter_data['num_skipped_blocks'] = skipped_c
-    chapter_data['num_unique_words'] = len(unique_jmdict_word_list)
+    chapter_data['num_unique_words'] = len(results['word_list'])
     chapter_data['num_unique_kanjis'] = len(sorted_kanji_count)
-    chapter_data['word_frequency'] = unique_jmdict_word_count
+    chapter_data['word_frequency'] = results['word_count']
     chapter_data['kanji_frequency'] = sorted_kanji_count
-    chapter_data['words'] = unique_jmdict_word_list
-    chapter_data['word_seq'] = unique_jmdict_word_seq
+    chapter_data['words'] = results['word_list']
+    chapter_data['word_sense'] = results['word_senses']
+    chapter_data['word_priority_class'] = create_priority_class_list_for_words(results['word_senses'])
+
     chapter_data['lemmas'] = lemmas
-    chapter_data['word_count_per_class'] = word_count_per_class
+    chapter_data['word_count_per_class'] = results['word_count_per_unidict_class']
     chapter_data['parser_version'] = CURRENT_LANUGAGE_PARSER_VERSION
 
     return c_c, w_c, k_c, skipped_c
 
 def is_file_up_to_date(filename, version, parser_version):
 
-    if os.path.exists(filename):
-        f = open(filename, "r", encoding="utf-8")
-        temp_data = json.loads(f.read())
-        f.close()
-        if 'version' not in temp_data:
-            return False
-        if 'parser_version' not in temp_data:
-            return False
-        if temp_data['version'] < version:
-            return False
-        if temp_data['parser_version'] < parser_version:
-            return False
-        return True
-    else:
-        return False
+    try:
+        if os.path.exists(filename):
+            f = open(filename, "r", encoding="utf-8")
+            temp_data = json.loads(f.read())
+            f.close()
+            if 'version' not in temp_data:
+                return False
+            if 'parser_version' not in temp_data:
+                return False
+            if temp_data['version'] < version:
+                return False
+            if temp_data['parser_version'] < parser_version:
+                return False
+            return True
+    except:
+        pass
+    return False
 
 def process_chapters(args):
     keyword = args['keyword']
@@ -243,6 +239,12 @@ def process_chapters(args):
 
             processed_chapter_count += 1
 
+def create_priority_class_list_for_words( word_senses):
+    pr_cl = []
+    for i, (senses) in enumerate(word_senses):
+        pr_cl.append(get_highest_freq_class_list_with_particle_priority(senses))
+    return pr_cl
+
 
 def process_titles(args):
     global processed_title_count
@@ -266,9 +268,10 @@ def process_titles(args):
         title_data['kanji_frequency'] = dict()
         title_data['lemmas'] = dict()
 
-        total_word_count_per_class = [0] * len(unidic_item_classes)
+        total_word_count_per_class = [0] * len(unidic_class_list)
 
         word_list = []
+        word_senses = []
         word_freq = []
         word_seq = []
 
@@ -294,20 +297,23 @@ def process_titles(args):
                     title_data['num_kanjis'] += chapter_data['num_kanjis']
                     title_data['num_pages'] += chapter_data['num_pages']
 
-                    for i in range(len(unidic_item_classes)):
+                    for i in range(len(unidic_class_list)):
                         total_word_count_per_class[i] += chapter_data['word_count_per_class'][i]
 
                     chd = chapter_data
 
-                    for i, (word, seq, freq) in enumerate(
-                            zip(chd['words'], chd['word_seq'],chd['word_frequency'])):
+                    for i, (word, freq, senses) in enumerate(
+                            zip(chd['words'], chd['word_frequency'], chd['word_sense'])):
                         try:
-                            idx = word_seq.index(seq)
+                            idx = word_list.index(word)
                             word_freq[idx] += freq
+                            word_senses[idx].update(senses)
                         except:
-                            word_seq.append(seq)
                             word_list.append(word)
                             word_freq.append(freq)
+                            word_senses.append(set(senses))
+
+                    
 
                     for w, freq in chapter_data['kanji_frequency'].items():
                         if w in title_data['kanji_frequency']:
@@ -325,6 +331,10 @@ def process_titles(args):
             title_data['word_seq'] = word_seq
             title_data['words'] = word_list
             title_data['word_count_per_class'] = total_word_count_per_class
+            word_senses = [list(ws) for ws in word_senses]
+            title_data['word_sense'] = word_senses
+            title_data['word_priority_class'] = create_priority_class_list_for_words(word_senses)
+
 
             title_data['num_chapters'] = len(vs)
             title_data['num_unique_words'] = len(title_data['word_frequency'])
@@ -353,8 +363,8 @@ parser.add_argument('keyword', nargs='?', type=str, default=None, help='Title ha
 args = vars(parser.parse_args())
 
 
-#keyword = "keaton" 
-#keyword = "dream"
+#keyword = "keaton"
+#args['keyword'] = "dream"
 
 if not os.path.exists(title_analysis_dir):
     os.mkdir(chapter_analysis_dir)

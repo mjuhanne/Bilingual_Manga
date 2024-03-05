@@ -133,14 +133,22 @@ def handle_forgotten_event(item_type, item, next_timestamp):
         return current_stage
     last_timestamp = h[-1]['t']
     if current_stage == STAGE_KNOWN or current_stage == STAGE_PRE_KNOWN:
-        forgot_timestamp = last_timestamp + remembering_periods[item_type][item]
+
+        # initialize remembering period if it hasn't yet been done
+        try:
+            remembering_period = remembering_periods[item_type][item]
+        except:
+            remembering_period = initial_remembering_period
+            remembering_periods[item_type][item] = remembering_period
+
+        forgot_timestamp = last_timestamp + remembering_period
         if forgot_timestamp < next_timestamp:
             forgotten_event = {
                 's' : STAGE_FORGOTTEN,
                 't' : forgot_timestamp,
                 'm': {'src' : SOURCE_ENGINE },
             }
-            days_lapsed = int(remembering_periods[item_type][item]/(24*60*60))
+            days_lapsed = int(remembering_period/(24*60*60))
             if current_stage == STAGE_KNOWN:
                 if trace_item is not None:
                     print(" ! Forgot %s %s" % (item_type,item))
@@ -280,14 +288,14 @@ def update_item_stage(item_type, item, lemma, stage, timestamp, metadata ):
                     print(" - Passing through during forgotten stage")
 
 
-def update_item_stage_by_frequency(item_type, item, lemma, freq, adjusted_freq, timestamp, metadata ):
+def update_item_stage_by_frequency_and_class(item_type, item, lemma, freq, adjusted_freq, class_list, timestamp, metadata ):
     if item in lifetime_freq[item_type]:
         lifetime_freq[item_type][item] += freq
         learning_freq[item_type][item] += adjusted_freq
     else:
         lifetime_freq[item_type][item] = freq
         learning_freq[item_type][item] = adjusted_freq
-    stage = get_stage_by_frequency(item_type, learning_freq[item_type][item])
+    stage = get_stage_by_frequency_and_class(item_type, learning_freq[item_type][item], class_list)
     update_item_stage(item_type, item, lemma, stage, timestamp, metadata)
 
 def do_get_num_items(history_set,stage,source):
@@ -506,24 +514,25 @@ def update(args):
                 learning_data['num_kanjis'] += chapter_data['num_kanjis']
                 learning_data['num_pages'] += chapter_data['num_pages']
 
-                for w, freq in chapter_data['word_frequency'].items():
-                    if trace_item is None or trace_item == w:
+                for word, freq, priority_classes in \
+                    zip(chapter_data['words'], chapter_data['word_frequency'], chapter_data['word_priority_class']):
+                    if trace_item is None or trace_item == word:
                         adjusted_freq = adjust_and_cap_frequency(freq, comprehension)
                         lemma = None
                         try:
-                            lemma = chapter_data['lemmas'][w]
+                            lemma = chapter_data['lemmas'][word]
                             if lemma in lemma_cache:
-                                lemma_cache[lemma].add(w)
+                                lemma_cache[lemma].add(word)
                             else:
-                                lemma_cache[lemma] = set([w])
+                                lemma_cache[lemma] = set([word])
                         except:
                             pass
-                        update_item_stage_by_frequency('words',w,lemma,freq,adjusted_freq,timestamp,word_metadata)
+                        update_item_stage_by_frequency_and_class('words',word,lemma,freq,adjusted_freq,priority_classes, timestamp,word_metadata)
 
                 for k, freq in chapter_data['kanji_frequency'].items():
                     if trace_item is None or trace_item == k:
                         adjusted_freq = adjust_and_cap_frequency(freq, comprehension)
-                        update_item_stage_by_frequency('kanjis',k,None,freq,adjusted_freq,timestamp,word_metadata)
+                        update_item_stage_by_frequency_and_class('kanjis',k,None,freq,adjusted_freq,[], timestamp,word_metadata)
 
             else:
                 print("Warning! Missing frequency data for %s chapter %d [%s]" % (title_name, chapter, chapter_filename), file=sys.stderr)
@@ -645,7 +654,7 @@ parser_update.add_argument('--trace', type=str, default=None, help='trace change
 args = vars(parser.parse_args())
 cmd = args.pop('command')
 
-#update({'trace':None})
+update({'trace':None})
 
 if cmd is not None:
     try:

@@ -12,11 +12,11 @@ word_flag_to_str = {
 def flags_to_str(word_flag):
     return ' '.join([word_flag_to_str[key] for key in word_flag_to_str.keys() if word_flag & key])
 
-def print_scanning_results(jlines, sense_list, sense_word_index, word_list, ud_word_classes):
+def print_scanning_results(jlines, results, ud_items):
     for i, (entry) in enumerate(jlines[0]):
         w= next(iter(entry))
-        cl = ud_word_classes[i]
-        cl_str = unidic_item_classes[cl].ljust(5,'　')
+        cl = ud_items[i].cl
+        cl_str = unidic_class_list[cl].ljust(5,'　')
         cl_meaning_str = unidic_class_to_string(cl)
         print(" %s %s %s" % ( 
             w.ljust(6,'　'), cl_str, cl_meaning_str
@@ -27,7 +27,9 @@ def print_scanning_results(jlines, sense_list, sense_word_index, word_list, ud_w
         if len(sense_idx_refs) == 0:
             print("\t ** NO WORDS FOUND ** ")
         else:
-            refs = [ (word_list[sense_word_index[s_idx]], sense_list[s_idx]) for s_idx in sense_idx_refs]
+            refs = [ (results['word_list'][results['sense_word_index'][s_idx]], 
+                        results['sense_list'][s_idx]) for s_idx in sense_idx_refs
+            ]
             for (jmdict_w, seq_sense_ref) in refs:
                 (seq,senses) = expand_sense_ref(seq_sense_ref)
                 s = seq_sense_ref.split('/')
@@ -45,55 +47,49 @@ def print_scanning_results(jlines, sense_list, sense_word_index, word_list, ud_w
                     print("\t\t\t%s %s" % (count,meanings))
                     cl_list = jmdict_class_list_per_sense[seq][sense]
                     for cl in cl_list:
-                        print("\t\t\t\t%s" % jmdict_parts_of_speech_list[cl])
+                        print("\t\t\t\t%s" % jmdict_class_list[cl])
 
 def parse(line):
 
     kanji_count = dict()
     lemmas = dict()
-    word_count_per_class = [0] * len(unidic_item_classes)
+    word_count_per_class = [0] * len(unidic_class_list)
 
-    unique_jmdict_word_list = ['','*','-'] 
-    #unique_jmdict_word_class_list = [[],[],[]] 
-    unique_jmdict_word_sense = [0,0,0]
-    unique_jmdict_word_count = [0,0,0]
-    jmdict_sense_list = []
-    jmdict_sense_word_index = []
-    jmdict_sense_class_list = []
+    results = init_scan_results()
 
-    kc, ud_words, ud_word_ortho, ud_word_classes = parse_line_with_unidic(line,kanji_count, lemmas)
+    kc, ud_items = parse_line_with_unidic(line,kanji_count, lemmas)
 
     print("After unidic scanning:")
-    for w,ortho,cl in zip(ud_words, ud_word_ortho, ud_word_classes):
-        if ortho == w:
+    for item in ud_items:
+        if item.ortho == item.txt:
             ortho = ''
+        else:
+            ortho = item.ortho
         print("%s %s %s %s %s" % ( 
-            "".ljust(10), w.ljust(6,'　'), ortho.ljust(6,'　'), 
-            unidic_item_classes[cl].ljust(5,'　'), unidic_class_to_string(cl))
+            flags_to_str(item.flags).ljust(10), item.txt.ljust(6,'　'), ortho.ljust(6,'　'), 
+            unidic_class_list[item.cl].ljust(5,'　'), unidic_class_to_string(item.cl))
         )
 
-    ud_words, ud_word_ortho, ud_word_classes, ud_word_flags = \
-        post_process_unidic_particles(ud_words, ud_word_ortho, ud_word_classes)
+    ud_items = post_process_unidic_particles(ud_items)
 
     print("\nAfter unidic post-processing:")
-    for w,ortho,cl,flags in zip(ud_words, ud_word_ortho, ud_word_classes, ud_word_flags):
-        if ortho == w:
+    for item in ud_items:
+        if item.ortho == item.txt:
             ortho = ''
+        else:
+            ortho = item.ortho
         print("%s %s %s %s %s" % ( 
-            flags_to_str(flags).ljust(10), w.ljust(6,'　'), ortho.ljust(6,'　'), 
-            unidic_item_classes[cl].ljust(5,'　'), unidic_class_to_string(cl))
+            flags_to_str(item.flags).ljust(10), item.txt.ljust(6,'　'), ortho.ljust(6,'　'), 
+            unidic_class_list[item.cl].ljust(5,'　'), unidic_class_to_string(item.cl))
         )
 
-    sense_ref = parse_with_jmdict(
-        ud_words, ud_word_ortho, ud_word_classes, ud_word_flags,
-        jmdict_sense_list, jmdict_sense_word_index, 
-        unique_jmdict_word_list, unique_jmdict_word_count, unique_jmdict_word_sense,
-        jmdict_sense_class_list, word_count_per_class,
+    parse_with_jmdict(
+        ud_items, results,
     )
-    jlines = reassemble_block([line], ud_words, sense_ref)
+    jlines = reassemble_block([line], ud_items, results['item_sense_idx_ref'])
 
     print("\nAfter jmdict scanning:")
-    print_scanning_results(jlines, jmdict_sense_list, jmdict_sense_word_index, unique_jmdict_word_list, ud_word_classes)
+    print_scanning_results(jlines, results, ud_items)
 
     jlines_str = str(jlines)
     #print("{'line':'%s','jlines':%s, 'seq':%s, 'word_list':%s}" % (line,str(jlines),str(unique_jmdict_word_seq),str(unique_jmdict_word_list)))

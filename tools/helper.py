@@ -165,8 +165,14 @@ def get_title_id(item):
         return item
     raise Exception("unknown manga title/id %d" % item)
 
-def get_stage_by_frequency(item_type, freq):
+from jp_parser_helper import jmdict_particle_class
+
+def get_stage_by_frequency_and_class(item_type, freq, class_list):
     if item_type == 'words':
+        if _learning_settings['always_know_particles']:
+            if jmdict_particle_class in class_list:
+                return STAGE_KNOWN
+            
         if freq >= _learning_settings['known_word_threshold']:
             if _learning_settings['automatic_graduation_to_known']:
                 return STAGE_KNOWN

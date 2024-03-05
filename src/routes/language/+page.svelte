@@ -235,6 +235,10 @@ function colorizeStage(stage) {
                 <input class="datepicker" name="jlpt_learned_date" bind:value={learned_jlpt_date} on:change={onChangedJlptForgetting} type="date" />
                 {/if}
             </div>
+            <div class="knowledge-subsection">
+                <label for="always_know_particles">Always know particles</label>
+                <input name="always_know_particles" type="checkbox" bind:checked={learning_settings.always_know_particles} on:change={onSettingsChanged}/>
+            </div>
             <div class="knowledge-table-div">
                 <table class="knowledge-table" class:settings_changed={jlpt_settings_changed}>
                     <tr>
