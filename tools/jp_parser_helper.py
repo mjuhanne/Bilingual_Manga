@@ -1,177 +1,6 @@
 from helper import base_dir
+from jmdict import jmdict_class_list
 
-jmdict_file = base_dir + "lang/JMdict_e_s.tsv"
-jmdict_with_meanings_file = base_dir + "lang/JMdict_e_m.tsv"
-
-# JMDict Parts of Speech (classes)
-# DO NOT CHANGE THE ORDER
-jmdict_class_list = [
-    # these are our modifications.
-    #'non_jp_char',
-    #'alphanum',
-    #'punctuation marks 補助記号',
-    "common verb class",
-    "common noun class",
-    "__reserved__",
-    # These are from JMdict. Sorted by frequency in descending order
-    'noun (common) (futsuumeishi)', 
-    'expressions (phrases, clauses, etc.)', 
-    'adjectival nouns or quasi-adjectives (keiyodoshi)', 
-    'Ichidan verb', 
-    'adverb (fukushi)', 
-    "nouns which may take the genitive case particle 'no'", 
-    "Godan verb with 'ru' ending", "Godan verb with 'su' ending", 
-    'adjective (keiyoushi)', "Godan verb with 'ku' ending", 
-    'interjection (kandoushi)', "Godan verb with 'mu' ending", 
-    'noun or verb acting prenominally', "Godan verb with 'u' ending", 
-    'suffix', "adverb taking the 'to' particle", "'taru' adjective", 
-    'suru verb - special class', 'pronoun', 'noun, used as a suffix', 
-    'prefix', 'particle', 'conjunction', "Godan verb with 'tsu' ending", 
-    'noun or participle which takes the aux. verb suru', 'counter', 
-    'pre-noun adjectival (rentaishi)', "Godan verb with 'gu' ending", 
-    'Ichidan verb - zuru verb (alternative form of -jiru verbs)', 
-    'auxiliary verb', 'numeric', 'noun, used as a prefix', 
-    "Godan verb with 'bu' ending", 'suru verb - included', 'auxiliary', 
-    'Godan verb - Iku/Yuku special class', 
-    "Nidan verb (lower class) with 'mu' ending (archaic)", 
-    "'ku' adjective (archaic)", 'su verb - precursor to the modern suru', 
-    'unclassified', "Yodan verb with 'ru' ending (archaic)", 
-    "Nidan verb (lower class) with 'ru' ending (archaic)", 
-    "Nidan verb (lower class) with 'dzu' ending (archaic)", 
-    "Yodan verb with 'ku' ending (archaic)", 'archaic/formal form of na-adjective', 
-    'adjective (keiyoushi) - yoi/ii class', "Yodan verb with 'su' ending (archaic)", 
-    "Godan verb with 'nu' ending", "Yodan verb with 'hu/fu' ending (archaic)", 
-    "Godan verb with 'u' ending (special class)", 'Kuru verb - special class', 
-    'Godan verb - -aru special class', 'copula', "'shiku' adjective (archaic)", 
-    'irregular ru verb, plain form ends with -ri', 
-    "Godan verb with 'ru' ending (irregular verb)", 
-    "Yodan verb with 'tsu' ending (archaic)", 
-    "Nidan verb (lower class) with 'hu/fu' ending (archaic)", 
-    "Nidan verb (lower class) with 'ku' ending (archaic)", 
-    "Nidan verb (lower class) with 'tsu' ending (archaic)", 
-    'intransitive verb', "Nidan verb (lower class) with 'gu' ending (archaic)", 
-    "Nidan verb (lower class) with 'yu' ending (archaic)", 
-    "Nidan verb (upper class) with 'yu' ending (archaic)", 
-    'auxiliary adjective', 'irregular nu verb', 
-    "Nidan verb (upper class) with 'gu' ending (archaic)", 
-    "Nidan verb (lower class) with 'su' ending (archaic)", 
-    "Yodan verb with 'mu' ending (archaic)", 
-    "Nidan verb with 'u' ending (archaic)", 
-    "Nidan verb (upper class) with 'bu' ending (archaic)", 
-    "Nidan verb (lower class) with 'nu' ending (archaic)", 
-    'Ichidan verb - kureru special class', 
-    "Nidan verb (upper class) with 'hu/fu' ending (archaic)", 
-    'verb unspecified', "Nidan verb (upper class) with 'ru' ending (archaic)", 
-    "Yodan verb with 'gu' ending (archaic)", "Yodan verb with 'bu' ending (archaic)", 
-    "Nidan verb (upper class) with 'ku' ending (archaic)", 
-    "Nidan verb (upper class) with 'tsu' ending (archaic)", 
-    "Nidan verb (lower class) with 'zu' ending (archaic)", 
-    "Nidan verb (lower class) with 'u' ending and 'we' conjugation (archaic)", 
-    'transitive verb'
-]
-
-jmdict_parts_of_speech_codes = {
-'adj-f': "noun or verb acting prenominally",
-'adj-i': "adjective (keiyoushi)",
-'adj-ix': "adjective (keiyoushi) - yoi/ii class",
-'adj-kari': "'kari' adjective (archaic)",
-'adj-ku': "'ku' adjective (archaic)",
-'adj-na': "adjectival nouns or quasi-adjectives (keiyodoshi)",
-'adj-nari': "archaic/formal form of na-adjective",
-'adj-no': "nouns which may take the genitive case particle 'no'",
-'adj-pn': "pre-noun adjectival (rentaishi)",
-'adj-shiku': "'shiku' adjective (archaic)",
-'adj-t': "'taru' adjective",
-'adv': "adverb (fukushi)",
-'adv-to': "adverb taking the 'to' particle",
-'aux': "auxiliary",
-'aux-adj': "auxiliary adjective",
-'aux-v': "auxiliary verb",
-'conj': "conjunction",
-'cop': "copula",
-'ctr': "counter",
-'exp': "expressions (phrases, clauses, etc.)",
-'int': "interjection (kandoushi)",
-'n': "noun (common) (futsuumeishi)",
-'n-adv': "adverbial noun (fukushitekimeishi)",
-'n-pr': "proper noun",
-'n-pref': "noun, used as a prefix",
-'n-suf': "noun, used as a suffix",
-'n-t': "noun (temporal) (jisoumeishi)",
-'num': "numeric",
-'pn': "pronoun",
-'pref': "prefix",
-'prt': "particle",
-'suf': "suffix",
-'unc': "unclassified",
-'v-unspec': "verb unspecified",
-'v1': "Ichidan verb",
-'v1-s': "Ichidan verb - kureru special class",
-'v2a-s': "Nidan verb with 'u' ending (archaic)",
-'v2b-k': "Nidan verb (upper class) with 'bu' ending (archaic)",
-'v2b-s': "Nidan verb (lower class) with 'bu' ending (archaic)",
-'v2d-k': "Nidan verb (upper class) with 'dzu' ending (archaic)",
-'v2d-s': "Nidan verb (lower class) with 'dzu' ending (archaic)",
-'v2g-k': "Nidan verb (upper class) with 'gu' ending (archaic)",
-'v2g-s': "Nidan verb (lower class) with 'gu' ending (archaic)",
-'v2h-k': "Nidan verb (upper class) with 'hu/fu' ending (archaic)",
-'v2h-s': "Nidan verb (lower class) with 'hu/fu' ending (archaic)",
-'v2k-k': "Nidan verb (upper class) with 'ku' ending (archaic)",
-'v2k-s': "Nidan verb (lower class) with 'ku' ending (archaic)",
-'v2m-k': "Nidan verb (upper class) with 'mu' ending (archaic)",
-'v2m-s': "Nidan verb (lower class) with 'mu' ending (archaic)",
-'v2n-s': "Nidan verb (lower class) with 'nu' ending (archaic)",
-'v2r-k': "Nidan verb (upper class) with 'ru' ending (archaic)",
-'v2r-s': "Nidan verb (lower class) with 'ru' ending (archaic)",
-'v2s-s': "Nidan verb (lower class) with 'su' ending (archaic)",
-'v2t-k': "Nidan verb (upper class) with 'tsu' ending (archaic)",
-'v2t-s': "Nidan verb (lower class) with 'tsu' ending (archaic)",
-'v2w-s': "Nidan verb (lower class) with 'u' ending and 'we' conjugation (archaic)",
-'v2y-k': "Nidan verb (upper class) with 'yu' ending (archaic)",
-'v2y-s': "Nidan verb (lower class) with 'yu' ending (archaic)",
-'v2z-s': "Nidan verb (lower class) with 'zu' ending (archaic)",
-'v4b': "Yodan verb with 'bu' ending (archaic)",
-'v4g': "Yodan verb with 'gu' ending (archaic)",
-'v4h': "Yodan verb with 'hu/fu' ending (archaic)",
-'v4k': "Yodan verb with 'ku' ending (archaic)",
-'v4m': "Yodan verb with 'mu' ending (archaic)",
-'v4n': "Yodan verb with 'nu' ending (archaic)",
-'v4r': "Yodan verb with 'ru' ending (archaic)",
-'v4s': "Yodan verb with 'su' ending (archaic)",
-'v4t': "Yodan verb with 'tsu' ending (archaic)",
-'v5aru': "Godan verb - -aru special class",
-'v5b': "Godan verb with 'bu' ending",
-'v5g': "Godan verb with 'gu' ending",
-'v5k': "Godan verb with 'ku' ending",
-'v5k-s': "Godan verb - Iku/Yuku special class",
-'v5m': "Godan verb with 'mu' ending",
-'v5n': "Godan verb with 'nu' ending",
-'v5r': "Godan verb with 'ru' ending",
-'v5r-i': "Godan verb with 'ru' ending (irregular verb)",
-'v5s': "Godan verb with 'su' ending",
-'v5t': "Godan verb with 'tsu' ending",
-'v5u': "Godan verb with 'u' ending",
-'v5u-s': "Godan verb with 'u' ending (special class)",
-#'v5uru': "Godan verb - Uru old class verb (old form of Eru)",
-'vi': "intransitive verb",
-'vk': "Kuru verb - special class",
-'vn': "irregular nu verb",
-'vr': "irregular ru verb, plain form ends with -ri",
-'vs': "noun or participle which takes the aux. verb suru",
-'vs-c': "su verb - precursor to the modern suru",
-'vs-i': "suru verb - included",
-'vs-s': "suru verb - special class",
-'vt': "transitive verb",
-'vz': "Ichidan verb - zuru verb (alternative form of -jiru verbs)",
-'gikun': "gikun (meaning as reading) or jukujikun (special kanji reading)",
-'ik': "word containing irregular kana usage",
-'ok': "out-dated or obsolete kana usage",
-'rk': "rarely used kana form",
-'sk': "search-only kana form",
-}
-
-jmdict_noun_pos_list = []
-jmdict_verb_pos_list = []
 
 #jmdict_noun_class = jmdict_class_list.index('noun (common) (futsuumeishi)')
 jmdict_prefix_class = jmdict_class_list.index('prefix')
@@ -230,6 +59,7 @@ unidic_class_list = [
     '接頭詞', # different prefix? 超〜, 真〜, 大〜, 小〜, ぶっ〜 ＋ 叩く ＝ ぶっ叩く
     'フィラー',  # failure?
     'counter', # pseudo-class for か月
+    'expression', # pseudo-class for expressions
 ]
 
 unidic_class_name_strings = {
@@ -255,6 +85,7 @@ unidic_class_name_strings = {
     '接頭詞' : "",
     'フィラー' : "failure?",
     "counter" : "counter",
+    "expression" : "expression",
 }
 
 def unidic_class_to_string(class_id):
@@ -290,8 +121,11 @@ rentaishi_class = unidic_class_list.index('連体詞') # その、そんな、�
 grammatical_particle_class = unidic_class_list.index('助詞')
 gp_class = grammatical_particle_class # shorthand
 
+
 # some counter related nouns (か月) are switched into this pseudoclass
 counter_pseudoclass = unidic_class_list.index('counter')
+
+expression_class = unidic_class_list.index('expression')
 
 LUMPED_NON_JP_CHARACTER_INDEX = 0
 LUMPED_ALPHANUM_CHARACTER_INDEX = 1
@@ -328,7 +162,7 @@ allowed_other_class_bindings = {
 
     jmdict_prefix_class : [prefix_class],
     jmdict_suffix_class : [suffix_class],
-    jmdict_noun_as_suffix_class : [suffix_class],
+    jmdict_noun_as_suffix_class : [suffix_class,noun_class],
 
     jmdict_prenominal_class : [rentaishi_class],
     jmdict_particle_class : [grammatical_particle_class],
@@ -360,68 +194,88 @@ TASK_NONE = 0
 TASK_CLEAR_ORTHO = 1
 explicit_words = [
     #nouns
-    (['そこ','ら'],[pronoun_class,suffix_class], noun_class,COND_NONE,TASK_NONE),
+    [['そこ','ら'],[pronoun_class,suffix_class],COND_NONE,noun_class],
 
     # verbs
-    (['でしょ'],[aux_verb_class],verb_class,COND_NONE,TASK_NONE),
-    (['だ','も','の'],[aux_verb_class,gp_class,gp_class],verb_class,COND_NONE,TASK_NONE),
+    [['でしょ'],[aux_verb_class],COND_NONE,verb_class],
+    [['でし','た'],[aux_verb_class,aux_verb_class],COND_NONE,verb_class,{'root_ortho':'です'}],
+    [['だ','も','の'],[aux_verb_class,gp_class,gp_class],COND_NONE,verb_class],
 
     # adjectives
-    (['らしい'],[aux_verb_class],adjective_class,COND_NONE,TASK_NONE),
-    (['や','ばい'],[aux_verb_class,gp_class],adjective_class,COND_NONE,TASK_NONE),
+    [['らしい'],[aux_verb_class],COND_NONE,adjective_class],
+    [['や','ばい'],[aux_verb_class,gp_class],COND_NONE,adjective_class],
+    [['な','い'],[aux_verb_class,interjection_class],COND_NONE,adjective_class],
 
     # conjunctions
-    (['だ','から'],[aux_verb_class,gp_class],conjunction_class,COND_NONE,TASK_NONE), 
-    (['だ','けど'],[aux_verb_class,gp_class],conjunction_class,COND_NONE,TASK_NONE),
-    (['それ','に'],[pronoun_class,gp_class],conjunction_class,COND_NONE,TASK_NONE),
-    (['ところ','で'],[noun_class,gp_class],conjunction_class,COND_NONE,TASK_NONE),
-    (['だっ','たら'],[aux_verb_class,aux_verb_class],conjunction_class,COND_NONE,TASK_NONE),
-    (['それ','より'],[pronoun_class,gp_class],conjunction_class,COND_NONE,TASK_NONE), 
-    (['そう','し','たら'],[adverb_class,verb_class,aux_verb_class],conjunction_class,COND_NONE,TASK_NONE), 
-    (['そう','し','て'],[adverb_class,verb_class,gp_class],conjunction_class,COND_NONE,TASK_NONE), 
-    (['で','も'],[aux_verb_class,gp_class],conjunction_class,COND_BLOCK_START,TASK_CLEAR_ORTHO),
-    (['こう','やっ','て'],[adverb_class,verb_class,gp_class],conjunction_class,COND_NONE,TASK_NONE),
-    (['だ','って'],[aux_verb_class,gp_class],conjunction_class,COND_BLOCK_START,TASK_CLEAR_ORTHO),
+    [['だ','から'],[aux_verb_class,gp_class],COND_NONE,conjunction_class], 
+    [['だ','けど'],[aux_verb_class,gp_class],COND_NONE,conjunction_class],
+    [['それ','に'],[pronoun_class,gp_class],COND_NONE,conjunction_class],
+    [['それ','で'],[pronoun_class,gp_class],COND_NONE,conjunction_class],
+    [['ところ','で'],[noun_class,gp_class],COND_NONE,conjunction_class],
+    [['だっ','たら'],[aux_verb_class,aux_verb_class],COND_NONE,conjunction_class],
+    [['それ','より'],[pronoun_class,gp_class],COND_NONE,conjunction_class],
+    [['そう','し','たら'],[adverb_class,verb_class,aux_verb_class],COND_NONE,conjunction_class],
+    [['そう','し','て'],[adverb_class,verb_class,gp_class],COND_NONE,conjunction_class],
+    [['で','も'],[aux_verb_class,gp_class],COND_BLOCK_START,conjunction_class,{'ortho':''}],
+    [['こう','やっ','て'],[adverb_class,verb_class,gp_class],COND_NONE,conjunction_class],
+    [['だ','って'],[aux_verb_class,gp_class],COND_BLOCK_START,conjunction_class,{'ortho':''}],
+    [['と','か'],[gp_class,gp_class],COND_NONE,conjunction_class,{'ortho':''}],
+    [['っつう','か'],[aux_verb_class,gp_class],COND_NONE,conjunction_class],
+    [['つう','か'],[aux_verb_class,gp_class],COND_NONE,conjunction_class],
 
 
     # Forcing these as conjunctions shouldn't affect the verb conjugations
     # because they are done greedily regardless of the unidict class
-    (['って'],[aux_verb_class],conjunction_class,COND_NONE,TASK_NONE),
-    (['じゃ'],[gp_class],conjunction_class,COND_NONE,TASK_NONE),
+    [['って'],[aux_verb_class],COND_NONE,conjunction_class],
+    [['じゃ'],[gp_class],COND_NONE,conjunction_class],
 
     # pronouns
     #(['だれ','か'],[pronoun_class,gp_class],pronoun_class),
     #(['誰','か'],[pronoun_class,gp_class],pronoun_class),
-    (['自分'],[noun_class],pronoun_class,COND_NONE,TASK_NONE),
+    [['自分'],[noun_class],COND_NONE,pronoun_class],
 
     # interjection
-    (['ごめん'],[noun_class],interjection_class,COND_NONE,TASK_NONE),
-    (['さあ'],[gp_class],interjection_class,COND_NONE,TASK_NONE),
-    (['な','ん','だ'],[aux_verb_class,gp_class,aux_verb_class],interjection_class,COND_NONE,TASK_CLEAR_ORTHO),
-    (['や','だ'],[aux_verb_class,aux_verb_class],interjection_class,COND_BLOCK_START,TASK_NONE),
-    (['そっ','か'],[pronoun_class,gp_class],interjection_class,COND_BLOCK_START,TASK_NONE),
+    [['ごめん'],[noun_class],COND_NONE,interjection_class],
+    [['さあ'],[gp_class],COND_NONE,interjection_class],
+    [['な','ん','だ'],[aux_verb_class,gp_class,aux_verb_class],COND_NONE,interjection_class,{'ortho':''}],
+    [['なあん','だ'],[pronoun_class,aux_verb_class],COND_NONE,interjection_class,{'ortho':''}],
+    [['や','だ'],[aux_verb_class,aux_verb_class],COND_BLOCK_START,interjection_class],
+    [['そっ','か'],[pronoun_class,gp_class],COND_BLOCK_START,interjection_class],
+    [['ん'],[aux_verb_class],COND_BLOCK_START,interjection_class,{'ortho':''}],
+    [['い','えっ'],[interjection_class,interjection_class],COND_BLOCK_START,interjection_class],
+    [['おは','よ'],[interjection_class,gp_class],COND_NONE,interjection_class],
+
 
     # adverbs
     #(['もし','も'],[adverb_class,gp_class],adverb_class,COND_NONE,TASK_NONE),
-    (['な','ん'],[aux_verb_class,gp_class],adverb_class,COND_NONE,TASK_NONE),
-    (['なん','で'],[pronoun_class,gp_class],adverb_class,COND_NONE,TASK_NONE),
-    (['なる','ほど'],[verb_class,gp_class],adverb_class,COND_NONE,TASK_NONE),
-    (['なる','ほど'],[aux_verb_class,gp_class],adverb_class,COND_NONE,TASK_NONE),
-    (['ほど'],[gp_class],adverb_class,COND_NONE,TASK_NONE),
-    (['いつ','で','も'],[pronoun_class,gp_class,gp_class],adverb_class,COND_NONE,TASK_NONE),
-    (['いつ','も'],[pronoun_class,gp_class],adverb_class,COND_NONE,TASK_NONE),
-    (['二人','と','も'],[noun_class,gp_class,gp_class],adverb_class,COND_NONE,TASK_NONE),
-    (['ず','っと'],[aux_verb_class,gp_class],adverb_class,COND_NONE,TASK_CLEAR_ORTHO),
+    [['な','ん','で'],[aux_verb_class,gp_class,aux_verb_class],COND_NONE,adverb_class,{'ortho':''}],
+    [['な','ん'],[aux_verb_class,gp_class],COND_NONE,adverb_class],
+    [['なん','で'],[pronoun_class,gp_class],COND_NONE,adverb_class],
+    [['なる','ほど'],[verb_class,gp_class],COND_NONE,adverb_class],
+    [['なる','ほど'],[aux_verb_class,gp_class],COND_NONE,adverb_class],
+    [['ほど'],[gp_class],COND_NONE,adverb_class],
+    [['いつ','で','も'],[pronoun_class,gp_class,gp_class],COND_NONE,adverb_class],
+    [['いつ','も'],[pronoun_class,gp_class],COND_NONE,adverb_class],
+    [['二人','と','も'],[noun_class,gp_class,gp_class],COND_NONE,adverb_class],
+    [['ず','っと'],[aux_verb_class,gp_class],COND_NONE,adverb_class,{'ortho':''}],
+    [['この','前'],[rentaishi_class,noun_class],COND_NONE,adverb_class,{'ortho':''}],
+    [['断じ','て'],[verb_class,gp_class],COND_NONE,adverb_class,{'ortho':''}],
+    [['まさ','か'],[aux_verb_class,gp_class],COND_BLOCK_START,adverb_class],
+    [['こん','だけ'],[pronoun_class,gp_class],COND_NONE,adverb_class],
+    [['どっ','か'],[pronoun_class,gp_class],COND_NONE,adverb_class],
 
     # rentaishi_class.  (あなたの)ような..
-    (['よう','な'],[adjectival_noun_class,aux_verb_class],rentaishi_class,COND_NONE,TASK_NONE),
+    [['よう','な'],[adjectival_noun_class,aux_verb_class],COND_NONE,rentaishi_class],
     
+    [['そっ','かー'],[adverb_class,gp_class],COND_NONE,expression_class,{'ortho':''}],
+
 ]
 
 # alternative unidic classes for certain words to allow for better
 # searching from JMDic
 alternative_classes = {
     'ねえ' : [interjection_class, grammatical_particle_class],
+    'ね' : [interjection_class],
     '一番' : [noun_class],
     'また' : [adverb_class],
     'ほとんど' : [adverb_class],
@@ -434,11 +288,16 @@ alternative_classes = {
     '確か' : [adjectival_noun_class],
     'と' : [conjunction_class],
     'マシ' : [adjectival_noun_class],
+    'じゃあ' : [conjunction_class],
+    'もー' : [interjection_class],
+    'つい' : [adverb_class],
 
     # Pre-noun Adjectivals, detected originally as adjectival nouns
     'そんな' : [rentaishi_class],
     'こんな' : [rentaishi_class],
 
+    # originally verbs
+    'つれない' : [adjective_class],
 
     # we put this explicitely here because don't want to allow all nouns to be possible counters
     'か月' : [counter_pseudoclass], 
@@ -452,7 +311,9 @@ alternative_classes = {
     '議' : [noun_class],
 }
 alternative_forms = {
-    'っちゃん' : 'ちゃん'
+    'っちゃん' : 'ちゃん',
+    'いえっ' : 'いえ',
+    'そっかー' : 'そうか',
 }
 
 # some common auxiliary verbs, particles and markings which we ignore for frequency analysis
@@ -476,7 +337,9 @@ SMALL_PARTICLE_THRESHOLD = 2
 hard_coded_seqs = {
     'いる' : (verb_class, 1577980),
     'する' : (verb_class, 1157170),
+    'なる' : (verb_class, 1375610),
     '私' : (pronoun_class, 1311110),
+    'そう' : (adjectival_noun_class,2137720),
 }
 
 
@@ -496,12 +359,19 @@ HOMOPHONE_MATCHING_WORD_MINIMUM_LENGTH = 5
 # words consisting of these wide characters will be ignored
 ignored_full_width_characters = "ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ０１２３４５６７８９％"
 
+def is_all_alpha(word):
+    if all(c in ignored_full_width_characters for c in word):
+        return True
+    if word.isascii() and word.isalnum():
+        return True
+    return False
 
 # word flags
 NO_SCANNING = 1
 START_OF_SCAN_DISABLED = 2
 MERGE_PARTICLE = 4
-DISABLE_ORTHO = 8
-PROCESS_AFTER_MERGING = 16
-ERROR_VERB_CONJUGATION = 32
-BIND_TO_PREVIOUS_ITEM_IF_LEFT_UNTETHERED = 64
+DIVIDE_PARTICLE = 8
+DISABLE_ORTHO = 16
+REPROCESS = 32
+ERROR_VERB_CONJUGATION = 64
+BIND_TO_PREVIOUS_ITEM_IF_LEFT_UNTETHERED = 128

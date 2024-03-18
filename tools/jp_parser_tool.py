@@ -23,41 +23,37 @@ def print_scanning_results(jlines, results, ud_items):
             )
         )
 
-        sense_idx_refs = entry[w]
-        if len(sense_idx_refs) == 0:
+        word_id_refs = entry[w]
+        if len(word_id_refs) == 0:
             print("\t ** NO WORDS FOUND ** ")
         else:
-            refs = [ (results['word_list'][results['sense_word_index'][s_idx]], 
-                        results['sense_list'][s_idx]) for s_idx in sense_idx_refs
-            ]
-            for (jmdict_w, seq_sense_ref) in refs:
-                (seq,senses) = expand_sense_ref(seq_sense_ref)
-                s = seq_sense_ref.split('/')
-                if len(s) == 1:
+            word_ids = [ results['word_id_list'][w_id_idx] for w_id_idx in word_id_refs]
+            for (word_id) in word_ids:
+                (seq,senses,word) = expand_word_id(word_id)
+                if '/' not in word_id:
                     s_ref = '*'
                 else:
-                    s_ref = str(s[1])
-                print("\t\t[%d/%s] %s\t[F %s/%s]" % (seq,s_ref, jmdict_w, jmdict_kanji_element_freq[seq], jmdict_reading_freq[seq]))
+                    s_ref = str(senses[0])
+                print("\t\t[%d/%s] %s\t[F %s/%s]" % (seq,s_ref, word, get_kanji_element_freq(seq), get_reading_freq(seq)))
                 for i,(sense) in enumerate(senses):
-                    meanings = jmdict_meaning_per_sense[seq][sense]
+                    meanings = get_meanings_by_sense(seq,sense)
                     if s_ref == '*':
                         count = str(i + 1)+'#'
                     else:
                         count = ''
                     print("\t\t\t%s %s" % (count,meanings))
-                    cl_list = jmdict_class_list_per_sense[seq][sense]
+                    cl_list = get_class_list_by_seq(seq)[sense]
                     for cl in cl_list:
                         print("\t\t\t\t%s" % jmdict_class_list[cl])
 
 def parse(line):
 
     kanji_count = dict()
-    lemmas = dict()
     word_count_per_class = [0] * len(unidic_class_list)
 
     results = init_scan_results()
 
-    kc, ud_items = parse_line_with_unidic(line,kanji_count, lemmas)
+    kc, ud_items = parse_line_with_unidic(line,kanji_count)
 
     print("After unidic scanning:")
     for item in ud_items:
@@ -78,15 +74,15 @@ def parse(line):
             ortho = ''
         else:
             ortho = item.ortho
-        print("%s %s %s %s %s" % ( 
-            flags_to_str(item.flags).ljust(10), item.txt.ljust(6,'　'), ortho.ljust(6,'　'), 
+        print("%s %s %s %s %s %s" % ( 
+            flags_to_str(item.flags).ljust(10), item.txt.ljust(6,'　'), ortho.ljust(6,'　'), item.alt_txt.ljust(6,'　'),
             unidic_class_list[item.cl].ljust(5,'　'), unidic_class_to_string(item.cl))
         )
 
     parse_with_jmdict(
         ud_items, results,
     )
-    jlines = reassemble_block([line], ud_items, results['item_sense_idx_ref'])
+    jlines = reassemble_block([line], ud_items, results['item_word_id_refs'])
 
     print("\nAfter jmdict scanning:")
     print_scanning_results(jlines, results, ud_items)
@@ -97,8 +93,9 @@ def parse(line):
     pass
 
 if __name__ == "__main__":
-    load_jmdict(load_meanings=True)
-    load_conjugations()
+    init_parser(load_meanings=True)
+    jmdict_kanji_elements, jmdict_kanji_element_seq, jmdict_max_kanji_element_len = get_jmdict_kanji_element_set()
+    jmdict_readings, jmdict_reading_seq, jmdict_max_reading_len = get_jmdict_reading_set()
 
     print("test")
     print(sys.argv)

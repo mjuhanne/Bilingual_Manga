@@ -239,6 +239,10 @@ function colorizeStage(stage) {
                 <label for="always_know_particles">Always know particles</label>
                 <input name="always_know_particles" type="checkbox" bind:checked={learning_settings.always_know_particles} on:change={onSettingsChanged}/>
             </div>
+            <div class="knowledge-subsection">
+                <label for="omit_particles">Omit particles from freq analysis</label>
+                <input name="omit_particles" type="checkbox" bind:checked={learning_settings.omit_particles} on:change={onSettingsChanged}/>
+            </div>
             <div class="knowledge-table-div">
                 <table class="knowledge-table" class:settings_changed={jlpt_settings_changed}>
                     <tr>

@@ -47,7 +47,6 @@ source_labels = {
     SOURCE_USER     : 'User set word',
 }
 
-
 base_dir = './'
 
 ocr_dir = base_dir + "ocr/"
@@ -57,13 +56,17 @@ chapter_analysis_dir = base_dir + "lang/chapters/"
 title_analysis_dir = base_dir + "lang/titles/"
 
 user_data_file = base_dir + 'json/user_data.json'
-user_set_words_file = base_dir + 'json/user_set_words.json'
+user_set_words_file__old = base_dir + 'json/user_set_words.json'  # deprecated
+user_set_word_ids_file = base_dir + 'json/user_set_word_ids.json'
+
 
 manga_metadata_file = base_dir + "json/admin.manga_metadata.json"
 manga_data_file = base_dir + "json/admin.manga_data.json"
 
 jlpt_kanjis_file = base_dir + "lang/jlpt/jlpt_kanjis.json"
-jlpt_vocab_file =  base_dir + "lang/jlpt/jlpt_vocab.json"
+jlpt_vocab_with_waller_kanji_restrictions_path_= base_dir + "lang/jlpt-vocab/data_with_waller_restricted_kanji/"
+jlpt_vocab_path =  base_dir + "lang/jlpt-vocab/data/"
+jlpt_vocab_jmdict_file =  base_dir + "lang/jlpt/jlpt_vocab_jmdict.json"
 
 _title_names = dict()
 _title_name_to_id = dict()
@@ -73,22 +76,20 @@ _chapter_id_to_chapter_name = dict()
 _title_chapters = dict()
 _chapter_page_count = dict()
 
-_user_settings = dict()
-_learning_settings = dict()
-
-_jlpt_word_reading_reverse = dict()
-_jlpt_words = dict()
+_jlpt_word_jmdict_references = None
+_jlpt_word_levels = None
+_jlpt_word_reading_levels = None
 
 _manga_data = dict()
 
 def get_user_set_words():
     try: 
-        with open(user_set_words_file,"r",encoding="utf-8") as f:
+        with open(user_set_word_ids_file,"r",encoding="utf-8") as f:
             data = f.read()
-            user_set_words = json.loads(data)
+            return json.loads(data)
     except:
-        print("User set words file doesn't exist")
-    return user_set_words
+        print("User set word id file doesn't exist")
+        return []
 
 def get_chapter_name_by_id(id):
     return _chapter_id_to_chapter_name[id]
@@ -165,73 +166,77 @@ def get_title_id(item):
         return item
     raise Exception("unknown manga title/id %d" % item)
 
-from jp_parser_helper import jmdict_particle_class
-
-def get_stage_by_frequency_and_class(item_type, freq, class_list):
-    if item_type == 'words':
-        if _learning_settings['always_know_particles']:
-            if jmdict_particle_class in class_list:
-                return STAGE_KNOWN
-            
-        if freq >= _learning_settings['known_word_threshold']:
-            if _learning_settings['automatic_graduation_to_known']:
-                return STAGE_KNOWN
-            else:
-                return STAGE_PRE_KNOWN
-        elif freq >= _learning_settings['learning_word_threshold']:
-            return STAGE_LEARNING
-    if item_type == 'kanjis':
-        if freq >= _learning_settings['known_kanji_threshold']:
-            if _learning_settings['automatic_graduation_to_known']:
-                return STAGE_KNOWN
-            else:
-                return STAGE_PRE_KNOWN
-        elif freq >= _learning_settings['learning_kanji_threshold']:
-            return STAGE_LEARNING
-    return STAGE_UNFAMILIAR
-
-def read_user_settings():
-    global _user_settings, _learning_settings
-    if os.path.exists(user_data_file):
-        with open(user_data_file,"r") as f:
-            d = f.read()
-            _user_settings = json.loads(d)
-            if 'learning_settings' in _user_settings:
-                _learning_settings = _user_settings['learning_settings']
-            else:
-                raise Exception("Please set the learning settings first in the Language settings screen!")
-    else:
-        raise Exception("Please set the learning settings first in the Language settings screen!")
-    return _user_settings
-
-def get_learning_settings():
-    return _learning_settings
-
 def get_jlpt_kanjis():
     with open(jlpt_kanjis_file,"r",encoding="utf-8") as f:
         jlpt_kanjis = json.loads(f.read())
     return jlpt_kanjis
 
-def read_jlpt_word_file():
-    global _jlpt_words, _jlpt_word_reading_reverse
-    with open(jlpt_vocab_file,"r",encoding="utf-8") as f:
-        v = json.loads(f.read())
-        _jlpt_words = v['words']
-        _jlpt_word_reading_reverse = v['word_reading_reverse']
-        """
-        jlpt_words_parsed = v['words_parsed']
-        jlpt_word_count_per_level = v['word_count_per_level']
-        jlpt_word_readings = v['word_readings']
-        jlpt_word_reading_reverse = v['word_reading_reverse']
-        jlpt_word_level_suitable_form = v['word_level_suitable_form']
-        jlpt_word_kanji_level = v['word_kanji_level']
-        """
 
-def get_jlpt_words():
-    return _jlpt_words
+def get_jlpt_word_levels():
+    global _jlpt_word_levels
+    if _jlpt_word_levels is None:
+        calculate_jlpt_word_levels()
+    return _jlpt_word_levels
 
-def get_jlpt_word_reverse_readings():
-    return _jlpt_word_reading_reverse
+def get_jlpt_word_reading_levels():
+    global _jlpt_word_reading_levels
+    if _jlpt_word_reading_levels is None:
+        calculate_jlpt_word_levels()
+    return _jlpt_word_reading_levels
+
+def calculate_jlpt_word_levels():
+    global _jlpt_word_levels, _jlpt_word_reading_levels
+    refs = get_jlpt_word_jmdict_references()
+    _jlpt_word_levels = dict()
+    _jlpt_word_reading_levels = dict()
+    for level, seqs_per_level in refs.items():
+        for seq, word_dict in seqs_per_level.items():
+            for word in word_dict['kanji']:
+                if word not in _jlpt_word_levels:
+                    _jlpt_word_levels[word] = level
+                else:
+                    if _jlpt_word_levels[word] < level:
+                        _jlpt_word_levels[word] = level
+
+            for reading in word_dict['kana']:
+                if reading not in _jlpt_word_reading_levels:
+                    _jlpt_word_reading_levels[reading] = level
+                else:
+                    if _jlpt_word_reading_levels[reading] < level:
+                        _jlpt_word_reading_levels[reading] = level
+            
+
+def get_jlpt_word_jmdict_references():
+    global _jlpt_word_jmdict_references
+    if _jlpt_word_jmdict_references is not None:
+        return _jlpt_word_jmdict_references
+    refs = dict()
+    for level in range(1,6):
+        filename = "%sn%d.csv" %(jlpt_vocab_with_waller_kanji_restrictions_path_,level)
+        refs[level] = dict()
+        with open(filename,"r",encoding="utf-8") as f:
+            lines = f.readlines()
+            for line in lines[1:]: #skip header
+                d = line.split(',')
+
+                if d[0] != '':
+                    seq = int(d[0])
+                    if seq not in refs[level]:
+                        refs[level][seq] = {'kanji':[],'kana':[]}
+                    kana = d[2]
+                    kana = kana.replace('"','')
+                    if kana != '':
+                        if kana not in refs[level][seq]['kana']:
+                            refs[level][seq]['kana'].append(kana)
+
+                    kanji = d[1]
+                    kanji = kanji.replace('"','')
+                    if kanji != '':
+                        if kanji not in refs[level][seq]['kanji']:
+                            refs[level][seq]['kanji'].append(kanji)
+                    
+    _jlpt_word_jmdict_references = refs
+    return refs
 
 cjk_ranges = [
     (0x4E00, 0x9FAF),  # CJK unified ideographs
@@ -264,3 +269,43 @@ def has_cjk(word):
 
 def filter_cjk(text):
     return filter(has_cjk, text)
+
+hira_start = int("3041", 16)
+hira_end = int("3096", 16)
+kata_start = int("30a1", 16)
+
+hira_to_kata = dict()
+kata_to_hira = dict()
+for i in range(hira_start, hira_end+1):
+    hira_to_kata[chr(i)] = chr(i-hira_start+kata_start)
+    #print(chr(i), chr(i-hira_start+kata_start))    
+for hira,kata in hira_to_kata.items():
+    kata_to_hira[kata] = hira
+
+def hiragana_to_katakana(word):
+    katakana = ''
+    for chr in word:
+        if chr in hira_to_kata:
+            katakana += hira_to_kata[chr]
+        else:
+            katakana += chr
+    return katakana
+
+def katagana_to_hiragana(word):
+    hiragana = ''
+    for chr in word:
+        if chr in kata_to_hira:
+            hiragana += kata_to_hira[chr]
+        else:
+            hiragana += chr
+    return hiragana
+
+def get_seq_and_word_from_word_id(word_id):
+    sw = word_id.split(':')
+    word = sw[1]
+    seq = sw[0].split('/')[0]
+    return int(seq),word
+
+def strip_sense_from_word_id(word_id):
+    seq,word = get_seq_and_word_from_word_id(word_id)
+    return str(seq) + ':' + word

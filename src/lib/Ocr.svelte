@@ -17,9 +17,7 @@
 
   let interactive_ocr = false;
   let colorize = false;
-  let word_list;
-  let word_sense_list;
-  let word_class_list;
+  let word_id_list;
   let word_learning_stages;
   let word_history;
 
@@ -27,11 +25,7 @@
   let mounted = false;
   let page_ref = undefined;
 
-  let selected_word;
-  let selected_word_senses;
-  let selected_word_class;
-  let selected_word_stage;
-  let selected_word_history;
+  let selected_word_id_index_list;
   let selected_block; // OCR block number in current page
   let showModal;
   let hovered_block_id = -1;
@@ -56,14 +50,13 @@
     hovered_block_id = -1;
   }
 
-  function clicked(word_id, block_id) {
+  function clicked(word_id_index_list, block_id) {
     selected_block = block_id;
-    selected_word = word_list[word_id];
-    selected_word_senses = word_sense_list[word_id];
-    selected_word_class = "NA"; // word_class_list[word_id];
-    selected_word_stage = word_learning_stages[word_id];
-    selected_word_history = word_history[word_id];
-    console.log("clicked " + JSON.stringify(selected_word));
+    selected_word_id_index_list = word_id_index_list;
+    console.log("clicked:");
+    for (let idx of word_id_index_list) {
+      console.log(word_id_list[idx]);
+    }
     showModal = true;
   	}
 
@@ -78,13 +71,19 @@
       let all_known = true;
 
       for (let elem of word_elements) {
-        let wid = parseInt(elem.getAttribute("wid"));
-        let stage = word_learning_stages[wid];
-        if ( (stage != STAGE.NONE) && (stage != STAGE.IGNORED) ) {
-          if (stage != STAGE.KNOWN) {
-            all_known = false;
-            if (stage > highest_stage) {
-              highest_stage = stage;
+        let stage = STAGE.NONE;
+        // TODO: show the learning stage of other (than first) references by
+        // changing the border color
+        let word_id_index_list = getWordIdIndexList(elem);
+        if (word_id_index_list.length > 0) {
+          let widx = word_id_index_list[0];
+          stage = word_learning_stages[widx];
+          if ( (stage != STAGE.NONE) && (stage != STAGE.IGNORED) ) {
+            if (stage != STAGE.KNOWN) {
+              all_known = false;
+              if (stage > highest_stage) {
+                highest_stage = stage;
+              }
             }
           }
         }
@@ -104,18 +103,22 @@
     }
   }
 
+  function setWordPopupToElementPosition(elem) {
+    var rect = elem.getBoundingClientRect();
+    ocr_root.querySelector('.popup-dialog').style.left = rect.left-70 + "px"; 
+    ocr_root.querySelector('.popup-dialog').style.top = rect.top-40 + "px";
+  }
+
   function setClickEventListeners() {
     let word_elements = ocr_root.querySelectorAll(".ocrtext1 span");
     for (let elem of word_elements) {
-      let word_id = elem.getAttribute("wid");
-      if (word_id != 0) {
+      let word_id_index_list = getWordIdIndexList(elem);
+      if (word_id_index_list.length > 0) {
         elem.addEventListener("click", (e) => {
           if (!showModal) { // prevent numerous click events
-            var rect = e.target.getBoundingClientRect();
-            ocr_root.querySelector('.popup-dialog').style.left = rect.left-70 + "px"; 
-            ocr_root.querySelector('.popup-dialog').style.top = rect.top-40 + "px";
+            setWordPopupToElementPosition(e.target);
             let block_id = parseInt(elem.parentElement.parentElement.getAttribute("block_id"));
-            clicked(word_id, block_id);
+            clicked(word_id_index_list, block_id);
           }
         });
       }
@@ -123,11 +126,10 @@
   }
 
   async function sendChangedLearningStage(word_id, block_id, learning_stage) {
-    let word = word_list[word_id];
     let body = JSON.stringify({
       'func' : 'update_manually_set_word_learning_stage', 
       'stage_data' : {
-        'word' : word,
+        'word_id' : word_id,
         'stage' : learning_stage,
         'metadata' : {
             //'id' : manga_id,
@@ -144,35 +146,42 @@
         body: body,
     });
     const result = deserialize(await response.text());
-
-    // add event to history temporarily like this before it gets updated after next page flip
-    let new_entry = {
-        's' : learning_stage,
-        't' : new Date()/1000,
-        'm' : {
-            'src' : SOURCE.USER,
-            'comment' : 'Current update',
-        }
-    };
-    let history = word_history[word_id];
-    if (result.replaced_last_entry) {
-      history[history.length-1] = new_entry;
-    } else {
-        history.push(new_entry);
-    }
   };
 
-  const learningStageChanged = (word,new_learning_stage,block_id) => {
-    let word_id = word_list.indexOf(word);
-    let old_stage = word_learning_stages[word_id];
-    word_learning_stages[word_id] = new_learning_stage;
-    console.log("learningStageChanged " + word + " " + old_stage + " > " + new_learning_stage)
-    updateWordDecorations();
+
+  const learningStageChanged = (word_id,new_learning_stage,block_id) => {
     sendChangedLearningStage(word_id, block_id, new_learning_stage);
+    // change the learning stage for all the word senses. This is just
+    // a temporary measure until the page changes and OCR file is reloaded and
+    // filled with the saved stage
+    for (let word_idx in word_id_list) {
+      let wid = word_id_list[word_idx];
+      let ws = wid.split(':')
+      let ss = ws[0].split('/')
+      let wid0 = ss[0] + ':' + ws[1];
+      if (wid0 == word_id) {
+        let old_stage = word_learning_stages[word_idx];
+        word_learning_stages[word_idx] = new_learning_stage;
+        console.log("learningStageChanged " + wid + " " + old_stage + " > " + new_learning_stage)
+      }
+    }
+    updateWordDecorations();
   }
 
   const learningStageChangedFromPopUpDialog = (e) => {
-    learningStageChanged(e.detail['word'], e.detail['stage'], selected_block);
+    learningStageChanged(e.detail['word_id'], e.detail['stage'], selected_block);
+  }
+
+  const getWordIdIndexList = (elem) => {
+    let wil_str = elem.getAttribute("wil").split(',');
+    if (wil_str[0] == "") {
+      return [];
+    }
+    let wil = [];
+    for (let wi of wil_str) {
+      wil.push(parseInt(wi))
+    }
+    return wil
   }
 
   const setHoveredBlockWordsKnown = (all_stages) => {
@@ -183,13 +192,23 @@
         if (block_id == hovered_block_id) {
           let word_elements = b_elem.querySelectorAll(".ocrtext1 span");
           for (let elem of word_elements) {
-            let word_id = parseInt(elem.getAttribute("wid"));
-            let word = word_list[word_id];
-            if (word != '') {
-              let stage = word_learning_stages[word_id];
+            let particle = elem.innerText;
+
+            let word_id_index_list = getWordIdIndexList(elem);
+            if (word_id_index_list.length>0) {
+              console.log("Inspecting " + particle + " with " + word_id_index_list.length + " refs");
+              let word_idx = word_id_index_list[0];
+              let word_id = word_id_list[word_idx];
+
+              let ws = word_id.split(':')
+              let ss = ws[0].split('/')
+              let wid0 = ss[0] + ':' + ws[1];
+
+              let stage = word_learning_stages[word_idx];
               if (stage != STAGE.KNOWN) {
                 if (all_stages || (stage == STAGE.PRE_KNOWN) || (stage == STAGE.FORGOTTEN)) {
-                  learningStageChanged(word,STAGE.KNOWN,block_id);
+                  console.log(`Setting learning stage of ${particle} (${wid0}) to KNOWN`);
+                  learningStageChanged(wid0,STAGE.KNOWN,block_id);
                 }
               }
             }
@@ -262,9 +281,7 @@
       if (`${nam}` in ocr1 && ocr1[`${nam}`] != undefined && !ocroff) {
 
         if ('version' in ocr1) {
-          word_list = ocr1['parsed_data']['word_list']
-          word_sense_list = ocr1['parsed_data']['word_senses']
-          //word_class_list = ocr1['word_class_list']
+          word_id_list = ocr1['parsed_data']['word_id_list']
           word_learning_stages = ocr1['word_learning_stages']
           word_history = ocr1['word_history']
           interactive_ocr = true;
@@ -331,7 +348,7 @@
 
 <div bind:this={ocr_root}>
 
-<WordPopup bind:word={selected_word} bind:word_class={selected_word_class} bind:word_sense_list={selected_word_senses} bind:history={selected_word_history} bind:learning_stage={selected_word_stage} bind:showModal on:learning_stage_changed={learningStageChangedFromPopUpDialog}/>
+<WordPopup bind:word_id_index_list={selected_word_id_index_list} {word_id_list} {word_history} {word_learning_stages} bind:showModal on:learning_stage_changed={learningStageChangedFromPopUpDialog}/>
 
 {#each tocr as tdi}
   <div class="ocrsp" on:mouseenter={hoverm} on:mouseleave={hovero}>

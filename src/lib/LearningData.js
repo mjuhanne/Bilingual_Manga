@@ -95,6 +95,7 @@ export const DEFAULT_LEARNING_SETTINGS = {
     'max_encounters_per_chapter' : 2,
     'initial_remembering_period' : 60,
     'remembering_period_prolong_pct' : 30,
+    'omit_particles' : true,
     'always_know_particles' : true,
     'always_know_aux_verbs' : false,
 };

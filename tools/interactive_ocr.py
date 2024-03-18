@@ -6,6 +6,7 @@ import os
 import json
 import sys
 from helper import *
+from bm_learning_engine_helper import *
 
 metadata_cache_file = base_dir + "json/metadata_cache.json"
 learning_data_filename = base_dir + 'lang/user/learning_data.json'
@@ -17,7 +18,7 @@ if len(sys.argv)>2:
 else:
     #raise Exception("Input and output files not given!")
     #input_file_name = "parsed_ocr/bafybeie5tsllsjaequc65c3enuusqili743xwyg4744v4zmcgqqhm5dqvu.json"
-    input_file_name = "parsed_ocr/bafybeigcep3esjli46hp5gbt54aw5i5e4hf53rcfomlf4sgkedhjmwejii.json"
+    input_file_name = "parsed_ocr/bafybeigqjur4xwli4lrnyi4alfwsml7k37ovf2pdn6kjwn7e74nxu2ehgi.json"
     output_file_name = "test.json"
 
 
@@ -84,35 +85,39 @@ def create_interactive_ocr(input_file, output_file):
     pages['settings'] = learning_settings
     pages['word_learning_stages'] = []
     pages['word_history'] = []
+    stage_history_cache = dict()
     index = 0
-    for word in pages['parsed_data']['word_list']:
-        stage = STAGE_UNKNOWN
-        history = []
-        last_timestamp = 0
 
-        if word == '':
-            # non jp word/string
-            stage = STAGE_NONE
+    for word_id_with_sense in pages['parsed_data']['word_id_list']:
+        
+        word_id = strip_sense_from_word_id(word_id_with_sense)
+        if word_id in stage_history_cache:
+            stage, history = stage_history_cache[word_id]
         else:
-            if word in learning_data['words']:
-                wd = learning_data['words'][word]
+            stage = STAGE_UNKNOWN
+            history = []
+            last_timestamp = 0
+            if word_id in learning_data['words']:
+                wd = learning_data['words'][word_id]
                 stage = wd['s']
                 history = wd['h']
                 for h in history:
                     h['m']['comment'] = get_chapter_info(h['m'])
                 last_timestamp = history[-1]['t']
 
-        if word in user_set_words:
-            user_set_history = user_set_words[word]
-            user_timestamp = user_set_history[-1]['t']
-            if user_timestamp > last_timestamp:
-                # the learning stage was changed by the user after the
-                # last learning_data update so propagate the change
-                stage = user_set_words[word][-1]['s']
-                metadata = user_set_history[-1]['m']
-                metadata['src'] = SOURCE_USER
-                metadata['comment'] = get_chapter_info(metadata)
-                history.append(user_set_history[-1])
+            if word_id in user_set_words:
+                user_set_history = user_set_words[word_id]
+                user_timestamp = user_set_history[-1]['t']
+                if user_timestamp > last_timestamp:
+                    # the learning stage was changed by the user after the
+                    # last learning_data update so propagate the change
+                    stage = user_set_words[word_id][-1]['s']
+                    metadata = user_set_history[-1]['m']
+                    metadata['src'] = SOURCE_USER
+                    metadata['comment'] = get_chapter_info(metadata)
+                    history.append(user_set_history[-1])
+            stage_history_cache[word_id] = (stage,history)
+
         pages['word_learning_stages'].append(stage)
         pages['word_history'].append(history)
         index += 1
@@ -137,16 +142,11 @@ def create_interactive_ocr(input_file, output_file):
 
                 new_line = ''
                 for item in line:
-                    for word,ref_list in item.items():
-                        # TODO: handle many word/phrase references for each unidict 
-                        # recognized word/particle. Now just use the largest phrase
-                        # and if not found, then first word
-                        idx = 0
-                        if len(ref_list) > 0:
-                            s_idx = ref_list[0]
-                            idx = pages['parsed_data']['sense_word_index'][s_idx]
+                    for lex_item,word_id_refs in item.items():
 
-                        new_line +=  '<span wid=' + str(idx) + '>' + word + '</span>'
+                        word_id_index_list = ','.join([str(w) for w in word_id_refs])
+
+                        new_line +=  '<span wil="' + word_id_index_list + '">' + lex_item + '</span>'
 
                 block['lines'][i] = new_line
                 i += 1

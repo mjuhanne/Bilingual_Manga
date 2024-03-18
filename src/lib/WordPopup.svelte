@@ -10,75 +10,80 @@ let dialog; // HTMLDialogElement
 
 export let showModal = false;
 
-export let word;
-export let word_sense_list;
-export let word_class;
-export let history = [];
-export let learning_stage;
+let seq_list = [];
+let ready_seq_list = [];
+let detected_senses_by_seq = {};
+let selected_seq = -1;
+
+export let word_id_index_list;
+export let word_id_list;
+export let word_history = [];
+export let word_learning_stages;
 
 let first_meaning = '';
-$: meanings = [];
-$: if (meanings.length>0) {first_meaning=meanings[0][0]}
+let learning_stage_by_seq = {};
+let word_by_seq = {};
+$: word_info_by_seq = [];
 
-let show_history = false;
-let processed_history;
-
-const MAXIMUM_HISTORY_EVENTS = 5
-
-// Reverse the history timeline (newest events first)
-$: {
-    processed_history = [];
-    let c = 0;
-    let i = history.length - 1
-    let last_stage = STAGE.UNKNOWN;
-    let last_source = '';
-    while ((c < MAXIMUM_HISTORY_EVENTS) && (i>=0)) {
-        let h = history[i];
-        if ((h.s != last_stage) || (h.m.src != last_source)) { // only show changes
-            let comment = '';
-            if ('comment' in h.m) {
-                comment = h.m.comment;
-            }
-            processed_history.push(
-                {
-                    'stage' : h.s,
-                    'date' : timestamp2date(h.t*1000),
-                    'source' : source_to_name[h.m.src],
-                    'comment' : comment,
-                }
-            )
-            c += 1;
-            last_stage = h.s;
-            last_source = h.m.source;
-        }
-        i -= 1;
-    }
-}
+let wide_dialog = false;
 
 $: {
     if (dialog && showModal) {
-        fetchMeanings(word_sense_list);
+        detected_senses_by_seq = {}
+        seq_list = [];
+        for (let widx of word_id_index_list) {
+            let word_id = word_id_list[widx];
+            let sw = word_id.split(':')
+            let seq_sense = sw[0];
+            let word = sw[1];
+            seq_sense = seq_sense.split('/');
+            let seq = seq_sense[0];
+            if (seq_list.indexOf(seq) == -1) {
+                seq_list.push(seq);
+                detected_senses_by_seq[seq] = [];
+            }
+            if (seq_sense.length>1) {
+                let sense = seq_sense[1];
+                detected_senses_by_seq[seq].push(sense);
+            } else {
+                detected_senses_by_seq[seq].push(-1); // all senses were detected
+            }
+            if (selected_seq == -1) {
+                selected_seq = seq;
+            }
+            learning_stage_by_seq[seq] = word_learning_stages[widx];
+            word_by_seq[seq] = word;
+        }
+        fetchWordInfo(seq_list);
+        if (word_id_index_list.length>1) {
+            wide_dialog = true;
+        }
         dialog.showModal();
     }
 };
-$: if (dialog && !showModal) dialog.close()
+$: if (dialog && !showModal) { selected_seq = -1; dialog.close(); }
 
 const learningStageChanged = (e) => {
     let new_learning_stage = e.detail;
-    if (new_learning_stage != learning_stage) {
-        learning_stage = new_learning_stage;
+    let old_learning_stage = learning_stage_by_seq[selected_seq];
+    if (new_learning_stage != old_learning_stage) {
+        learning_stage_by_seq[selected_seq] = new_learning_stage;
         showModal = false;
         dispatch('learning_stage_changed', { 
-            'word':word, 
+            'word_id': selected_seq + ':' + word_by_seq[selected_seq],
             'stage':new_learning_stage,
         });
     }
 }
 
-async function fetchMeanings(sense_list) {
+function selectedWord(seq) {
+    selected_seq = seq;
+}
+
+async function fetchWordInfo(seq_list) {
     let body = JSON.stringify({
-        'func' : 'get_meanings', 
-        'seq_sense_list' : sense_list,
+        'func' : 'get_word_info', 
+        'seq_list' : seq_list,
     });
     const response = await fetch( "/jmdict", {
         headers: {"Content-Type" : "application/json" },
@@ -86,44 +91,62 @@ async function fetchMeanings(sense_list) {
         body: body,
     });
     const result = deserialize(await response.text());
-    meanings = result.meanings;
+    word_info_by_seq = result.word_info;
+    first_meaning=word_info_by_seq[selected_seq]['meanings'][0]
+    ready_seq_list = seq_list;
     console.log(JSON.stringify(result))
 };
 
-fetchMeanings(['1052530','1160870']);
 </script>
 
-<dialog id="popup-dialog" class="popup-dialog" class:wide-dialog={show_history}
+<dialog id="popup-dialog" class="popup-dialog" class:wide-dialog={wide_dialog}
 	bind:this={dialog}
-	on:close={() => {showModal = false; show_history = false;}}
+	on:close={() => {showModal = false; wide_dialog = false;}}
 	on:click|self={() => dialog.close()}
 >
 	<!-- svelte-ignore a11y-no-static-element-interactions -->
 	<div on:click|stopPropagation>
-		<div class="word" on:click={()=>{show_history=true}}>{word}</div>
+		<div class="word" on:click={()=>{wide_dialog=true}}>{word_by_seq[selected_seq]}</div>
         <div class="first_meaning">{first_meaning}</div>
         <div class="enclosure">
             <div>
-            <LearningStageButtons bind:selected_stage={learning_stage} on:clicked={learningStageChanged}/>
+            <LearningStageButtons bind:selected_stage={learning_stage_by_seq[selected_seq]} on:clicked={learningStageChanged}/>
             </div>
-            <div class="history">
-                <div class="word_class" on:click={()=>{show_history=true}}>{word_classes[word_class]}</div>
-                <table class="history_table">
-                    <tr>
-                        <th>Date</th>
-                        <th>Source</th>
-                    </tr>
-                    {#each processed_history as h}
-                    <tr style="background:{learning_stage_colors[h.stage]}">
-                        <td>{h.date}</td>
-                        <td>{h.source}</td>
-                    </tr>
-                    <tr style="background:{learning_stage_colors[h.stage]}">
-                        <td colspan=2>{h.comment}</td>
-                    </tr>
-                    <tr style="height:3px"></tr>
-                    {/each}
-                </table>
+            <div class="details">
+                    {#each ready_seq_list as seq}
+                    <table class="word_info_table" class:selected_seq={seq == selected_seq} on:click={()=>{selectedWord(seq)}}>
+                        {#if word_info_by_seq[seq]['kanji_elements'][0].length>0}
+                        <tr style="background:{learning_stage_colors[learning_stage_by_seq[seq]]}">
+                            <td colspan=2>{word_info_by_seq[seq]['kanji_elements']}</td>
+                        </tr>
+                        {/if}
+                        <tr style="background:{learning_stage_colors[learning_stage_by_seq[seq]]}">
+                            <td>{word_info_by_seq[seq]['readings']}</td>
+                            <td>{seq}</td>
+                        </tr>
+                        {#if word_info_by_seq[seq]['common_priority_tags'][0].length>0}
+                            <tr style="background:{learning_stage_colors[learning_stage_by_seq[seq]]}">
+                                <td colspan=2>{word_info_by_seq[seq]['common_priority_tags']}</td>
+                            </tr>
+                        {/if}
+                        {#if (word_info_by_seq[seq]['kanji_element_only_priority_tags'][0].length>0) || (word_info_by_seq[seq]['reading_only_priority_tags'][0].length>0)}
+                            <tr style="background:{learning_stage_colors[learning_stage_by_seq[seq]]}">
+                                <td>{word_info_by_seq[seq]['kanji_element_only_priority_tags']}</td>
+                                <td>{word_info_by_seq[seq]['reading_only_priority_tags']}</td>
+                            </tr>
+                        {/if}
+                        {#each word_info_by_seq[seq]['meanings'] as sense_meanings,i}
+                        <tr style="background:{learning_stage_colors[learning_stage_by_seq[seq]]}">
+                            <td class="meaning_td" colspan=2>{i+1}. 
+                                {#each sense_meanings as meaning}
+                                {meaning}<br>
+                                {/each}
+                            </td>
+                        </tr>
+                        {/each}
+                        <tr style="height:3px"></tr>
+                    </table>
+                {/each}
             </div>
         </div>
     </div>
@@ -145,18 +168,25 @@ fetchMeanings(['1052530','1160870']);
         font-size: 0.5rem;
         padding-bottom: 3px;
     }
-    .history_table {
+    .word_info_table {
         width: 100%;
+        padding: 3px;
+    }
+
+    .selected_seq {
+        background-color: #999;
+        border-radius: 5px;
+        border-color: #fff;
     }
 
     .enclosure {
         color: #eee;
         display: grid;
-        grid-template-columns: 2fr 6fr;
+        grid-template-columns: 2fr 4fr;
         grid-gap: 0px;
     }
 
-    .history {
+    .details {
         margin-left: 4px;
         background-color: #555;
         border-radius: 3px;
@@ -182,6 +212,10 @@ fetchMeanings(['1052530','1160870']);
     td {
         font-size: 0.5rem;
         color: black;
+    }
+    .meaning_td {
+        text-align: left;
+        padding-left: 8px;
     }
     /*
 	dialog::backdrop {

@@ -24,7 +24,7 @@ export const saveUserData = (db) => {
 
 export const saveUserSetWords = (db) => {
     console.log("saveUserSetWords");
-	fs.writeFile ("json/user_set_words.json", JSON.stringify(db['user_set_words']), function(err) {
+	fs.writeFile ("json/user_set_word_ids.json", JSON.stringify(db['user_set_words']), function(err) {
 		if (err) throw err;
     });
 };

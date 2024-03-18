@@ -1941,6 +1941,12 @@
       },
       {
         "Formal" : false, 
+        "Negative" : true, 
+        "Suffix" : "ってん", 
+        "Tense" : "Te-N-form"
+      },
+      {
+        "Formal" : false, 
         "Negative" : false, 
         "Suffix" : "えば", 
         "Tense" : "Provisional"

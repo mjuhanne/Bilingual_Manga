@@ -199,14 +199,14 @@ async function getSuggestedPreread(manga_id) {
 }
 
 const updateManuallySetWordLearningStage = (data) => {
-    let word = data.word;
+    let word_id = data.word_id;
     let stage = data.stage;
     let word_metadata = data.metadata;
     let timestamp = Math.trunc(Date.now()/1000);
     let history_entry = { 't' : timestamp, 's':stage, 'm':word_metadata};
     let replaced_last_entry = false;
-    if (word in db['user_set_words']) {
-        let word_history = db['user_set_words'][word];
+    if (word_id in db['user_set_words']) {
+        let word_history = db['user_set_words'][word_id];
         let last_timestamp = word_history[word_history.length-1].t;
         if (timestamp - last_timestamp < LEARNING_STAGE_CHANGE_REMORSE_PERIOD) {
             word_history[word_history.length-1] = history_entry
@@ -215,7 +215,7 @@ const updateManuallySetWordLearningStage = (data) => {
             word_history.push(history_entry);
         }
     } else {
-        db['user_set_words'][word] = [history_entry];
+        db['user_set_words'][word_id] = [history_entry];
     }
 	saveUserSetWords(db);
     // TODO: We don't want to do this every time a single word status changes

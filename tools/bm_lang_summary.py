@@ -12,9 +12,8 @@ summary_file = base_dir + "json/lang_summary.json"
 volume_count_per_title = dict()
 
 jlpt_kanjis = get_jlpt_kanjis()
-read_jlpt_word_file()
-jlpt_words = get_jlpt_words()
-jlpt_word_reading_reverse = get_jlpt_word_reverse_readings()
+jlpt_word_levels = get_jlpt_word_levels()
+jlpt_word_reading_levels= get_jlpt_word_reading_levels()
 
 read_manga_metadata()
 
@@ -88,22 +87,15 @@ def fetch_jlpt_levels(data, calc, total):
 
     ## WORDS
     jlpt_word_count_per_level = [ 0 for i in range(7) ]
-    for w,c in zip(data['words'], data['word_frequency']):
-        if w in jlpt_words:
-            level = jlpt_words[w]
-        else:
-            if w in jlpt_word_reading_reverse:
-                rw = jlpt_word_reading_reverse[w]
 
-                if len(rw)==1:
-                    w = rw[0]
-                    level = jlpt_words[w]
-                else:
-                    # ambigous (too many homonymous readings). Assume non-jlpt word
-                    if is_katakana_word(w):
-                        level = 6
-                    else:
-                        level = 0
+    total_w = 0
+    for wid,c in zip(data['word_id_list'], data['word_frequency']):
+        seq,w = get_seq_and_word_from_word_id(wid)
+        if w in jlpt_word_levels:
+            level = jlpt_word_levels[w]
+        else:
+            if w in jlpt_word_reading_levels:
+                level = jlpt_word_reading_levels[w]
             else:
                 # non-jlpt word
                 if is_katakana_word(w):
@@ -112,10 +104,11 @@ def fetch_jlpt_levels(data, calc, total):
                     level = 0
         if total:
             jlpt_word_count_per_level[level] += c
+            total_w += c
         else:
             jlpt_word_count_per_level[level] += 1
+            total_w += 1
 
-    total_w = calc['num_words']
     if total_w > 0:
         jlpt_w_level_pct = [ round(100*jlpt_word_count_per_level[i]/total_w,1) for i in range(7) ]
         jlpt_w_level_per_v = [ round(jlpt_word_count_per_level[i]/data['num_virtual_volumes'],1) for i in range(7) ]
@@ -241,6 +234,9 @@ def save_summary():
         # drop the detailed frequency data for the summary
         del(title_data['word_frequency'])
         del(title_data['kanji_frequency'])
+        del(title_data['lemmas'])
+        del(title_data['word_id_list'])
+        del(title_data['word_class_list'])
         del(title_data['title_id']) # redundant
 
         title_data['total_statistics'] = total_calc

@@ -18,25 +18,49 @@ print("Converting %d entries..." % len(entries))
 
 parts_of_speech_counter = dict()
 entries_with_many_senses = 0
+entries_with_more_than_3_senses = 0
 
-for p in jmdict_parts_of_speech_list:
+for p in jmdict_class_list:
     parts_of_speech_counter[p] = 0
+
+jlpt_refs = get_jlpt_word_jmdict_references()
 
 pos_list_updated = False
 
 o_f = open(simple_jmdict_file,"w",encoding="utf-8")
 o_f2 = open(meanings_jmdict_file,"w",encoding="utf-8")
 
+# the cut-offs for news1/spec1 are 12000 and for news2/spec2 12000,
+# but we half that value because that's the average frequency.  Then divide by 500
+# to get the comparable results for those NFxx tags which use 500 word bins
 def calculate_frequency_ranking(freq_elems):
+    freq = 99
     if 'news1' in freq_elems or 'ichi1' in freq_elems:
-        return int(12000/500)
+        freq = int(12000/2/500)
     elif 'news2' in freq_elems or 'ichi2' in freq_elems:
-        return int(24000/500)
+        freq = int(24000/2/500)
     elif 'spec1' in freq_elems or 'gai1' in freq_elems:
-        return int(12000/500)
+        freq = int(12000/2/500)
     elif 'spec2' in freq_elems or 'gai2' in freq_elems:
-        return int(24000/500)
-    return 99
+        freq = int(24000/2/500)
+    return freq
+
+# form: 'kanji' or 'kana'
+def get_jlpt_level(seq,form):
+    for i in range(0,5):
+        level = 5 - i
+        if seq in jlpt_refs[level]:
+            if jlpt_refs[level][seq][form] != []:
+                return level
+    return 0
+
+# Lower the frequency ranking (i.e. make it more priority) if it belongs
+# to JLPT word list, especially for beginner level words
+# form: 'kanji' (kanji_element) or 'kana' (reading)
+def apply_jlpt_modifier_to_frequency_ranking(seq, freq, jlpt_level):
+    if jlpt_level > 0:
+        return int(freq / (1+jlpt_level/2))
+    return freq
 
 for elem in entries:
     ent_seq = None
@@ -83,11 +107,11 @@ for elem in entries:
         pos_list = []
         for pos_elem in pos_elems:
             pos = pos_elem.text
-            if pos not in jmdict_parts_of_speech_list:
-                jmdict_parts_of_speech_list.append(pos)
+            if pos not in jmdict_class_list:
+                jmdict_class_list.append(pos)
                 parts_of_speech_counter[pos] = 0
                 pos_list_updated = True
-            pos_list.append(int(jmdict_parts_of_speech_list.index(pos)))
+            pos_list.append(int(jmdict_class_list.index(pos)))
             parts_of_speech_counter[pos] += 1
 
         gl_elems = s_ele.findall('gloss')
@@ -97,25 +121,53 @@ for elem in entries:
         gloss_list_per_sense.append(gloss_list)
     if len(s_elems)>1:
         entries_with_many_senses += 1
+    if len(s_elems)>3:
+        entries_with_more_than_3_senses += 1
 
     if k_freq is None:
         k_freq = calculate_frequency_ranking(k_freq_elems)
     if r_freq is None:
         r_freq = calculate_frequency_ranking(r_freq_elems)
 
-    pos_list=json.dumps(pos_list_per_sense)
-    gloss_str = json.dumps(gloss_list_per_sense)    
-    row = "%s\t%s\t%s\t%s\t%d\t%s\n" % \
-        (ent_seq, ','.join(kanji_elements), ','.join(readings), 
-        pos_list, k_freq, r_freq)
+    k_jlpt_level = get_jlpt_level(int(ent_seq), 'kanji')
+    if k_jlpt_level > 0:
+        k_freq = apply_jlpt_modifier_to_frequency_ranking(int(ent_seq), k_freq, k_jlpt_level)
+        k_freq_elems.append('JLPT' + str(k_jlpt_level))
 
-    row_m = "%s\t%s\t%s\t%s\t%d\t%s\t%s\n" % \
+    r_jlpt_level = get_jlpt_level(int(ent_seq), 'kana')
+    if r_jlpt_level > 0:
+        r_freq = apply_jlpt_modifier_to_frequency_ranking(int(ent_seq), r_freq, r_jlpt_level)
+        r_freq_elems.append('JLPT' + str(r_jlpt_level))
+
+    all_freq_elems = set( k_freq_elems + r_freq_elems )
+    common_freq_elems = []
+    only_k_freq_elems = []
+    only_r_freq_elems = []
+    for fe in all_freq_elems:
+        if fe in k_freq_elems and fe in r_freq_elems:
+            common_freq_elems.append(fe)
+        elif fe in k_freq_elems:
+            only_k_freq_elems.append(fe)
+        else:
+            only_r_freq_elems.append(fe)
+
+    pos_list=json.dumps(pos_list_per_sense)
+    gloss_str = json.dumps(gloss_list_per_sense)
+    row = "%s\t%s\t%s\t%s\t%d\t%s\t%s\t%s\t%s\n" % \
         (ent_seq, ','.join(kanji_elements), ','.join(readings), 
-         pos_list, k_freq, r_freq, gloss_str)
+        pos_list, k_freq, r_freq,
+        ','.join(common_freq_elems),','.join(only_k_freq_elems), ','.join(only_r_freq_elems),
+        )
+
+    row_m = "%s\t%s\t%s\t%s\t%d\t%s\t%s\t%s\t%s\t%s\n" % \
+        (ent_seq, ','.join(kanji_elements), ','.join(readings), 
+         pos_list, k_freq, r_freq, 
+        ','.join(common_freq_elems),','.join(only_k_freq_elems), ','.join(only_r_freq_elems),
+         gloss_str)
     
     if pos_list_updated:
         sorted_pos = dict(sorted(parts_of_speech_counter.items(), key=lambda x:x[1], reverse=True))
-        print("New POS list! MUST update also bm_ocr_processor.py !", jmdict_parts_of_speech_list)
+        print("New POS list! MUST update also bm_ocr_processor.py !", jmdict_class_list)
         print("By frequency:")
         print(sorted_pos)
         print("By frequency (just keys):")
@@ -126,4 +178,4 @@ for elem in entries:
 o_f.close()
 o_f2.close()
 
-print("Wrote %d entries, of which %d had more than 1 sense" % (len(entries), entries_with_many_senses))
+print("Wrote %d entries, of which %d (%d) had more than 1 (3) sense" % (len(entries), entries_with_many_senses, entries_with_more_than_3_senses))

@@ -5,6 +5,12 @@ import util from "node:util";
 const execSync = util.promisify(exec);
 
 let meanings = {};
+let readings = {};
+let classes = {};
+let kanji_elements = {};
+let common_pri_tags = {};
+let k_pri_tags = {};
+let r_pri_tags = {};
 
 function loadJMDict() {
     console.log("Loading JMDict");
@@ -16,8 +22,12 @@ function loadJMDict() {
         try {
             let items = line.split('\t');
             let seq = parseInt(items[0]);
-            let m = JSON.parse(items[6])
-            meanings[seq] = m;
+            kanji_elements[seq] = items[1].split(',');
+            readings[seq] = items[2].split(',');
+            common_pri_tags[seq] = items[6].split(',');
+            k_pri_tags[seq] = items[7].split(',');
+            r_pri_tags[seq] = items[8].split(',');
+            meanings[seq] = JSON.parse(items[9]);
         } catch (e) {
             console.log(`Error in line ${line_count} : '${line}' `);
         }
@@ -28,21 +38,29 @@ function loadJMDict() {
 
 loadJMDict();
 
-function get_meanings(seq_sense_list) {
-    let m_list = [];
-    console.log("seqs: "+seq_sense_list);
-    for (let seq_sense of seq_sense_list) {
-        let s = seq_sense.split('/');
-        let seq = s[0];
-        if (s.length==1) {
-            for (let m of meanings[seq]) {
-                m_list.push(m);
-            } 
-        } else {
-            m_list.push(meanings[seq][s[1]]);
-        }
+function get_meanings(seq_list) {
+    let selected_meanings = {};
+    console.log("seq_list: "+seq_list);
+    for (let seq of seq_list) {
+        selected_meanings[seq] = meanings[seq];
     }
-    return m_list;
+    return selected_meanings;
+}
+
+function get_word_info(seq_list) {
+    let selected_info = {};
+    console.log("seq_list: "+seq_list);
+    for (let seq of seq_list) {
+        selected_info[seq] = {}
+        selected_info[seq]['meanings'] = meanings[seq];
+        selected_info[seq]['readings'] = readings[seq];
+        selected_info[seq]['kanji_elements'] = kanji_elements[seq];
+        selected_info[seq]['common_priority_tags'] = common_pri_tags[seq];
+        selected_info[seq]['kanji_element_only_priority_tags'] = k_pri_tags[seq];
+        selected_info[seq]['reading_only_priority_tags'] = r_pri_tags[seq];
+        console.log(seq + ": "+JSON.stringify(selected_info[seq]));
+    }
+    return selected_info;
 }
 
 async function parse(text) {
@@ -65,7 +83,13 @@ export async function POST({ request }) {
 	if (data.func == 'get_meanings') {
         ret= {
             success : true,
-            'meanings' : get_meanings(data.seq_sense_list),
+            'meanings' : get_meanings(data.seq_list),
+        };
+    }
+	if (data.func == 'get_word_info') {
+        ret= {
+            success : true,
+            'word_info' : get_word_info(data.seq_list),
         };
     }
 	if (data.func == 'parse') {
