@@ -161,7 +161,10 @@ def parse_line_with_unidic(line, kanji_count):
         else:
             item = LexicalItem(w,word,[cl],details=details,lemma=lemma)
             if '連用形' in details[5]:
-                item.is_masu = True
+                # this should be in -masu form
+                # for some reason 使っ / だっ verbs have 連用形 flag even though it's not.
+                if w[-1] != 'っ':
+                    item.is_masu = True
             if is_katakana_word(w):
                 item.alt_forms = [katagana_to_hiragana(w)]
             items.append(item)
@@ -335,12 +338,30 @@ def check_verbs(pos,items):
     pos += max_particles_conjugated
     if pos == len(items) -1:
         return
+    processed_str = ''.join([items[j].txt for j in range(pos+1)])
     if aux_verb_class in items[pos+1].classes or gp_class in items[pos+1].classes:
         oku_verbs = ['取る']
         # fuse the different (non)colloquial いる forms into main word
         iru_forms = ['いる','いた','た','てる']
+        nai_forms = ['ねー','へん']
         if items[pos+1].txt in iru_forms: 
             items[pos+1].flags = MERGE_PARTICLE
+            items[pos].is_masu = False
+        elif items[pos+1].txt in nai_forms:
+            allowed = False
+            if items[pos].is_masu:
+                allowed = True
+            elif processed_str[-1] == 'て' or processed_str[-1] == 'で':
+                if len(processed_str) > 1:
+                    if processed_str[-2] != 'く' and processed_str[-2] != 'て' and processed_str[-2] != 'で': 
+                        # it's not negative form if it's -くて / ーてて form
+                        # like 忙しくてねー  / 先生にはあこがれててねー
+                        allowed = True
+                else:
+                    allowed = True
+            if allowed:
+                items[pos+1].flags = MERGE_PARTICLE
+                items[pos].alt_forms.append(items[pos].txt + 'ない')
         elif items[pos+1].txt == "て": 
             if items[pos].txt[-1] == 'て':
                 # accept the colloquial form, e.g. 生きて + て　+ ほしい
