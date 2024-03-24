@@ -1168,6 +1168,18 @@
       {
         "Formal" : false, 
         "Negative" : true, 
+        "Suffix" : "くねー", 
+        "Tense" : "Non-past (Colloquial)"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : true, 
+        "Suffix" : "くねぇ", 
+        "Tense" : "Non-past (Colloquial)"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : true, 
         "Suffix" : "くはない", 
         "Tense" : "Non-past"
       },
@@ -1378,6 +1390,12 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "さ", 
+        "Tense" : "-ness"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Next Type" : "v5u", 
         "Suffix" : "くちゃう", 
         "Tense" : "(Accidentally\/Finish Completely)"
@@ -1514,6 +1532,19 @@
         "Negative" : false, 
         "Suffix" : "なさい", 
         "Tense" : "Imperative"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "たい",
+        "Tense" : "Desiderative",
+        "Next Type" : "adj-i"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : true, 
+        "Suffix" : "ちゃ", 
+        "Tense" : "Colloquial for ては"
       },
       {
         "Formal" : true, 

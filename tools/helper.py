@@ -47,6 +47,8 @@ source_labels = {
     SOURCE_USER     : 'User set word',
 }
 
+ALL_SENSES = 100
+
 base_dir = './'
 
 ocr_dir = base_dir + "ocr/"
@@ -305,6 +307,17 @@ def get_seq_and_word_from_word_id(word_id):
     word = sw[1]
     seq = sw[0].split('/')[0]
     return int(seq),word
+
+def get_word_id_components(word_id):
+    sw = word_id.split(':')
+    word = sw[1]
+    ss = sw[0].split('/')
+    seq = int(ss[0])
+    if len(ss) > 1:
+        sense = int(ss[1])
+    else:
+        sense = ALL_SENSES
+    return seq,sense,word
 
 def strip_sense_from_word_id(word_id):
     seq,word = get_seq_and_word_from_word_id(word_id)

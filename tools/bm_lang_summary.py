@@ -234,10 +234,11 @@ def save_summary():
         # drop the detailed frequency data for the summary
         del(title_data['word_frequency'])
         del(title_data['kanji_frequency'])
-        del(title_data['lemmas'])
         del(title_data['word_id_list'])
         del(title_data['word_class_list'])
         del(title_data['title_id']) # redundant
+        if 'lemmas' in title_data:
+            del(title_data['lemmas']) # redundant
 
         title_data['total_statistics'] = total_calc
         title_data['unique_statistics'] = unique_calc

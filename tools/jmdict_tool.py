@@ -102,7 +102,8 @@ for kanji_elements, readings, matched_word,seq in results:
         print("\t\t%d# %s" % (i,meanings))
         for cl in cl_list:
             cl_name = jmdict_class_list[cl]
-            print("\t\t\t%s" % cl_name)
+            pos_code = get_jmdict_pos_code(cl)
+            print("\t\t\t%s (%s)" % (cl_name,pos_code))
 
 
 
