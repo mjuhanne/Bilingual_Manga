@@ -38,9 +38,10 @@ jmdict_auxiliary_class = jmdict_class_list.index('auxiliary')
 # DO NOT CHANGE THE ORDER
 unidic_class_list = [
     'non_jp_char',
-    'alphanum',
     '補助記号',
-    #'mid_s_p_m', # mid sentence punctuation mark
+    'mid_s_p_m', # mid sentence punctuation mark
+    'em', # elongation mark
+    'alphanum',
 
     '助動詞',
     '助詞',
@@ -68,6 +69,7 @@ unidic_class_name_strings = {
     '補助記号' : "punctuation_mark",
     'alphanum' : "",
     'mid_s_p_m' : "mid_sentence_punctuation_mark",
+    'em' : "elongation mark",
 
     '助動詞' : "aux verb",
     '助詞' : "grammatical particle",
@@ -105,10 +107,11 @@ def unidic_classes_to_string(class_ids):
 alphanum_pseudoclass = unidic_class_list.index('alphanum')
 non_jp_char_pseudoclass = unidic_class_list.index('non_jp_char')
 punctuation_mark_class = unidic_class_list.index('補助記号')
-#mid_sentence_punctuation_mark_class = unidic_class_list.index('mid_s_p_m')
+mid_sentence_punctuation_mark_class = unidic_class_list.index('mid_s_p_m')
+elongation_mark_class = unidic_class_list.index('em')
 # all classes up to this index are lumped together
 #lumped_class = mid_sentence_punctuation_mark_class
-lumped_class = punctuation_mark_class
+lumped_class = alphanum_pseudoclass
 
 
 aux_verb_class = unidic_class_list.index('助動詞')

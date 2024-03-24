@@ -110,7 +110,15 @@ def parse_with_fugashi(line):
     return results
 
 
-mid_sentence_punctuation_marks = ['・']
+mid_sentence_punctuation_marks = [
+    '・',
+    'っ',
+]
+elongation_marks = [
+    'ー',
+    '～', # full-width tilde
+    '〜', # wave dash (YES THEY ARE DIFFERENT!)
+]
 
 def parse_line_with_unidic(line, kanji_count):
 
@@ -136,10 +144,10 @@ def parse_line_with_unidic(line, kanji_count):
             # for some reason wide numbers and alphabets are parsed as nouns so
             # switch their class into this pseudoclass
             cl = alphanum_pseudoclass
-        #elif w in mid_sentence_punctuation_marks:
-        #    # for some reason wide numbers and alphabets are parsed as nouns so
-        #    # switch their class into this pseudoclass
-        #    cl = mid_sentence_punctuation_mark_class
+        elif w in mid_sentence_punctuation_marks:
+            cl = mid_sentence_punctuation_mark_class
+        elif w in elongation_marks:
+            cl = elongation_mark_class
         else:
             if class_name not in ignored_classes:
                 word = orth_base
@@ -430,7 +438,7 @@ def check_nouns(pos,items):
         if items[pos+1].txt == 'な' and items[pos+1].ortho == 'だ':
             # the reason is same as above
             items[pos+1].flags |= DISABLE_ORTHO
-    if punctuation_mark_class in items[pos+1].classes:
+    if elongation_mark_class in items[pos+1].classes:
         if items[pos+1].txt[0] == 'ー':
             if items[pos].txt[-1] in katakana:
                 # unidict dissected this word erroneously
@@ -649,10 +657,13 @@ def particle_post_processing(pos, items):
     if not handle_explicit_form_and_class_changes(pos,items):
         cll = items[pos].classes
 
-        if len(cll) == 1 and cll[0] <= punctuation_mark_class:
-            items[pos].flags |= NO_SCANNING
-            #items[pos].flags |= START_OF_SCAN_DISABLED
-            return True
+        if len(cll) == 1:
+            if cll[0] <= punctuation_mark_class:
+                items[pos].flags |= NO_SCANNING
+                return True
+            #if cll[0] <= mid_sentence_punctuation_mark_class:
+            #    items[pos].flags |= START_OF_SCAN_DISABLED
+            #    return True
 
         if verb_class in cll:
             return check_verbs(pos,items)
@@ -1037,7 +1048,7 @@ def greedy_jmdict_scanning(phrase, items, scan_results, searched_chunk_sets,
 def create_phrase_permutations(original_words, ortho_forms_list, items, start=0):
     i = start
     permutations = []
-    while i<len(original_words): # and (not (items[i].flags & NO_SCANNING) ):
+    while i<len(original_words) and (not (items[i].flags & NO_SCANNING) ):
         for ortho_form in ortho_forms_list[i]:
             permutations.append(original_words[start:i] + [ortho_form])
         i += 1
