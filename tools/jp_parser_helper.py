@@ -1,6 +1,31 @@
 from helper import base_dir
 from jmdict import jmdict_class_list
+from dataclasses import dataclass, field
 
+@dataclass
+class LexicalItem:
+    txt: str
+    ortho: str
+    classes:list
+    flags: int = 0
+    divided_particles:list = field(default_factory=lambda: [])
+    conjugation_root:str = ''
+    details:list = None
+    is_masu = False
+    alt_forms: list = field(default_factory=lambda: [])
+    lemma: str = ''
+    conj_details:list = field(default_factory=lambda: [])
+    word_id: str = ''
+
+mid_sentence_punctuation_marks = [
+    '・',
+    'っ',
+]
+elongation_marks = [
+    'ー',
+    '～', # full-width tilde
+    '〜', # wave dash (YES THEY ARE DIFFERENT!)
+]
 
 #jmdict_noun_class = jmdict_class_list.index('noun (common) (futsuumeishi)')
 jmdict_prefix_class = jmdict_class_list.index('prefix')
