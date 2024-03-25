@@ -585,13 +585,14 @@ def handle_explicit_form_and_class_changes(pos,items):
             changed = True
 
     """
-    if 'ー' in items[pos].txt:
-        # create an alternative form by removing ー 
-        alt_form = items[pos].txt.replace('ー','')
-        if alt_form != '':
-            if alt_form not in items[pos].alt_forms:
-                items[pos].alt_forms.append(alt_form)
-                changed = True
+    for elong_mark in elongation_marks:
+        if elong_mark in items[pos].txt:
+            # create an alternative form by removing ー 
+            alt_form = items[pos].txt.replace(elong_mark,'')
+            if alt_form != '':
+                if alt_form not in items[pos].alt_forms:
+                    items[pos].alt_forms.append(alt_form)
+                    changed = True
     """
 
     """
@@ -884,12 +885,18 @@ def get_valid_senses_for_scanned_word(scanned_word, pos,num_scanned_items,items,
                         if num_scanned_items > 1:
                             # allow suffix for noun if it's the last item and not alone
                             valid_senses[i].update([s_idx])
+                    """
                     if verb_class in unidic_classes and items[pos].is_masu:
                         if noun_class in next_word_classes:
                             # allow masu-stem verb + noun as noun
                             # e.g. 食べ + 放題
                             valid_senses[i].update([s_idx])
                             valid_senses[i+1].update([s_idx])
+                    """
+                    if verb_class in unidic_classes and items[pos].is_masu:
+                            # allow masu-stem verb as noun
+                            # e.g.　作り
+                            valid_senses[i].update([s_idx])
 
                 if jmd_cl == jmdict_conjunction_class:
                     if noun_class in unidic_classes and next_word == 'に':
@@ -1016,7 +1023,7 @@ def greedy_jmdict_scanning(phrase, items, scan_results, searched_chunk_sets,
         i = start_pos + cycle_pos
         clen = 0
         chunk = ''
-        if not ( items[i].flags & START_OF_SCAN_DISABLED):
+        if not (phrase[cycle_pos] == '' or (items[i].flags & START_OF_SCAN_DISABLED)):
             while (cycle_pos + clen < lp):
 
                 chunk += phrase[cycle_pos + clen]
@@ -1045,12 +1052,24 @@ def greedy_jmdict_scanning(phrase, items, scan_results, searched_chunk_sets,
 # Permutations are created using original particles/words and ending with 
 # an ortho/basic form. Scanning stops when non-Hiragana/Katakana/Kanji character was
 # detected
-def create_phrase_permutations(original_words, ortho_forms_list, items, start=0):
-    i = start
+MAX_PERMUTATION_LEVELS = 4
+def create_phrase_permutations(original_words, ortho_forms, alt_forms, items, start=0, recursive_start=None, recursive_level=0):
+    if recursive_start is not None:
+        i = recursive_start
+    else:
+        i = start
     permutations = []
     while i<len(original_words) and (not (items[i].flags & NO_SCANNING) ):
-        for ortho_form in ortho_forms_list[i]:
-            permutations.append(original_words[start:i] + [ortho_form])
+        permutation_base = original_words[start:i]
+        for ortho_form in ortho_forms[i]:
+            permutations.append(permutation_base + [ortho_form])
+
+        if recursive_level < MAX_PERMUTATION_LEVELS:
+            for alt_form in alt_forms[i]:
+                new_words = original_words[:i] + [alt_form] + original_words[i+1:]
+                new_perms,i2 = create_phrase_permutations(new_words, ortho_forms, alt_forms, items, start, i+1, recursive_level+1)
+                permutations += new_perms
+
         i += 1
     
     if i> 0:
@@ -1093,14 +1112,17 @@ def parse_with_jmdict(unidic_items, scan_results):
     # Example: お願いします -> お + 願う + する
     wlen = len(unidic_items)
     alt_forms = [[] for x in range(wlen)]
+    ortho_forms = [[] for x in range(wlen)]
     original_forms = [item.txt for item in unidic_items]
-    for i, w in enumerate(unidic_items):
-        alt_forms[i] += unidic_items[i].alt_forms
-        if not (unidic_items[i].flags & (NO_SCANNING | DISABLE_ORTHO)):
-            if (unidic_items[i].txt != unidic_items[i].ortho):
-                alt_forms[i].append(unidic_items[i].ortho)
-        if unidic_items[i].flags & SCAN_WITH_LEMMA:
-            alt_forms[i].append(unidic_items[i].lemma)
+    for i, item in enumerate(unidic_items):
+        alt_forms[i] += item.alt_forms
+        if not (item.flags & (NO_SCANNING | DISABLE_ORTHO)):
+            if (item.txt != item.ortho) and item.ortho != '':
+                ortho_forms[i].append(item.ortho)
+        if item.flags & SCAN_WITH_LEMMA:
+            alt_forms[i].append(item.lemma)
+        if elongation_mark_class in item.classes:
+            alt_forms[i].append('')  # add one permutation without the elongation mark
 
         wid = unidic_items[i].word_id
         if wid != '':
@@ -1127,9 +1149,9 @@ def parse_with_jmdict(unidic_items, scan_results):
     messages = [[] for _ in range(len(unidic_items))]
 
     while pos < len(unidic_items):
-        permutations, next_pos = create_phrase_permutations(original_forms, alt_forms, unidic_items, pos)
+        permutations, next_pos = create_phrase_permutations(original_forms, ortho_forms, alt_forms, unidic_items, pos)
         if verbose_level>=1:
-            LOG(2,"Permutations:")
+            LOG(2,"Permutations %d-%d" % (pos,next_pos-1))
             for p in permutations:
                 p_str = [x.ljust(6) for x in p]
                 LOG(2, "  %s" % (''.join(p_str)))

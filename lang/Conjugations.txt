@@ -1536,6 +1536,24 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "ながら", 
+        "Tense" : "Simultaenous action"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "そう", 
+        "Tense" : "Seems"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : true, 
+        "Suffix" : "そうにない", 
+        "Tense" : "Seems unlikely"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Suffix" : "たい",
         "Tense" : "Desiderative",
         "Next Type" : "adj-i"
@@ -2647,6 +2665,12 @@
         "Negative" : false, 
         "Suffix" : "んで", 
         "Tense" : "Te-form"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "んでる", 
+        "Tense" : "Continuous"
       },
       {
         "Formal" : false, 
