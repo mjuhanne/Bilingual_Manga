@@ -250,7 +250,7 @@ def get_conjugations_recursively(root_entries, conj_name, rec_level):
                     tense_details[sfx] = [(conj_name,sfx,details)]
                 if 'Next Type' in t:
                     nt = t['Next Type']
-                    if rec_level < 1 or 'stem' in nt or 'adj-i' in nt:
+                    if rec_level < 2 or 'stem' in nt or 'adj-i' in nt:
                         sub_conjugations, sub_tense_params, sub_remove_suffix = get_conjugations_recursively(root_entries, nt, rec_level + 1)
                         lr = len(sub_remove_suffix)
                         if lr > 0:

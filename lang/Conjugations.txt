@@ -1553,6 +1553,13 @@
       },
       {
         "Formal" : false, 
+        "Negative" : true, 
+        "Suffix" : "そうになる", 
+        "Tense" : "Almost did",
+        "Next Type" : "v5r"
+      },
+      {
+        "Formal" : false, 
         "Negative" : false, 
         "Suffix" : "たい",
         "Tense" : "Desiderative",
