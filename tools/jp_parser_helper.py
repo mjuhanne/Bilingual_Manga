@@ -1,6 +1,7 @@
 from helper import base_dir
 from jmdict import jmdict_class_list
 from dataclasses import dataclass, field
+from jmdict import get_jmdict_pos_code
 
 @dataclass
 class LexicalItem:
@@ -8,7 +9,7 @@ class LexicalItem:
     ortho: str
     classes:list
     flags: int = 0
-    divided_particles:list = field(default_factory=lambda: [])
+    replaced_particles:list = field(default_factory=lambda: [])
     conjugation_root:str = ''
     details:list = None
     is_masu = False
@@ -16,6 +17,8 @@ class LexicalItem:
     lemma: str = ''
     conj_details:list = field(default_factory=lambda: [])
     word_id: str = ''
+    conjugated = False
+    pron_base: str = ''
 
 mid_sentence_punctuation_marks = [
     '・',
@@ -59,6 +62,8 @@ jmdict_counter_class = jmdict_class_list.index('counter')
 
 jmdict_aux_adj_class = jmdict_class_list.index('auxiliary adjective')
 jmdict_auxiliary_class = jmdict_class_list.index('auxiliary')
+
+jmdict_auxiliary_verb_class = jmdict_class_list.index('auxiliary verb')
 
 # DO NOT CHANGE THE ORDER
 unidic_class_list = [
@@ -229,22 +234,102 @@ COND_BLOCK_START = 1
 COND_NOT_BEFORE_VERB = 2
 COND_NOT_AFTER_NOUN = 4
 COND_NOT_AFTER_ADJ = 8
+COND_AFTER_MASU = 16
+COND_AFTER_TE = 32
+COND_AS_OKU_VERB = 64
+COND_AS_IKU_VERB = 128
+COND_BEFORE_ITEM = 256
 
 TASK_NONE = 0
 TASK_MERGE = 1
 TASK_DIVIDE = 2
+TASK_REPLACE = 3
 
 # word flags
 NO_SCANNING = 1
 START_OF_SCAN_DISABLED = 2
-MERGE_PARTICLE = 4
-DIVIDE_PARTICLE = 8
-REMOVE_PARTICLE = 16
+MERGE_ITEM = 4
+REPLACE_ITEM = 8
+REMOVE_ITEM = 16
 DISABLE_ORTHO = 32
 REPROCESS = 64
 ERROR_VERB_CONJUGATION = 128
 BIND_TO_PREVIOUS_ITEM_IF_LEFT_UNTETHERED = 256
 SCAN_WITH_LEMMA = 512
+
+# separate these so conjugations can be detected more easily
+pre_conjugation_modifications = [
+
+    # divide the colloquial form to separate particles
+    # # e.g. とっ + てく -> とっ + て + おく
+    #[['てく'],[aux_verb_class],COND_AS_OKU_VERB,TASK_DIVIDE,{'parts':['て','く'],'classes':[aux_verb_class,verb_class],'orthos':['','おく'],'conjugation_roots':['','おく']}],
+    #[['ってく'],[aux_verb_class],COND_AS_OKU_VERB,TASK_DIVIDE,{'parts':['って','く'],'classes':[aux_verb_class,verb_class],'orthos':['','おく'],'conjugation_roots':['','おく']}],
+    # e.g. 寄っ + てく -> 寄っ + て + いく
+    [['てく'],[aux_verb_class],COND_AS_IKU_VERB,TASK_DIVIDE,{'parts':['て','く'],'classes':[aux_verb_class,verb_class],'orthos':['','いく'],'conjugation_roots':['','いく']}],
+    [['ってく'],[aux_verb_class],COND_AS_IKU_VERB,TASK_DIVIDE,{'parts':['って','く'],'classes':[aux_verb_class,verb_class],'orthos':['','いく'],'conjugation_roots':['','いく']}],
+    # e.g. とっ + てか + ない -> とっ + て + おか　+ ない
+    #[['てか'],[aux_verb_class],COND_AS_OKU_VERB,TASK_DIVIDE,{'parts':['て','か'],'classes':[aux_verb_class,verb_class],'orthos':['','おく'],'alt_forms':['','おか'],'conjugation_roots':['','おく']}],
+    [['てか'],[aux_verb_class],COND_AS_IKU_VERB,TASK_DIVIDE,{'parts':['て','か'],'classes':[aux_verb_class,verb_class],'orthos':['','いく'],'alt_forms':['','いか'],'conjugation_roots':['','いか']}],
+
+    [['てこ'],[aux_verb_class],COND_AS_IKU_VERB,TASK_DIVIDE,{'parts':['て','こ'],'classes':[aux_verb_class,verb_class],'orthos':['','いく'],'conjugation_roots':['','いく']}],
+
+    # colloquial for (te-ru)
+    [['てる'],[aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['て','る'],'classes':[aux_verb_class,verb_class],'orthos':['','いる'],'alt_forms':['','いる'],'conjugation_roots':['','いる']}],
+    [['ってる'],[aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['って','る'],'classes':[aux_verb_class,verb_class],'orthos':['','いる'],'alt_forms':['','いる'],'conjugation_roots':['','いる']}],
+    # wakattoru = wakatte-iru
+    [['っとる'],[aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['っと','る'],'classes':[aux_verb_class,verb_class],'orthos':['','いる'],'alt_forms':['って','いる'],'conjugation_roots':['','いる']}],
+    [['し','とる'],[aux_verb_class, verb_class],COND_NONE,TASK_DIVIDE,{'parts':['し','と','る'],'classes':[aux_verb_class,verb_class,aux_verb_class],'orthos':['する','','いる'],'alt_forms':['','て','いる']}],
+
+
+    # wakatte-n
+    [['てん'],[aux_verb_class],COND_AFTER_MASU,TASK_DIVIDE,{'parts':['て','','ん'],'classes':[aux_verb_class,aux_verb_class,aux_verb_class],'orthos':['','いる',''],'alt_forms':['','いる','']}],
+    # やってん
+    [['ってん'],[aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['って','','ん'],'classes':[aux_verb_class,aux_verb_class,aux_verb_class],'orthos':['','いる',''],'alt_forms':['','いる','']}],
+
+    # -tte oku (do something ahead)
+    [['っとく'],[aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['っと','く'],'classes':[aux_verb_class,verb_class],'orthos':['','おく'],'alt_forms':['って',''],'conjugation_roots':['','おく']}],
+    [['っとい','て'],[aux_verb_class,gp_class],COND_NONE,TASK_REPLACE,{'parts':['っと','い','て'],'classes':[aux_verb_class,verb_class,aux_verb_class],'orthos':['','おく',''],'alt_forms':['って','お','いて'],'conjugation_roots':['','おく','']}],
+    
+    # TODO
+    #[['っとけ'],[aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['っと','け'],'classes':[aux_verb_class,verb_class],'orthos':['','おく'],'alt_forms':['って',''],'conjugation_roots':['','おけ']}],
+
+
+    [['たがら'],[aux_verb_class],COND_AFTER_MASU,TASK_DIVIDE,{'parts':['たが','ら'],'classes':[aux_verb_class,aux_verb_class],'orthos':['たがる','']}],
+
+    [['ったって'],[gp_class],COND_NONE,TASK_DIVIDE,{'parts':['った','って'],'classes':[gp_class,gp_class],'orthos':['','']}],
+
+
+    [['たか'],[aux_verb_class],COND_AFTER_MASU,TASK_DIVIDE,{'parts':['た','か'],'classes':[aux_verb_class,aux_verb_class],'orthos':['','']}],
+    [['たら'],[aux_verb_class],COND_AFTER_MASU,TASK_DIVIDE,{'parts':['た','ら'],'classes':[aux_verb_class,aux_verb_class],'orthos':['','']}],
+    [['ったら'],[aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['った','ら'],'classes':[aux_verb_class,aux_verb_class],'orthos':['','']}],
+    [['たり'],[gp_class],COND_AFTER_MASU,TASK_DIVIDE,{'parts':['た','り'],'classes':[aux_verb_class,aux_verb_class],'orthos':['','']}],
+    [['ったり'],[gp_class],COND_NONE,TASK_DIVIDE,{'parts':['った','り'],'classes':[aux_verb_class,aux_verb_class],'orthos':['','']}],
+    [['だり'],[gp_class],COND_NONE,TASK_DIVIDE,{'parts':['だ','り'],'classes':[gp_class,gp_class],'orthos':['','']}],
+
+    [['っちゃおっ'],[aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['っちゃ','おっ'],'classes':[aux_verb_class,aux_verb_class],'orthos':['ちゃう','']}],
+    [['ちゃおう'],[aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['ちゃ','おう'],'classes':[aux_verb_class,aux_verb_class],'orthos':['ちゃう','']}],
+    [['なか'],[aux_verb_class],COND_AFTER_TE,TASK_DIVIDE,{'parts':['な','か'],'classes':[verb_class,aux_verb_class],'orthos':['いる','']}],
+    [['たく'],[aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['た','く'],'classes':[aux_verb_class,aux_verb_class],'orthos':['たい','']}],
+
+    [['せよう'],[aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['せ','よう'],'classes':[aux_verb_class,aux_verb_class],'orthos':['','']}],
+
+    # special short verb cases
+    # もむ
+    [['もん','だり'],[noun_class,gp_class],COND_NONE,TASK_NONE,{'classes':[verb_class,gp_class],'orthos':['もむ','']}],
+    # いむ / 忌む
+    [['い','ん','だ'],[verb_class,gp_class,aux_verb_class],COND_NONE,TASK_NONE,{'classes':[verb_class,gp_class,aux_verb_class],'orthos':['いむ','','']}],
+
+
+    # まって! at the start of a block is not correctly identified
+    [['ま','って'],[aux_verb_class,gp_class],COND_BLOCK_START,TASK_NONE,{'classes':[verb_class,aux_verb_class],'orthos':['まつ','']}],
+    [['でしょう'],[aux_verb_class],COND_NONE,TASK_NONE,{'add_class':verb_class,'ortho':'だ'}],
+    [['でしょ'],[aux_verb_class],COND_NONE,TASK_NONE,{'add_class':verb_class,'ortho':'だ'}],
+    [['でし','た'],[aux_verb_class,aux_verb_class],COND_NONE,TASK_MERGE,{'class':verb_class,'root_ortho':'だ'}],
+    [['し','た'],[aux_verb_class,aux_verb_class],COND_NONE,TASK_NONE,{'classes':[verb_class,aux_verb_class],'orthos':['する','']}],
+    [['だ','った'],[aux_verb_class,aux_verb_class],COND_NONE,TASK_NONE,{'classes':[verb_class,aux_verb_class],'orthos':['だ','']}],
+    [['でき'],[aux_verb_class,aux_verb_class],COND_BLOCK_START,TASK_NONE,{'class':verb_class,'ortho':'できる'}],
+    
+]
 
 
 explicit_word_changes = [
@@ -256,14 +341,10 @@ explicit_word_changes = [
     [['文部'],[noun_class],COND_NONE,TASK_DIVIDE,{'parts':['文','部']}],
 
     # verbs
-    [['でしょ'],[aux_verb_class],COND_NONE,TASK_NONE,{'class':verb_class}],
-    [['でし','た'],[aux_verb_class,aux_verb_class],COND_NONE,TASK_MERGE,{'class':verb_class,'root_ortho':'です'}],
     [['だ','も','の'],[aux_verb_class,gp_class,gp_class],COND_NONE,TASK_MERGE,{'class':verb_class}],
-    [['し','た'],[aux_verb_class,aux_verb_class],COND_NONE,TASK_NONE,{'class':verb_class,'ortho':'する'}],
-    [['だっ','た'],[aux_verb_class,aux_verb_class],COND_NONE,TASK_MERGE,{'class':verb_class,'root_ortho':'だ'}],
 
     # adjectives
-    [['らしい'],[aux_verb_class],COND_NONE,TASK_NONE,{'class':adjective_class}],
+    [['らしい'],[aux_verb_class],COND_NONE,TASK_NONE,{'add_class':adjective_class}],
     [['や','ばい'],[aux_verb_class,gp_class],COND_NONE,TASK_MERGE,{'class':adjective_class}],
     [['な','い'],[aux_verb_class,interjection_class],COND_NONE,TASK_MERGE,{'class':adjective_class}],
     [['お','しい'],[prefix_class,verb_class],COND_NONE,TASK_MERGE,{'class':adjective_class}],
@@ -307,35 +388,37 @@ explicit_word_changes = [
 
     # Forcing these as conjunctions shouldn't affect the verb conjugations
     # because they are done greedily regardless of the unidict class
-    [['じゃ'],[gp_class],COND_NONE,TASK_NONE,{'class':conjunction_class}],
+    [['じゃ'],[gp_class],COND_NONE,TASK_NONE,{'add_class':conjunction_class}],
     # clear the っつう ortho of って
-    [['って'],[aux_verb_class],COND_NONE,TASK_NONE,{'class':conjunction_class,'ortho':''}],
+    [['って'],[aux_verb_class],COND_NONE,TASK_NONE,{'add_class':conjunction_class,'ortho':''}],
 
     # で at the start of the sentence is always 'and then/so'
     #[['で'],[aux_verb_class],COND_BLOCK_START,TASK_NONE,{'class':conjunction_class,'ortho':'','word_id':'2028980/3:で'}],
 
     # pronouns
-    [['自分'],[noun_class],COND_NONE,TASK_NONE,{'class':pronoun_class}],
+    [['自分'],[noun_class],COND_NONE,TASK_NONE,{'add_class':pronoun_class}],
 
     [['なん','だ','か'],[pronoun_class,aux_verb_class,gp_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
     [['な','ん','だ','か'],[aux_verb_class,gp_class,aux_verb_class,gp_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
     [['な','ん','だ','けど'],[aux_verb_class,gp_class,aux_verb_class,gp_class],COND_NONE,TASK_MERGE,{'parts':['なん','だけど'],'classes':[pronoun_class,conjunction_class],'orthos':['','']}],
 
     # interjection
-    [['ごめん'],[noun_class],COND_NONE,TASK_NONE,{'class':interjection_class}],
-    [['さあ'],[gp_class],COND_NONE,TASK_NONE,{'class':interjection_class}],
+    [['ごめん'],[noun_class],COND_NONE,TASK_NONE,{'add_class':interjection_class}],
+    [['さあ'],[gp_class],COND_NONE,TASK_NONE,{'add_class':interjection_class}],
     [['な','ん','だ'],[aux_verb_class,gp_class,aux_verb_class],COND_NONE,TASK_MERGE,{'class':interjection_class,'ortho':''}],
     [['なあん','だ'],[pronoun_class,aux_verb_class],COND_NONE,TASK_MERGE,{'class':interjection_class,'ortho':''}],
     [['や','だ'],[aux_verb_class,aux_verb_class],COND_BLOCK_START,TASK_MERGE,{'class':interjection_class}],
     [['や','だ'],[adjectival_noun_class,aux_verb_class],COND_NONE,TASK_MERGE,{'class':interjection_class}],
     [['そっ','か'],[pronoun_class,gp_class],COND_BLOCK_START,TASK_MERGE,{'class':interjection_class}],
-    [['ん'],[aux_verb_class],COND_BLOCK_START,TASK_NONE,{'class':interjection_class,'ortho':''}],
+    [['ん'],[aux_verb_class],COND_BLOCK_START,TASK_NONE,{'add_class':interjection_class,'ortho':''}],
     [['い','えっ'],[interjection_class,interjection_class],COND_BLOCK_START,TASK_MERGE,{'class':interjection_class}],
     [['おは','よ'],[interjection_class,gp_class],COND_NONE,TASK_MERGE,{'class':interjection_class}],
     [['お','やおや'],[prefix_class,noun_class],COND_NONE,TASK_MERGE,{'class':interjection_class}],
+    [['よう','こそ'],[adjective_class,gp_class],COND_NONE,TASK_MERGE,{'class':interjection_class}],
+    [['おほ','ん'],[interjection_class,aux_verb_class],COND_NONE,TASK_MERGE,{'class':interjection_class}],
 
     # force ねえ to interjection only at the beginning of of block (otherwise it could be ない)
-    [['ねえ'],[aux_verb_class],COND_BLOCK_START,TASK_NONE,{'class':interjection_class}],
+    [['ねえ'],[aux_verb_class],COND_BLOCK_START,TASK_NONE,{'add_class':interjection_class}],
 
 
     # adverbs
@@ -345,7 +428,7 @@ explicit_word_changes = [
     [['なん','で'],[pronoun_class,gp_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
     [['なる','ほど'],[verb_class,gp_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
     [['なる','ほど'],[aux_verb_class,gp_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
-    [['ほど'],[gp_class],COND_NONE,TASK_NONE,{'class':adverb_class}],
+    [['ほど'],[gp_class],COND_NONE,TASK_NONE,{'add_class':adverb_class}],
     [['いつ','で','も'],[pronoun_class,gp_class,gp_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
     [['いつ','も'],[pronoun_class,gp_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
     [['二人','と','も'],[noun_class,gp_class,gp_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
@@ -361,6 +444,7 @@ explicit_word_changes = [
     [['いつ','か'],[pronoun_class,gp_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
     [['本気','で'],[noun_class,aux_verb_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
     [['何','やら'],[pronoun_class,gp_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
+    [['どう','に','か'],[adverb_class,gp_class,gp_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
 
     # auxiliary
     # remove だ ortho from なら and で
@@ -373,7 +457,7 @@ explicit_word_changes = [
     [['そー','ゆー'],[adverb_class,noun_class],COND_NONE,TASK_MERGE,{'class':rentaishi_class}],
     
     # expressions
-    [['そっ','かー'],[adverb_class,gp_class],COND_NONE,TASK_MERGE,{'class':expression_class,'ortho':''}],
+    #[['そっ','かー'],[adverb_class,gp_class],COND_NONE,TASK_MERGE,{'class':expression_class,'ortho':''}],
 
 
 ]
@@ -399,6 +483,7 @@ alternative_classes = {
     'もー' : [interjection_class],
     'つい' : [adverb_class],
     '天' : [noun_class],
+    'っつ' : [conjunction_class],
 
     # Pre-noun Adjectivals, detected originally as adjectival nouns
     'そんな' : [rentaishi_class],
@@ -408,6 +493,8 @@ alternative_classes = {
     'つれない' : [adjective_class],
     '下らない' : [adjective_class],
     'らしい' : [adjective_class],
+
+    'なん' : [pronoun_class],
 
     # we put this explicitely here because don't want to allow all nouns to be possible counters
     'か月' : [counter_pseudoclass], 
@@ -423,10 +510,11 @@ alternative_classes = {
 }
 alternative_forms = {
     'っちゃん' : ['ちゃん'],
-    'いえっ' : ['いえ'],
-    'そっかー' : ['そうか'],
+    #'いえっ' : ['いえ'],
+    #'そっかー' : ['そうか'],
     'ねー' : ['ない','ねえ'],
     'いねー' : ['いない'],
+    'でしょ' : ['でしょう'],
 }
 
 # some common auxiliary verbs, particles and markings which we ignore for frequency analysis
@@ -479,3 +567,36 @@ def is_all_alpha(word):
         return True
     return False
 
+word_flag_to_str = {
+    NO_SCANNING : "NO_SCAN",
+    START_OF_SCAN_DISABLED : "DIS_START",
+    #MERGE_PARTICLE : ''
+    DISABLE_ORTHO : "DIS_ORTHO",
+}
+def flags_to_str(word_flag):
+    return ' '.join([word_flag_to_str[key] for key in word_flag_to_str.keys() if word_flag & key])
+
+def pretty_print_lexical_item(item):
+
+    if item.ortho == item.txt:
+        ortho = '。'
+    else:
+        ortho = item.ortho
+    cll = item.classes
+    cl_str = '/'.join([unidic_class_list[cl] for cl in cll]).ljust(5,'　')
+    cl_meaning_str = '/'.join([unidic_class_to_string(cl) for cl in cll])
+    #conj_list = ['%s(%s)/%s' % (pos,sfx,conj) for (pos,sfx,conj) in item.conj_details]
+    conj_list = ['%s(%s)/%s' % (get_jmdict_pos_code(pos),sfx,conj) for (pos,sfx,conj) in item.conj_details]
+    conjugation = ' '.join(conj_list)
+    masu = ''
+    if item.is_masu:
+        masu = '-masu'
+    unidic_verb_conj = ''
+    if verb_class in cll and item.details is not None:
+        unidic_verb_conj = item.details[5]
+    alt_forms = '/'.join(item.alt_forms)
+
+    print("%s %s %s %s %s %s %s %s %s" % ( 
+        flags_to_str(item.flags).ljust(10), item.txt.ljust(6,'　'), ortho.ljust(6,'　'), alt_forms.ljust(6,'　'),
+        cl_str, cl_meaning_str, masu, unidic_verb_conj, conjugation)
+    )

@@ -35,6 +35,9 @@ def set_verbose_level(level):
     global verbose_level
     verbose_level = level
 
+def get_verbose_level():
+    return verbose_level
+
 def open_log_file(file):
     global log_file
     log_file = open(file, "w", encoding="utf-8")

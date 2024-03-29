@@ -414,7 +414,7 @@ def parse_with_jmdict(unidic_items, scan_results):
 
     while pos < len(unidic_items):
         permutations, next_pos = create_phrase_permutations(original_forms, ortho_forms, alt_forms, unidic_items, pos)
-        if verbose_level>=1:
+        if get_verbose_level()>=1:
             LOG(2,"Permutations %d-%d" % (pos,next_pos-1))
             for p in permutations:
                 p_str = [x.ljust(6) for x in p]
@@ -424,7 +424,8 @@ def parse_with_jmdict(unidic_items, scan_results):
         # Scan this chunk with each permutation and for every lexical item get references 
         # (sequence number+sense index) to JMDict entries
         for permutated_chunk in permutations:
-            scan_jmdict_for_phrase(permutated_chunk, pos, unidic_items, scan_results, searched_kanji_word_sets, searched_reading_sets)
+            if len(permutated_chunk)>0:
+                scan_jmdict_for_phrase(permutated_chunk, pos, unidic_items, scan_results, searched_kanji_word_sets, searched_reading_sets)
 
         pos = next_pos
 
@@ -448,7 +449,7 @@ def parse_with_jmdict(unidic_items, scan_results):
                 pos_ref_index = i - 1
 
         # log missing references
-        if verbose_level >= 1:
+        if get_verbose_level() >= 1:
             if len(word_ids) == 0:
                 l_level = 1
                 if len(cll)==1 and cll[0] <= punctuation_mark_class:
@@ -463,7 +464,7 @@ def parse_with_jmdict(unidic_items, scan_results):
                     for msg in messages[i]:
                         LOG(l_level,"  %s" % msg)
                     LOG(l_level,"",items=unidic_items)
-            elif verbose_level >= 2:
+            elif get_verbose_level() >= 2:
                 if len(messages[i])>0:
                     LOG_HEADING()
                     LOG(2," %d : %s Removed references.. " % (i,unidic_items[i]))
@@ -508,6 +509,54 @@ def parse_with_jmdict(unidic_items, scan_results):
         scan_results['item_word_id_refs'].append(refs)
 
     del(scan_results['item_word_id_ref_count']) # not needed anymore
+
+
+def parse_block_with_unidic(lines, kanji_count):
+
+    # unidic will generally parse text more reliably if the whole block is processed as one line
+    line = ''.join(lines)
+    kc, ud_items = parse_line_with_unidic(line,kanji_count)
+
+    # HOWEVER, there are times when unidic will match erroneously a word between the lines:
+    # e.g.  two line block ['あ～～あ', 'なんてこった']
+    # will be parsed into following lexical elements:
+    # ['あ','～～',あなん,'て','こった']
+    # In this case unidic will find a word 'あなん' which wasn't there in the first place
+    # so we want to dissect it
+    line_pos = 0
+    line_idx = 0
+    item_idx = 0
+    mismatch = False
+    item_txt_list = [item.txt for item in ud_items]
+    while item_idx < len(item_txt_list) and not mismatch:
+        if item_txt_list[item_idx] not in lines[line_idx][line_pos:]:
+            mismatch = True
+        else:
+            line_pos += len(item_txt_list[item_idx])
+            item_idx += 1
+        if line_pos == len(lines[line_idx]):
+            line_idx += 1
+            line_pos = 0
+
+    if mismatch:
+        LOG(1,"Unidic parsing mismatch %s vs %s" % (str(lines),str(item_txt_list)))
+        ud_items = []
+        kc = 0
+        for line in lines:
+            line_kc, line_ud_items = parse_line_with_unidic(line,kanji_count)
+            kc += line_kc
+            ud_items += line_ud_items
+        item_txt_list = [item.txt for item in ud_items]
+        LOG(1,"New parse results %s" % (str(item_txt_list)))
+
+
+
+        
+
+    return kc, ud_items
+
+
+
 
 
 def reassemble_block(original_lines, unidic_items, item_sense_ref):

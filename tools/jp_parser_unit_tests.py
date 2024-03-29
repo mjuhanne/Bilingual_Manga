@@ -2,48 +2,242 @@ import fugashi
 from helper import *
 from jp_parser import *
 from jp_parser_tool import print_scanning_results
+from parser_logging import *
 
-# TODO:  どんあに gets fused with つまらなくても
-#ですがどんなにつまらなくても毎日行くことになっています
-
-# できたら
-#朝から南さんとお話できたらどんなに素敵なことか
 #その子を寂しがらせることもない
-#かしこくて本のこともよく知ってるのよ
-# 代わりに持ってきたのよ
-# 危ない目にあった
 # 誇り高い人
-# 桐生の絵割と上手なんだよな～～
-
-# それについて話し合ってくださいね
-# 寄ってかない？
-
-# たった一枚の白で
 # きっとなっちゃんがいつかその子達に
-# おやおやもしかして
-# 声かけてくれればいいのに
-# 焼肉の食べ放題
-# いらっしゃいませー
-# ゴール。２人ではじめた旅の
+# ゴール。２人ではじめた旅の  de-hajimeru (ei dehajimeru)
 # お風呂はいってこよ！
-# 根岸正樹様がお待ちかねです
-# 灰田かっこいいって言われてたね。
+# なんであれほどの人が  nandeare != are hodo
 
-# いやー犯行に使われた甲冑がレプリカだったのがせめてもの救いですよ
-# なんであれほどの人が
-# 言っててバカらしくてなってきちゃった
-# いつもよりかっこよくあらへん？   kakkou yoku / yoku aru
-# 気持ちよくなってきた   kimochi yoku / yoku naru
-# 一緒に住んでたりしたもんだからなんだかうやむやになっちゃってさ  mon da kara / dakara nanda / nanda ka
-# いくつでも言っていいのならいいんだけど  no nara != no da . n (dakedo) != nda
-# もし君が答えたくなかったら
 # ありがとー
-# 寒さを存分に味わいたい  samusa
 # 噂されてる   sarete + (i)ru
 # 上靴捨ててんの   sama
 # トイレのゴミ箱に捨ててあんじゃん  arun jan
 
+# おっしえなーい
+# はっずかしい
 
+# 本に興味がないかって   hon ni
+
+# もうよさないか。姉さん！おやじが死んだ夜に金の話なんか．   yosanai -> yosu
+# 短いスカートはおなかが冷えるからよしなさいっていったでしょ？ yoshinasai -> yosu
+# 服かわかさなきゃ   かわかす / 乾かす
+# うふふなるさんとっても素敵ですよ   なるさん
+# 絶対！！こわさせないわよ   こわす
+# 穴をよさげ。
+# よしなさいよヨシツネ
+# まぁまぁ
+
+# ありゃ？珍しくさっぱりキレーに片付いとるやん  きれー　-> kirei
+
+# たとえ荒らせたとしてもサイフを探すなんて不可能だ！！   tatoe
+# 犯人が逃げる時に拭きとったって事も   hikitotta + tte
+
+# ６名ってあるけど    名って (?)
+
+# いま寝つけたら、"  - tara
+# 混ざれなくってさ
+# 家中を動きまわれた人物  ugokimaware-ta
+# 使いこなせる  tsukai-konaseru
+
+# 俺なんかが首つっ込んでいい方向にいくのかなって  tsukkonde
+# 死亡推定時刻がわりだせず   waridase-zu
+# 探偵さんはうまくだませたかもしれないけど、写真は、だませないよ   damase-ta, damase-nai
+# そのペンが書けないの知ってたんだ！  shitte-ta-n
+# よーし出発点はここだ！！   y--shi!
+# めんどくさー
+# Ａ８０３号室に入院しています   goushitsu
+# 口裏合わせて 
+# また？
+# ストーカーなん？   (nan->nano)
+# 鐵穴にガムをおし込み自動ロックを不能にした  o-shikomu
+# 怨念ここに晴らせり    harase-ri
+# 運悪くテープが切れてもはがせます　 hagase-masu
+# いい逃れできねーよな？  deki-nee
+# しかし犯人が逃げる時に拭きとったって事も  nukitot-tatte
+# 悲しんでる
+# ヤレヤレ仲のいいこと
+# こらホントにカケオチかーあの二人？ kakeochi
+# 何もしゃべれなかったもんな  shaberenakatta
+# 明日から楽しめそーやで   sou - ya de
+# 女だからとて客赦せぬぞ  yuruse-nu
+# だから用ないんなら  nara != da
+# でも浦島君ゴメンナサイ．  gomen nasai != nasaru
+# こんな武器でウチは倒せまへんで  taosema-hen-de / masen
+# 何かどーしても言いだせなくて
+# あうーもー喰えん  mou  / kue-nai
+# どこか
+# カケオチっていう病気で死んだのか？ kake-ochi
+# ちょっとだけ世の中に知らしめてやれりゃよかったんだ  shirashime-te
+# そう簡単に償えるもんじゃないか  mon
+# オシメしてくればあ！？  oshime = diaper
+# 歌舞伎町なんて行ったら、生きて帰れんぞ普通。  ikitekaere-n  (n=nai)
+# とり逃がしましたじゃすまねえぞ！！  suma-nee
+# おかげで死にたくても死ねねえや。 shine-nee
+# 帰れなかったら．
+# なんかウチに用スか？  you yksinään
+# そんなわけのわがんねえクスリ打たれたら、どうにかなっちまうぜ！！  dou-ni-ka (kanau)
+# ただこの中華街は  tada
+# それでもやっぱりイジメられてるような   soredemo / ijimerareteru
+# そろそろ歩けそうだ  aruke-sou
+# この小泉が売りこんだげる！！  urikomu - ageru
+# 投査本部の情報を得られた   投げる ei saisi olla yksi permutaatio
+# そんな大声出しちゃん  
+# ところでキツネちゃんなるちゃんはどこだい？   doko dai
+# ねーちゃん
+# てことはイモ喰い放題の上イタズラし放題おかしもらい放題でもー笑いが止まんねーゾ   kui-houdai / okashi / morai-houdai
+# 立ち入り禁止区域になってたのにまったく．  natte-ta
+
+# だって面白くて目が離せなかったもん！  me ga hanasenai
+
+# 大声だすときもちいいよ！ ookoedasu
+# 毎日夜空を見つづけた．  mitsutsuketa (見続ける)
+# ココラー出てこ〜い   koraaa.. dete-koi
+# 殺人犯になりたくないんだ   naritakunai
+# あっいたいた！ ita + ita
+# ぜひ行きたいと思ってたのだ  omotte-ta
+# おしりいたい～  oshiri / itai
+# ー頭がいたくない。   atama ga itai
+# 落ち着けとくから   - ochitsukete - oku
+# なんかしなよー  nanika shi-na yo
+# 母親なめんな  nameru + na
+
+#  待っていよう   -te verbi + iyou -> force only ortho scan
+# 目一杯カッコよくきめた  kakko yoku -> kakkoo ii
+# 曲は言いづらそうにしてたけど   tsura + sou-ni
+# 美術部じゃそんなアダ名がついてたんだな．   adana
+# 犯人にされちゃたまんないわよ   tamannai (tama-ra-nai)
+# 娘が来てたとしたら   to-shitara
+# 忙しそーにしてたもの  isogashi-sou
+# 本当はんなトコ行きたかねーけど  iki-taka-nee (ikitakunai)
+# あの時のワシはどうかしてたんじゃ  doukashite
+# バカも休み休みいいたまえ！！  ii-tamae
+# もうみんな帰り仕たくすんどるでー  kaeri-shitaku-sunderu (going home preparations are ready)
+# ゃゃやややっぱり私達落ちてたんーっっだわー ochite-itan
+# ン違いしてたのー！ kanchigau
+# ビビって声も出ないとはな  bibiru
+# ごめんなさぁい  nasaai
+# あこの子かいちょっとワケありでねーははは  wakeari
+# このへコミは！？   hekomi
+# 一言も言ってませんよね  ittemasen
+#  しやがって。へラへラ  herahera
+# でなきゃ、おめーみてーな  denakya
+#  彼女ナシ   (nashi, if after noun)
+# あれ？もう帰っちゃうんスカ？  desu-ka
+# 世界を破滅させようとしている連中だ   you to shite-iru (pin down to-shite to 2136890 (to suru) instead of to-shite )
+# 遊園地に連れてってくれるって！！  tsurete -tte
+# こんなガキにつけられやがって． tsukerareyagatte
+# でなきゃ、おめーみてーな  mitaina
+# この写真が何だというんだね？  nandato vs nanda to iu
+# そ、そうかもね．  souka / sou kamone
+# 二度と日外せんという約束  
+# せんせいおげんきですか
+#  どっかでドブにでもはまってんでしょ dokoka de
+# どうかしたのかい？なるちゃん
+# あれ彼氏！？こっり合ってねーよなもったいなーーっメガネー！ mottainai
+# 呼んでへん呼んでへん  yonde-hen/nai
+# カナちゃん．．．本気でみんなとケンカしたかった訳じゃないんでしょ  honki de != honki da
+# それを断ち切らねば本当の生は得られん  kiraneba / eraren
+# どう書いたのか見てなかったのか？  nakatta
+# 合宿行けることになりそうで  nari-sou
+# 自分の心の中に留めておいてくれそうだと思った   prioritize oku after te-verb
+# 最近心が軽い気がする  saikin
+# 彼女は何かあったのにそれをひた隠しにしていた   block ni-shite
+# あんなに必要とされてるって知らなかったから   sareteru
+# このままだと私達遊びでキスくらいしちゃうんじゃないかしらってドキドキしてる  block kurai-suru
+# ほら、なかなか通じなかったとか．．  tooji-nakatta
+# いっつも思うけど  itsumo
+# はい今日は抜きうちテストですよー   nukiuchi-testo (pop quiz), not in JMDict?
+# それにたとえ通れたとしても、１０秒ぐらいしかがわんねーよ wannee(wakaranai
+# しまった見つかった！  shimatta
+# オレ達ウソついてねーぞ！！  uso wo tsuku
+#  バーロテメーを数えてねーんだよ！ baaro / temee   (match if katakana word?)
+# だってガンダんち金持ちじゃないの  ganda nchi (no uchi)
+# ガンタのせいって、こと？  ganta-no-sei     (block tano)  prioritize せい after の?
+# バイバイ  prioritize kana-match (バイバイ instead of ばいばい) even though the latter is more common
+# オジちゃん、バイバーイ！  baibai
+# なーんてね！！何ムシのいいこと考えてんのかしら私  sama
+# 待ってますよーー  matte-masu
+# 金とオモチャや、花が届き始めたのは二年前からだから、  omocha + ya != omocha-ya.  Do not mix hiragana/katakana?
+# ゴメンなさいまちがえましたーーーッ  machigaemashita
+# そーゆー言い方やめてよ。 sou yuu
+
+# こいつといっしょじゃねーと抜けたくねえってな  -takunee
+# あんたの勝手なカン違いじゃない  kanchigai . Try converting to hiragana
+# きょーときょーと  kyoto kyoto
+# バっカみたい  baka mitai
+# スマン４人分の旅費で消えた  4-nin  (to numeric and noun
+# サラちゃんのいやがらせぐらいでやめてたまるか   WTF..!
+# お前のイタズラに毎日付き合わされるから大変なんだろー！？ itasura != itasura-ni   tsukiawasareru
+# むつみさん疲れて寝ちゃったねーしょうがないな．  block naishou somehow
+# うふふ何だかゴキゲンですねなるさん  nandaka
+#  そうですねパーーっと遊びますか！  paaatto. Only 1 ー !
+# 私がチェックインしとくからね  chekku in suru vs. in suru
+# はーいいってらっしゃーい
+# 茶あるからとりにきて。   toru != tori (toru is detected though)
+# ま、まてカニ  (matsu is right but now it's referring to noun, not verb)
+
+# 今日は屋根から落ちそうになりました。私って、おっちゃん
+# 何度やっても吐きそうになったって．
+# 武器も持たずいかにもリラックスしていそうな場所というと．shite-i-sou-na
+# しばらく帰れそうにねーな．  sou-ni-nai
+# すぐにでも自決しそうな感じだな  shi-sou-na
+# もうちょっとで完成しそうなんです．shi-sou-da
+# お年玉あげるから帰りな。kaeri-na
+# あったまきちゃう！ maki-chau
+# 楽しみましょっか♡  -shou
+
+# 夏江さんに近づき、旗本家に入り込み、 do not use noun if , is after verb
+# 邪魔だ、どいてろ！！  doite (v5k)
+# どこふいてんのよ！！  fuku (wipe/blow) vs fuku (cloth)
+# 反陽子はどん世界はほろんといてー   horobu (to be ruined)
+# 以前から足を洗いたがっていました．．  tagatte
+
+# カゼひいたそやなーけーたろ kaze hiita so-ya-naa.
+#  あれっきり連絡もしてこんし  shite-konai shi
+# 何やってんのスウちゃん！！はなしなさ  hanashi-nasa(i)
+# あっちでふきましょ！  -masho
+# うみんな帰り仕たくすんどるでー
+# わっ俺を置いてかないでよー！？  oite-ikanaide yo
+# でなきゃ、おめーみてーな
+# なかなかうまくいかへんかー  ika-hen-ka
+# チビのくせに渡さへんで watasa-hen-
+
+# そのことごとくを あの女は ふりおった！！  onna ha furiotta vs onna hafuri-otta (re-unidic if needed )
+# ["うーん","どうかな？"]   sama
+
+# 可愛く思えてませんよ oboete-imasen
+# 見た目で判断しちゃったね mita-me
+# なんだかねー
+# 時間がねー
+# うへー高っけーなー．
+# 本当だったみてーだな！
+# あたりめーだ！
+# 許してやろーと思ったが  yarou
+# うーさむっ！ひえるしコタツでやろーかな  samui / yarou
+# 遊んじゃってるよね〜〜
+# 横でおとなしくしとるからえーやろーー？ ii darou
+# 何そこうっとりしてんのよっ！！  shite-irun
+# まいったな　　　verb->interjection?
+# あんたは食料でも探してきなさーーい！！  sagashite-iki-nasai
+# 何か高そ〜な店
+# しらない(verb/adjective) not allowed for しらない(interjection (kandoushi))
+# でも、起こさんかったら起こさんかったで、怒るんやろなあいつ  okosan-kattara
+# 話したがらなかったから． tagara-nakattara
+# 行かなくちゃって必死に  ikanakuchatte
+# そこ置いといてー 
+# 当の 町田くんは  tou-no
+# ほっとけば良かった   hotte(horu)-okeba
+# 欲さ禁じられています   欲 (adjective) as noun
+
+#  誰か入ってなかってこなかった？   is this even possible grammar? (nakatte-)
+
+# お金貯めてんの  tameten = tamete-irun
+# おめーら気合い入ってんのか。 sama
+
+# 持ってっとく  motte itte oku?
 
 tests = [
 {'c':'honorific in front of adjective (medetai)','line':'おめでとう','jlines':[[{'お': [4, 2, 5, 1, 0]}, {'めでとう': [4, 2, 5, 3]}]], 'wilist':['2268350:お', '2826528:お', '1647360:おめでたい', '1608630:めでたい', '1270700:おめでとう', '2077340:おめでとう']},
@@ -53,7 +247,7 @@ tests = [
 {'c':'prefix/suffix must be detected even when not found in the dictionary together with the stem word','line':'議師料','jlines':[[{'議': [0]}, {'師': [1, 2]}, {'料': [3]}]], 'slist':['2273760', '1956330/1', '1956330/2', '1554270'], 'swi':[3, 4, 4, 5], 'word_list':['', '*', '-', '議', '師', '料']},
 
 {'c':'long phrase','line':'よろしくお願いします','jlines':[[{'よろしく': [0, 1, 2, 3]}, {'お': [0, 4, 5, 6, 7]}, {'願い': [0, 4, 5, 8]}, {'します': [0, 4, 9]}]], 'slist':['2133750', '1224890', '2835139', '2846370', '1001720', '2036870/0', '2268350', '2826528', '1217950', '1157170'],'swi':[3, 4, 4, 4, 5, 6, 7, 7, 8, 9],'word_list':['', '*', '-', 'よろしくお願いします', 'よろしく', 'お願いします', 'お願い', 'お', '願う', 'する']},
-{'c':'past tense','line':'あやしかった','jlines':[[{'あやしかっ': [0, 1]}, {'た': [2]}]], 'slist':['1586700', '2843261', '2654250'],'swi':[3, 3, 4],'word_list':['', '*', '-', 'あやしい', 'た']},
+{'c':'past tense','line':'あやしかった','jlines':[[{'あやしかった': [0, 1]}]], 'wilist':['1586700:あやしい', '2843261:あやしい']},
 {'c':'streched sentence','line':'だーからあるいていくんだね～','jlines':[[{'だー': [0]}, {'から': [1]}, {'あるいて': [2]}, {'いく': [4, 3, 5, 6]}, {'ん': [9, 7, 8]}, {'だ': [9, 0]}, {'ね': [10, 11]}, {'～': []}]], 'wilist':['2089020:だ', '1002980:から', '1514320:あるく', '1157500:いく', '1578850:いく', '2783550:いく', '2856718:いく', '2139720/3:ん', '2139720/4:ん', '2849387:んだ', '2029080:ね', '2841117/0:ね']},
 {'c':'mitai+na / mono + da mono','line':'給食みたいなものだもの','jlines':[[{'給食': [0]}, {'みたい': [2, 1]}, {'な': [2]}, {'もの': [4, 3]}, {'だもの': [6, 5]}]], 'wilist':['1230250:給食', '2016410:みたい', '2839776:みたいな', '1322990:もの', '1502390:もの', '2089020:だ', '1007470:だもの']},
 {'c':'conditional','line':'そういえば','jlines':[[{'そう': [0, 1]}, {'いえば': [0, 2, 3]}]], 'slist':['1982210', '2137720/0', '1254600', '1587040'],'swi':[3, 4, 5, 5],'word_list':['', '*', '-', 'そういえば', 'そう', 'いう']},
@@ -145,16 +339,16 @@ def do_tests():
 
         if len(missing_in_a)>0:
             print("Missing:")
-            for seq in missing_in_a:
+            for seq_sense in missing_in_a:
                 s = seq_sense.split('/')
-                seq = s[0]
+                seq = int(s[0])
                 if len(s)>1:
-                    sense = s[1]
+                    sense = int(s[1])
                     meanings = get_meanings_by_sense(seq,sense)
                 else:
                     sense = '*'
                     meanings = get_meanings_by_sense(seq,0)  # print just the first
-                print("\t[%d] %s : %s" % (seq, meanings))
+                print("\t[%d] %s : %s" % (seq, sense, meanings))
             raise Exception("Error in sense list!")
 
         """
@@ -168,88 +362,20 @@ def do_tests():
 
 
 def test_jmdict():
-    #line = "皆のお父さんやお母さんには前からお知らせしてあったんだけど再来週授業参観があります"
-    #line = '嫌なら早めにやっつけなきゃ'
-    #line = '授業中どうぞよろしくお願いします。!！test思い出す見かける見切るひっ掛けるひっかける'
-    line = 'まあ隣の人があやしかったよ！！'
-    #line = 'だーからあるいていくんだね～'
-
-    #line = 'お茶がほしいです。'
-    #line = "様子を見てもらうとても大事な日だから今から回すプリントをきちんとお父さんお母さんに渡してね"
-    #line = '人生とは給食みたいなものだもの'
-
-    #line = 'じゃあ私にはきっと無理痛いのは嫌いだもの'
-    #line = '食べ物が貰えないから悲しいのかしら'
-    #line = 'そういえばおばあちゃんの家に行く途中に'
-    #line = 'お茶を濁す'
-    #line = 'ばんそうこう持ってるから'
-    #line = '頭おかしくなっちゃったの？'
-    #line = '一人なの？'
-    line ='．．．．．別にいいでしょ一人でも誰かと一緒にいる必要はない'
-    #line =   '．．．．．．あんた嫌われてんでしょ？'
-    #line = 'ねえどうして腕を切っていたの？'
-    """
-    line = '確かにそれには私も同じ考えを持っているわ'
-    line = 'まあでもそこらの子ども達よりは偉いかも'
-    line = '．．．．．．なんでんなことを会ったばっかりのあんたに話さなくちゃいけないの？'
-    line = '私が本当にやばい奴だったらどうすんだおごネるよ'
-
-    line = 'それにしても腕を切って落ち着く人がいるなんて世界はまだまだ分からないことだらけ'
-    line = 'どうしたんだ突然'
-
-    line = "しかし、これらの文明の源はすべてギリシアにあるのです"
-
-    line =  'を表したとしたら、とても興味深い。' \
-            'キートン．．．それは面白いですね。警告は' \
-            '能なんかはどうなんでしょう。'\
-            '太平数の概念はチンバンジーには無理だと'\
-            '言われていたが、最近ではちゃんと物が数え'\
-            'られ、数学も理解出来るとわかってる。数と'\
-            'いうのは本当の抽象擬灸だから、相当な知能'\
-            'があるということだな。ところでそのラーメ'\
-            'ン、チャーシューは柔らかかいか？最近、間'\
-            'いものがイカンようになってな。'
-    """
-    
-    #line = "人生とは給食みたいなものだもの"
-
-    #line = '３５歳の公務員じゃ団地に入れただけでも幸せってものでしょう'
-    line = '子どもの癖に偉そうな喋り方'
-
-    line = 'ねえどうして'
-    #line = 'どうぞよろしくお願いします'
-    line = '古代エジフトの全にはアンチモンが含まれていて、もっと赤っぽかったんです'
-    line = '判定できなかった田'
-    line = 'ＩＲＡの犯行の可能性は低いですね'
-    line = 'オックスフォードの全男子学生憧れの日本のマドンナを射止めたって'
-
-
-    c = 'honorific + suffix'
-    line = '議師料'
-    line = '喰えるな'
-    line = '自分よりスリムなやしの木や"'
-
-    #line = 'まあ隣の人があやしかったよ！！'
-
-    line = 'でもやっぱり'
-    line = 'もったいないわよ'
-    line = 'どうだい元気にしてた'
-    line = 'お父さん'
-
-    line = '元気な私とー'
-    line = "付き合ってんの"
-    line = "寄ってかない？"
-    #line = "寄ってく"
-    line = "代わりに持ってきたのよ"
-    line = "理解できないかもしれないな"
-    line = "いえっ．．．"
-    line = "大丈夫でしたか？"
-    line = "ありがち"
-    line = '中がヒクヒクしてて'
-    line = 'してきたんだ'
-    line = 'ありがとー'
-    line = '不審がる'
-
+    line = 'こんだけ降ってたら'
+    line = '踏み切り通ってく'
+    line = 'サンドイッチは作ってある'
+    line = '行ったり来たりしてるぞ'
+    line = '人相がけわしくなっていって'
+    line = '行きたがらないの'
+    line = 'ここの扉鍵が壊れてて、完全に閉めると'
+    line = '本読んだり参考書みたり。'
+    line = 'カサ持ってっとけ'
+    line = 'ございましたら'
+    line = 'でもデータだけうつしちゃおう'
+    line = '戻らないとかいっといて'
+    line = 'シカトされ","てただけ'
+    line = 'すごー'
     kanji_count = dict()
 
     scan_results = init_scan_results()
@@ -264,7 +390,7 @@ def test_jmdict():
     )
     jlines = reassemble_block([line], ud_items, scan_results['item_word_id_refs'])
     jlines_str = str(jlines)
-    print("{'c':'%s','line':'%s','jlines':%s, 'wilist':%s}" % (c, line,str(jlines),str(scan_results['word_id_list'])))
+    #print("{'c':'%s','line':'%s','jlines':%s, 'wilist':%s}" % (c, line,str(jlines),str(scan_results['word_id_list'])))
           
     pass
 

@@ -22,10 +22,11 @@ def parse_with_fugashi(line):
                 if '-' in lemma:
                     lemma = lemma.split('-')[0]
                 orth_base = d[10]
-                results.append(([w,wtype,basic_type,pro],lemma,orth_base,d))
+                pron_base = d[11]
+                results.append(([w,wtype,basic_type,pro],lemma,orth_base,pron_base,d))
             elif len(d)>0:
                 wtype = d[0]
-                results.append(([w,wtype,'',''],'','',d))
+                results.append(([w,wtype,'',''],'','','',d))
 
     return results
 
@@ -39,7 +40,7 @@ def parse_line_with_unidic(line, kanji_count):
     items = []
     collected_particles = ''
     previous_cl = -1
-    for (wr,lemma,orth_base,details) in res:
+    for (wr,lemma,orth_base,pron_base,details) in res:
         w = wr[0]
         class_name = wr[1]
 
@@ -84,6 +85,8 @@ def parse_line_with_unidic(line, kanji_count):
                     item.is_masu = True
             if is_katakana_word(w):
                 item.alt_forms = [katagana_to_hiragana(w)]
+            if pron_base != '':
+                item.pron_base = katagana_to_hiragana(pron_base)
             items.append(item)
 
         previous_cl = cl
@@ -100,6 +103,7 @@ def parse_line_with_unidic(line, kanji_count):
 
     return k_c, items 
 
+
 def check_adjectival_nouns(pos,items): 
     if pos == len(items) - 1:
         return
@@ -110,7 +114,6 @@ def check_adjectival_nouns(pos,items):
         if items[pos+1].txt in disable_ortho_list:
             items[pos+1].flags |= DISABLE_ORTHO
     return
-
 
 
 def check_nouns(pos,items):
@@ -130,7 +133,7 @@ def check_nouns(pos,items):
             if items[pos].txt[-1] in katakana:
                 # unidict dissected this word erroneously
                 # 格ゲ + ー  -> 格ゲー
-                items[pos+1].flags |= MERGE_PARTICLE
+                items[pos+1].flags |= MERGE_ITEM
     return
 
 
@@ -162,11 +165,11 @@ def get_vowel_extension(chr):
         return vowel_extension_by_kana[chr]
     return ''
 
-def handle_explicit_form_and_class_changes(pos,items):
+def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
     changed = False
 
     lw = len(items)
-    for ew in explicit_word_changes:
+    for ew in explicit_change_list:
         p_list = ew[0]
         p_classes = ew[1]
         condition = ew[2]
@@ -191,6 +194,40 @@ def handle_explicit_form_and_class_changes(pos,items):
                 if condition & COND_NOT_AFTER_ADJ and pos>0:
                     if adjective_class in items[pos-1].classes:
                         allowed = False
+                if condition & COND_AFTER_MASU:
+                    if pos == 0:
+                        allowed = False
+                    else:
+                        if not items[pos-1].is_masu:
+                            allowed = False
+                if condition & COND_AFTER_TE:
+                    if pos == 0:
+                        allowed = False
+                    else:
+                        if items[pos-1].txt[-1] != 'て':
+                            allowed = False
+
+                oku_verbs = ['取る']
+
+                if condition & COND_AS_OKU_VERB:
+                    if pos == 0:
+                        allowed = False
+                    else:
+                        if items[pos-1].lemma not in oku_verbs:
+                            allowed = False
+                if condition & COND_AS_IKU_VERB:
+                    if pos == 0:
+                        allowed = False
+                    else:
+                        if items[pos-1].lemma in oku_verbs:
+                            allowed = False
+                if condition & COND_BEFORE_ITEM:
+                    if pos+lp == lw:
+                        allowed = False
+                    if params['item_txt'] != items[pos+1].txt:
+                        allowed = False
+                    if params['item_class'] not in items[pos+1].classes:
+                        allowed = False
 
                 if allowed:
                     if task == TASK_MERGE:
@@ -204,7 +241,7 @@ def handle_explicit_form_and_class_changes(pos,items):
                                 items[pos+i].classes = [cl]
                                 i += 1
                             while i<lp:
-                                items[pos+i].flags = REMOVE_PARTICLE
+                                items[pos+i].flags = REMOVE_ITEM
                                 i += 1
                         else:
                             # simple merge
@@ -212,23 +249,49 @@ def handle_explicit_form_and_class_changes(pos,items):
                             # Change the class of the first particle and mark the next ones to be merged
                             items[pos].classes = [target_class]
                             for i in range(1,lp):
-                                items[pos+i].flags = MERGE_PARTICLE
+                                items[pos+i].flags = MERGE_ITEM
                         changed = True
-                    if task == TASK_DIVIDE:
-                        items[pos].divided_particles = [
-                            LexicalItem(part,part,items[pos].classes)
-                                for part in params['parts']
-                        ]                        
-                        items[pos].flags |= REPROCESS | DIVIDE_PARTICLE
-                        changed = True
+                    elif task == TASK_REPLACE or task == TASK_DIVIDE:
+                        # replace 1 or more items with two or more items
+                        i = 0
+                        new_items = []
+                        for i,(part,ortho,cl) in enumerate(zip(params['parts'],params['orthos'],params['classes'])):
+                            it = LexicalItem(part,ortho,[cl])
+                            if 'conjugation_roots' in params:
+                                it.conjugation_root = params['conjugation_roots'][i]
+                            if 'alt_forms' in params:
+                                it.alt_forms.append(params['alt_forms'][i])
+                            new_items.append(it)
+                        # just replace the first item with all the items
+                        # and remove the rest of the replaced items
+                        items[pos].replaced_items = new_items
+                        items[pos].flags |= REPROCESS | REPLACE_ITEM
+                        i = 1
+                        while i<lp:
+                            items[pos+i].flags = REMOVE_ITEM
+                            i += 1
                     else:
-                        if 'class' in params.keys():
-                            # Only add new class to the class list but do not merge
-                            target_class = params['class']
+                        if 'add_class' in params.keys():
+                            # Only add new class to the class list but do not merge or divide
+                            target_class = params['add_class']
                             for i in range(0,lp):
                                 if target_class not in items[pos+i].classes:
                                     items[pos+i].classes.append(target_class)
                                     changed = True
+                        elif 'classes' in params.keys():
+                            # Only set new classes but do not merge or divide
+                            for i in range(0,lp):
+                                items[pos+i].classes = [params['classes'][i]]
+                            changed = True
+                        elif 'class' in params.keys():
+                            # Only set new class but do not merge or divide
+                            for i in range(0,lp):
+                                items[pos+i].classes = [params['class']]
+                            changed = True
+                        if 'orthos' in params.keys():
+                            for i in range(0,lp):
+                                items[pos+i].ortho = params['orthos'][i]
+                            changed = True
 
                     if 'ortho' in params.keys():
                         ortho = params['ortho']
@@ -254,56 +317,6 @@ def handle_explicit_form_and_class_changes(pos,items):
                             items[pos+i].word_id = params['word_id']
                             items[pos+i].flags |= NO_SCANNING
 
-    if items[pos].txt in alternative_forms.keys():
-        alt_forms = alternative_forms[items[pos].txt]
-        for alt_form in alt_forms:
-            if alt_form not in items[pos].alt_forms:
-                items[pos].alt_forms.append(alt_form)
-                changed = True
-
-    alt_cll = []
-    if items[pos].txt in alternative_classes:
-        alt_cll = alternative_classes[items[pos].txt]
-    if items[pos].ortho in alternative_classes:
-        alt_cll = alternative_classes[items[pos].ortho]
-    for cl in alt_cll:
-        if cl not in items[pos].classes:
-            items[pos].classes.append(cl)
-            changed = True
-
-    """
-    for elong_mark in elongation_marks:
-        if elong_mark in items[pos].txt:
-            # create an alternative form by removing ー 
-            alt_form = items[pos].txt.replace(elong_mark,'')
-            if alt_form != '':
-                if alt_form not in items[pos].alt_forms:
-                    items[pos].alt_forms.append(alt_form)
-                    changed = True
-    """
-
-    """
-    if len(items[pos].txt)>1 and items[pos].txt[-1] == 'っ':
-        # Possibly dialect. Check alternative form without the emphasis
-        # おっしえなーい  -> おしえなーい
-        alt_form = items[pos].txt[:-1]
-        if alt_form not in items[pos].alt_forms:
-            items[pos].alt_forms.append(alt_form)
-            changed = True
-    """
-
-    """
-    elif 'ー' in items[pos].txt:
-        # create an alternative form by extending the vowel when ー is detected
-        # Example: ありがとー　->　ありがとう
-        i = items[pos].txt.index('ー')
-        if i>0:
-            rep = get_vowel_extension(items[pos].txt[i-1]))
-            if rep != '':
-                items[pos].alt_txt = items[pos].txt.replace('ー',rep)
-                changed = True
-    """
-    
 
     if changed:
         items[pos].flags |= REPROCESS # this allows cascading changes
@@ -337,26 +350,90 @@ def check_suffix(pos,items):
                 items[pos-1].ortho = ''
             items[pos-1].classes = [noun_class]
         elif chanto:
-            items[pos+1].flags |= MERGE_PARTICLE
+            items[pos+1].flags |= MERGE_ITEM
             items[pos].ortho = ''
 """
 
+def add_alternative_forms_and_classes(pos,items):
+
+    if items[pos].txt in alternative_forms.keys():
+        alt_forms = alternative_forms[items[pos].txt]
+        for alt_form in alt_forms:
+            if alt_form not in items[pos].alt_forms:
+                items[pos].alt_forms.append(alt_form)
+
+    alt_cll = []
+    if items[pos].txt in alternative_classes:
+        alt_cll = alternative_classes[items[pos].txt]
+    if items[pos].ortho in alternative_classes:
+        alt_cll = alternative_classes[items[pos].ortho]
+    for cl in alt_cll:
+        if cl not in items[pos].classes:
+            items[pos].classes.append(cl)
+
+
+def add_emphatetic_and_elongated_alternative_forms(pos,items):
+
+    for elong_mark in elongation_marks:
+        if elong_mark in items[pos].txt:
+            # create an alternative form by removing ー 
+            alt_form = items[pos].txt.replace(elong_mark,'')
+            if alt_form not in items[pos].alt_forms:
+                items[pos].alt_forms.append(alt_form)
+            if pos > 0:
+                if alt_form == '':
+                    # if current alternative element becomes empty, transfer
+                    # the class of previous element to this one and following element
+                    # For example in ['すごー','ー','い']   the middle element is 
+                    # empty and the 'ー' and 'い' elements are marked as adjective
+                    for cl in items[pos-1].classes:
+                        if pos<len(items)-1:
+                            if cl not in items[pos+1].classes:
+                                items[pos+1].classes.append(cl)
+                        if cl not in items[pos].classes:
+                            items[pos].classes.append(cl)
+
+
+    """
+    if len(items[pos].txt)>1 and items[pos].txt[-1] == 'っ':
+        # Possibly dialect. Check alternative form without the emphasis
+        # おっしえなーい  -> おしえなーい
+        alt_form = items[pos].txt[:-1]
+        if alt_form not in items[pos].alt_forms:
+            items[pos].alt_forms.append(alt_form)
+    """
+
+    """
+    elif 'ー' in items[pos].txt:
+        # create an alternative form by extending the vowel when ー is detected
+        # Example: ありがとー　->　ありがとう
+        i = items[pos].txt.index('ー')
+        if i>0:
+            rep = get_vowel_extension(items[pos].txt[i-1]))
+            if rep != '':
+                alt_form = items[pos].txt.replace('ー',rep
+                if alt_form not in items[pos].alt_forms:
+                    items[pos].alt_forms.append(alt_form)
+    """
+
+
 def particle_post_processing(pos, items):
-    if not handle_explicit_form_and_class_changes(pos,items):
+    if not handle_explicit_form_and_class_changes(pos,items, explicit_word_changes):
         cll = items[pos].classes
+
+        add_alternative_forms_and_classes(pos,items)
 
         if len(cll) == 1:
             if cll[0] <= punctuation_mark_class:
                 items[pos].flags |= NO_SCANNING
-                return True
+                return
             #if cll[0] <= mid_sentence_punctuation_mark_class:
             #    items[pos].flags |= START_OF_SCAN_DISABLED
             #    return True
 
-        if verb_class in cll:
-            return check_verbs(pos,items)
-        if adjective_class in cll or (aux_verb_class in cll and items[pos].ortho == 'ない'):
-            # ない　acts as i-adjective
+        if verb_class in cll or (aux_verb_class in cll and (items[pos].ortho=='だ')or(items[pos].ortho=='ない')):
+            check_verbs(pos,items)
+        if adjective_class in cll and not verb_class in cll:
             return check_adjectives(pos,items)
         if adjectival_noun_class in cll:
             return check_adjectival_nouns(pos,items)
@@ -390,22 +467,41 @@ def particle_post_processing(pos, items):
                     # Example: ロマンチック + に 
                     items[pos].ortho = items[pos].txt
                     items[pos].flags |= BIND_TO_PREVIOUS_ITEM_IF_LEFT_UNTETHERED
-    else:
-        return True
 
-# merge/divide those particles that are marked
-def merge_or_divide_particles(items):
+# merge or replace those particles that are marked
+def merge_or_replace_items(items):
     pos = 0
     processed_items = []
     for i in range(len(items)):
-        if items[i].flags & MERGE_PARTICLE:
-            processed_items[pos-1].txt += items[i].txt
-            processed_items[pos-1].flags |= REPROCESS
-        elif items[i].flags & DIVIDE_PARTICLE:
-            for new_item in items[i].divided_particles:
+        if items[i].flags & MERGE_ITEM:
+
+            prev_txt = processed_items[pos-1].txt
+            new_txt = prev_txt + items[i].txt
+
+            # create permutations for merged particle
+            prev_forms = [processed_items[pos-1].txt]
+            for alt_form in processed_items[pos-1].alt_forms:
+                if alt_form not in prev_forms:
+                    prev_forms.append(alt_form)
+            new_alts = []
+            for alt_form in items[i].alt_forms + [items[i].txt]:
+                new_alt = prev_txt + alt_form
+                if new_alt != new_txt and new_alt not in new_alts:
+                    new_alts.append(new_alt)
+                for prev_alt_form in processed_items[pos-1].alt_forms:
+                    new_alt = prev_alt_form + alt_form
+                    if new_alt != new_txt and new_alt not in new_alts:
+                        new_alts.append(new_alt)
+
+            processed_items[pos-1].alt_forms = new_alts
+            processed_items[pos-1].txt = new_txt
+            #processed_items[pos-1].flags |= REPROCESS
+
+        elif items[i].flags & REPLACE_ITEM:
+            for new_item in items[i].replaced_items:
                 processed_items.append(new_item)
                 pos += 1
-        elif items[i].flags & REMOVE_PARTICLE:
+        elif items[i].flags & REMOVE_ITEM:
             pass
         else:
             processed_items.append(items[i])
@@ -414,6 +510,33 @@ def merge_or_divide_particles(items):
 
 
 def post_process_unidic_particles(items):
+    omit_flags = MERGE_ITEM | REPLACE_ITEM | REMOVE_ITEM
+
+    # move emphasis mark on verbs from base to the next conjugative element
+    for i in range(len(items)-1):
+        if verb_class in items[i].classes or aux_verb_class in items[i].classes:
+            if items[i].txt[-1] == 'っ':
+                if aux_verb_class in items[i+1].classes or gp_class in items[i+1].classes:
+                    items[i].txt = items[i].txt[:-1]
+                    items[i+1].txt = 'っ' + items[i+1].txt
+                    items[i+1].ortho = ''
+
+    # modify items before trying conjugation
+    for i in range(len(items)):
+        #if is_item_allowed_for_conjugation(items[i]):
+        if not (items[i].flags & omit_flags): 
+            handle_explicit_form_and_class_changes(i,items, pre_conjugation_modifications)
+    items = merge_or_replace_items( items )
+
+    for i in range(len(items)):
+        add_emphatetic_and_elongated_alternative_forms(i,items)
+
+    if get_verbose_level()>0:
+        print("\nAfter unidic preparser:")
+        for i in range(len(items)):
+            pretty_print_lexical_item(items[i])
+
+
     cont = True
     for i in range(len(items)):
         items[i].flags |= REPROCESS
@@ -421,11 +544,11 @@ def post_process_unidic_particles(items):
         for i in range(len(items)):
             if items[i].flags & REPROCESS:
                 items[i].flags &= (~REPROCESS) # clear the flag
-                if items[i].flags != MERGE_PARTICLE and items[i].flags != DIVIDE_PARTICLE: 
+                if not (items[i].flags & omit_flags): 
                     particle_post_processing(i,items)
 
         # merge those particles that are marked
-        items = merge_or_divide_particles( items )
+        items = merge_or_replace_items( items )
 
         cont = False
         if any(item.flags & REPROCESS for item in items):

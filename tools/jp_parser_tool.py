@@ -3,20 +3,14 @@ from helper import *
 from jp_parser import *
 import sys
 
-word_flag_to_str = {
-    NO_SCANNING : "NO_SCAN",
-    START_OF_SCAN_DISABLED : "DIS_START",
-    #MERGE_PARTICLE : ''
-    DISABLE_ORTHO : "DIS_ORTHO",
-}
-def flags_to_str(word_flag):
-    return ' '.join([word_flag_to_str[key] for key in word_flag_to_str.keys() if word_flag & key])
 
 def print_scanning_results(jlines, results, ud_items):
+    item_idx = 0
+    merged_item_str = ''
     for line in jlines:
-        for i, (entry) in enumerate(line):
+        for entry in line:
             w= next(iter(entry))
-            cll =ud_items[i].classes
+            cll =ud_items[item_idx].classes
             cl_str = '/'.join([unidic_class_list[cl] for cl in cll]).ljust(5,'　')
             cl_meaning_str = '/'.join([unidic_class_to_string(cl) for cl in cll])
             print(" %s %s %s" % ( 
@@ -47,17 +41,30 @@ def print_scanning_results(jlines, results, ud_items):
                         for cl in cl_list:
                             print("\t\t\t\t%s" % jmdict_class_list[cl])
 
+            merged_item_str += w
+            if merged_item_str in ud_items[item_idx].txt:
+                if merged_item_str == ud_items[item_idx].txt:
+                    item_idx += 1
+                    merged_item_str = ''
+                else:
+                    # continue using the same lexical item for this text chunk
+                    pass
+            else:
+                raise Exception("programming error!")
+
+
+
 def parse(lines):
 
-    line = ''.join(lines)
-    print("Line: " + line)
+    #line = ''.join(lines)
+    print("Lines: " + str(lines))
 
     kanji_count = dict()
     word_count_per_class = [0] * len(unidic_class_list)
 
     results = init_scan_results()
 
-    kc, ud_items = parse_line_with_unidic(line,kanji_count)
+    kc, ud_items = parse_block_with_unidic(lines,kanji_count)
 
     print("After unidic scanning:")
     for item in ud_items:
@@ -83,27 +90,7 @@ def parse(lines):
 
     print("\nAfter unidic post-processing:")
     for item in ud_items:
-        if item.ortho == item.txt:
-            ortho = '。'
-        else:
-            ortho = item.ortho
-        cll = item.classes
-        cl_str = '/'.join([unidic_class_list[cl] for cl in cll]).ljust(5,'　')
-        cl_meaning_str = '/'.join([unidic_class_to_string(cl) for cl in cll])
-        conj_list = ['%s(%s)/%s' % (pos,sfx,conj) for (pos,sfx,conj) in item.conj_details]
-        conjugation = ' '.join(conj_list)
-        masu = ''
-        if item.is_masu:
-            masu = '-masu'
-        unidic_verb_conj = ''
-        if verb_class in cll and item.details is not None:
-            unidic_verb_conj = item.details[5]
-        alt_forms = '/'.join(item.alt_forms)
-
-        print("%s %s %s %s %s %s %s %s %s" % ( 
-            flags_to_str(item.flags).ljust(10), item.txt.ljust(6,'　'), ortho.ljust(6,'　'), alt_forms.ljust(6,'　'),
-            cl_str, cl_meaning_str, masu, unidic_verb_conj, conjugation)
-        )
+        pretty_print_lexical_item(item)
 
     parse_with_jmdict(
         ud_items, results,
@@ -126,7 +113,7 @@ if __name__ == "__main__":
     print("test")
     print(sys.argv)
     if len(sys.argv)<2:
-        jslines = '["置いてかないでよ～～"]' #'["ねえどうして"]'
+        jslines = '["ようこそおきな"]' #'["ねえどうして"]'
         lines = json.loads(jslines)
         """
         lines =  ['を表したとしたら、とても興味深い。',
@@ -142,7 +129,18 @@ if __name__ == "__main__":
         ]
         """
         lines = ['聞いたん', 'じゃなくて、', 'オレが新一', 'だって！！', '・へんな薬', '飲まされて', '小さくされ', 'ちまったん', 'だよ！！']
-        lines = ['あたしばっかりしゃべって', 'しゃべってて', 'やだな。']
+        lines = ['くだらないね', 'しゃべってて', 'やだな。']
+        lines = ['花火デートできたら']
+        lines = ['壊れててない']
+        lines = ['別にのぞいたりもんだり見せたりするつもりは．']
+        lines = ['あ～～あ', 'なんてこった']
+        lines = ['さまざみやげ', 'ヒミの王子は相を', 'お持ち下さいっとで、', '姫様は言い', 'ました。', '．．．ギョクシュバコ', '２何や？こうま', 'んか？']
+        lines = ['そういうワケで', 'とりあえず', '二浪してます']
+        lines = ['つきあって','みたらって']
+        lines = ["追い出そーと", "しとるんやろ"]
+        lines = ["見張ってんのよ"]
+        lines = ["すごー", "ーい"]
+        
     else:
         lines = json.loads(sys.argv[1])
 

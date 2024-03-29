@@ -1,6 +1,6 @@
 """
 This script is used to process BilingualManga.org OCR files (in /ocr directory) and
-calculate word and kanji frequencies as well as cumulative values.
+calculate word and kanji frequencies as well as their cumulative values.
 Each chapter(volume/tankobon) OCR file is processed first and then aggregate values 
 are saved for each manga title.
 
@@ -14,12 +14,19 @@ Because the original AI based OCR tool most likely didn't handle well the larger
 these are ignored (marked as 'skipped blocks'). The blocks are ignored in statistics and also
 in the parsed OCR files.
 
-Using this script requires installing also the fugashi dependencies:
+Using this script requires installing following dependencies:
+
+Fugashi:
     pip install fugashi[unidic-lite]
 
     # The full version of UniDic requires a separate download step
     pip install fugashi[unidic]
     python -m unidic download
+
+JMdict:
+    tools/install_jmdict.sh
+    python tools/process_jmdict.py
+
 """
 
 import os
@@ -28,7 +35,7 @@ import sys
 import argparse
 from helper import *
 from jp_parser import (
-    init_scan_results, parse_line_with_unidic, post_process_unidic_particles, parse_with_jmdict, 
+    init_scan_results, parse_block_with_unidic, post_process_unidic_particles, parse_with_jmdict, 
     init_parser, reassemble_block, expand_word_id, #, get_highest_freq_class_list_with_particle_priority,
     get_flat_class_list_by_seq,
     unidic_class_list, ignored_classes_for_freq
@@ -93,7 +100,7 @@ def process_chapter(f_p, fo_p, chapter_data):
             else:
                 line = ''.join(lines)
                 kc, ud_items = \
-                    parse_line_with_unidic(line, kanji_count)
+                    parse_block_with_unidic(lines, kanji_count)
 
                 k_c += kc
                 c_c += len(line)
@@ -359,6 +366,9 @@ parser.add_argument('keyword', nargs='?', type=str, default=None, help='Title ha
 
 args = vars(parser.parse_args())
 
+#args['force'] = True
+#args['keyword'] = 'read'
+
 if not os.path.exists(title_analysis_dir):
     os.mkdir(chapter_analysis_dir)
 if not os.path.exists(chapter_analysis_dir):
@@ -369,6 +379,6 @@ if not os.path.exists(parsed_ocr_dir):
 init_parser(load_meanings=True)
 
 process_chapters(args)
-process_titles(args)
+#process_titles(args)
 
 print("Total errors: %d. Processed %d titles and %d chapters" % (error_count, processed_title_count, processed_chapter_count))

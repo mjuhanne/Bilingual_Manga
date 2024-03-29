@@ -13,6 +13,7 @@ results = []
 result_seq_set = set()
 
 force_exact = False
+target_pos = None
 
 load_jmdict(True)
 load_conjugations()
@@ -46,28 +47,40 @@ if len(sys.argv)>1:
     if sys.argv[1] == '-e':
         term = sys.argv[2]
         force_exact = True
+    elif sys.argv[1] == '-pos':
+        target_pos = sys.argv[2]
+        term = ''
+        force_exact = False
     else:
         term = sys.argv[1]
 else:
     force_exact = False
-    term = 'サラリ'
+    term = ''
+    target_pos = 'aux-v'
+
+if target_pos is not None:
+    target_class = jmdict_class_list.index(jmdict_parts_of_speech_codes[target_pos])
+else:
+    target_class = None
 
 def try_from_set(term, jmdict_set, try_len, results, result_seq_set):
     for key in jmdict_set[try_len].keys():
         if term in key:
             seqs = jmdict_set[try_len][key]
             for seq in seqs:
-                e = jmdict_kanji_elements
-                s = jmdict_kanji_element_seq
-                try:
-                    kanji_elements = kanji_elements_by_seq[seq]
-                except:
-                    kanji_elements = []
-                readings = readings_by_seq[seq]
-                res = (kanji_elements, readings, key,seq)
-                if seq not in result_seq_set:
-                    results.append(res)
-                    result_seq_set.update([seq])
+                #e = jmdict_kanji_elements
+                #s = jmdict_kanji_element_seq
+                cll = get_flat_class_list_by_seq(seq)
+                if target_class is None or target_class in cll:
+                    try:
+                        kanji_elements = kanji_elements_by_seq[seq]
+                    except:
+                        kanji_elements = []
+                    readings = readings_by_seq[seq]
+                    res = (kanji_elements, readings, key,seq)
+                    if seq not in result_seq_set:
+                        results.append(res)
+                        result_seq_set.update([seq])
     return 
 
 if force_exact:

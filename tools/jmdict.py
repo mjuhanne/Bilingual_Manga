@@ -195,7 +195,14 @@ for i,jmdict_class_expl in enumerate(jmdict_class_list):
             pos_code_by_class[i] = pos_code
 
 def get_jmdict_pos_code(jmdict_class):
-    return pos_code_by_class[jmdict_class]
+    if jmdict_class in pos_code_by_class:
+        return pos_code_by_class[jmdict_class]
+    return jmdict_class
+
+def jmdict_add_pos(pos_code,explanation):
+    jmdict_parts_of_speech_codes[pos_code] = explanation
+    jmdict_class_list.append(explanation)
+    pos_code_by_class[ jmdict_class_list.index(explanation) ] = pos_code
 
 #def get_data():
 #    return _kanji_elements, _kanji_element_seq, _readings, _reading_seq, _meaning_per_sense, _max_kanji_element_len, _max_reading_len
