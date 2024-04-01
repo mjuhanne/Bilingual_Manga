@@ -20,24 +20,16 @@ def is_item_allowed_for_conjugation(item):
     return False
 
 
-def attempt_conjugation(pos, items, stem, conj_class, rec_level=0):
+def attempt_conjugation(pos, items, inflection, conj_class, rec_level=0):
     #conj_ending, conjugations, details = conjugations_dict[conj_class]
     if rec_level > 6:
         return 0, []
 
     print_prefix = ''.ljust(4+rec_level*4)
-    if rec_level==0:
-        LOG(2,"Conjugate %s stem %d:%s" % (get_jmdict_pos_code(conj_class),pos,stem))
-
 
     items_l = len(items)
-    max_sub_conj_item_count = 0
+    max_sub_conj_item_count = -1
     max_subj_conj_list = []
-    if stem != '':
-        conj_root = [(conj_class,stem,'Root')]
-    else:
-        conj_root = []
-
 
     for conj_ending, (conjugations, conj_details) in conjugations_dict[conj_class].items():
         #print(get_jmdict_pos_code(conj_class),items[pos].txt,rec_level)
@@ -51,12 +43,11 @@ def attempt_conjugation(pos, items, stem, conj_class, rec_level=0):
             elif tense == 'Volitional':
                 next_type = jmdict_class_list.index('aux-volitional')
                 next_type_suffix = suffix
-            if 'repare' in tense:
-                pass
+            elif suffix[-2:] == 'そう':
+                next_type = jmdict_class_list.index('copula')
+                next_type_suffix = suffix
 
-            conj_str = stem + suffix
-            conj_next_type_str = stem + next_type_suffix
-
+            """
             if next_type is not None and next_type_suffix == '':
                 # special case: jump right to next conjugation class because the required 
                 # suffix is empty
@@ -64,84 +55,113 @@ def attempt_conjugation(pos, items, stem, conj_class, rec_level=0):
                 sub_conj_item_count, sub_conjs = attempt_conjugation(pos,items,'',next_type, rec_level+1)
                 if sub_conj_item_count > max_sub_conj_item_count:
                     max_sub_conj_item_count = sub_conj_item_count
-                    max_subj_conj_list = conj_root + [(next_type,next_type_suffix,tense)] + sub_conjs
+                    max_subj_conj_list = [(next_type,next_type_suffix,tense)] + sub_conjs
                     LOG(2,print_prefix + "match " + str(max_subj_conj_list))
                     #print(max_subj_conj_list)
+            """
 
+            if suffix == 'くなかった':
+                pass
             i = 0
-            v_str = ''
+            v_str = inflection
             cont = True
-            while pos+i<items_l and cont:
-                item = items[pos+i]
-                found = False
+            attempted_next_types = set()
+            while pos+i<=items_l and cont:
 
-                if is_item_allowed_for_conjugation(item):
-
-                    if 'Required_verb' not in details.keys() or details['Required_verb'] == item.ortho:
-                        if item.conjugation_root != '':
-                            candidates = [v_str + item.conjugation_root]
+                if next_type is not None and next_type not in attempted_next_types:
+                    if next_type_suffix in v_str and v_str.index(next_type_suffix)==0:
+                        if v_str == next_type_suffix:
+                            next_inflection = ''
                         else:
-                            candidates = [v_str + item.txt]
-                        for alt in item.alt_forms:
-                            if alt != '':
-                                candidate = v_str + alt
-                                if candidate not in candidates:
-                                    candidates.append(candidate)
-                        for candidate in candidates:
-                            if candidate in conj_str:
-                                found = True
-                                v_str = candidate
-                            elif next_type is not None and candidate in conj_next_type_str:
-                                found = True
-                                v_str = candidate
-                        i += 1
-                        
-                        if not found:
-                            LOG(1,print_prefix + "items %d:%s no match for %s/%s (%s)" % (pos,str(candidates),conj_str,conj_next_type_str,tense))
-                else:
-                    LOG(2,print_prefix + "item %d:%s not allowed for conjugation" % (pos+i,item.txt))
-
-
-                if found:
-                    if next_type is not None:
-                        if v_str == conj_next_type_str:
-                            LOG(2,print_prefix + "Conjugate %s with %s (%s) %s " % (v_str,tense,next_type_suffix,get_jmdict_pos_code(next_type)))
-                            sub_conj_item_count, sub_conjs = attempt_conjugation(pos+i,items,'',next_type, rec_level+1)
-                            if i + sub_conj_item_count > max_sub_conj_item_count:
-                                max_sub_conj_item_count = i + sub_conj_item_count
-                                max_subj_conj_list = conj_root + [(next_type,next_type_suffix,tense)] + sub_conjs
-                                LOG(2,print_prefix + "match " + str(max_subj_conj_list))
-                                #print(max_subj_conj_list)
-                    if v_str == conj_str:
-                        if i > max_sub_conj_item_count:
-                            max_sub_conj_item_count = i
-                            max_subj_conj_list = conj_root + [('',suffix,tense)]
-                            LOG(2,print_prefix + "match " + str(max_subj_conj_list))
+                            next_inflection = v_str[len(next_type_suffix):]
+                        LOG(2,print_prefix + "Conjugate %s with %s (%s) %s " % (v_str,tense,next_type_suffix,get_jmdict_pos_code(next_type)))
+                        attempted_next_types.add(next_type)
+                        sub_conj_item_count, sub_conjs = attempt_conjugation(pos+i,items,next_inflection,next_type, rec_level+1)
+                        if i + sub_conj_item_count > max_sub_conj_item_count:
+                            max_sub_conj_item_count = i + sub_conj_item_count
+                            max_subj_conj_list = [(next_type,next_type_suffix,tense)] + sub_conjs
+                            LOG(1,print_prefix + "match " + str(max_subj_conj_list))
                             #print(max_subj_conj_list)
-                else:
+                if v_str == suffix:
+                    if i > max_sub_conj_item_count:
+                        max_sub_conj_item_count = i
+                        max_subj_conj_list = [('',suffix,tense)]
+                        LOG(1,print_prefix + "match " + str(max_subj_conj_list))
+                        #print(max_subj_conj_list)
+
+                found = False
+                if pos+i < items_l:
+                    item = items[pos+i]
+                    if is_item_allowed_for_conjugation(item):
+
+                        if 'Required_verb' not in details or details['Required_verb'] == item.ortho:
+                            if item.conjugation_root != '':
+                                candidates = [v_str + item.conjugation_root]
+                            else:
+                                candidates = [v_str + item.txt]
+                            for alt in item.alt_forms:
+                                if alt != '':
+                                    candidate = v_str + alt
+                                    if candidate not in candidates:
+                                        candidates.append(candidate)
+                            for candidate in candidates:
+                                if candidate in suffix and suffix.index(candidate)==0:
+                                    # there is full match or we can continue building up the suffix
+                                    LOG(3,print_prefix + "item %d:%s matches %s (%s)" % (pos,candidate,suffix,tense))
+                                    v_str = candidate
+                                    found = True
+                                elif next_type is not None:
+
+                                    # TODO: is suffix here ot nexT_type_suffix ??
+                                    if candidate in next_type_suffix and suffix.index(candidate)==0:
+                                        LOG(3,print_prefix + "item %d:%s matches next type suffix %s (%s)" % (pos,candidate,next_type_suffix,tense))
+                                        v_str = candidate
+                                        found = True
+                                    elif next_type_suffix == '':
+                                        LOG(3,print_prefix + "item %d:%s matches empty next type suffix (%s)" % (pos,candidate,tense))
+                                        v_str = candidate
+                                        found = True
+                                    elif next_type_suffix in candidate and candidate.index(next_type_suffix)==0:
+                                        # there is a full match for the next type suffix OR
+                                        # it was too long, but we push the surplus to the next recursion
+                                        LOG(3,print_prefix + "item %d:%s overly matches next type suffix %s (%s)" % (pos,candidate,next_type_suffix,tense))
+                                        v_str = candidate
+                                        found = True
+                            i += 1
+
+                            if not found:
+                                LOG(2,print_prefix + "items %d:%s no match for %s/%s (%s)" % (pos,str(candidates),suffix,next_type_suffix,tense))
+                    else:
+                        LOG(2,print_prefix + "item %d:%s not allowed for conjugation" % (pos+i,item.txt))
+                        pass
+
+                if not found or ((next_type is None or next_type in attempted_next_types) and len(v_str)>len(suffix)):
                     cont = False
                     #LOG(1,"Verb conjugations not found for %s/%s (%s not in %s or %s)" % (items[pos].txt, items[pos].ortho,str(candidates),conj_str,conj_next_type_str),items)
     return max_sub_conj_item_count, max_subj_conj_list
 
-
 def check_adjectives(pos,items):
+    
     if pos == len(items) - 1:
         return
+    # TODO: alts
     ortho = items[pos].ortho
-    ending = ''
+    if ortho == '':
+        return
     if ortho[-1] == 'い':  # i-adjective
         cl = jmdict_adj_i_class
         stem = ortho[:-1]
+        inflection = items[pos].txt[len(stem):]
         LOG(1,"Conjugate i-adj %s/%s" % (ortho,stem))
     else:  # na-adjective
         cl = jmdict_adjectival_noun_class
         stem = ortho
+        inflection = ''
         LOG(1,"Conjugate na-adj %s" % (ortho))
     #ending = next(iter(conjugations_dict[cl]))
     #(conj, conj_details) = conjugations_dict[cl][ending]
-    detected_conj_particles, detected_conj_details = attempt_conjugation(pos, items, stem, cl)
+    detected_conj_particles, detected_conj_details = attempt_conjugation(pos+1, items, inflection, cl)
     if len(detected_conj_details)>0:
-        detected_conj_particles -= 1
         for i in range(detected_conj_particles):
             items[pos+i+1].flags = MERGE_ITEM
         items[pos].conj_details = detected_conj_details
@@ -160,10 +180,12 @@ def attempt_maximal_conjugation(pos, items, seqs):
             stem_candidates.append(lemma)
     #if items[pos].pron_base != '':
     #    stem_candidates.append(items[pos].pron_base)
+            
+    inflection_candidates = [items[pos].txt]
     for alt_form in items[pos].alt_forms:
         if alt_form != '':
-            if alt_form not in stem_candidates:
-                stem_candidates.append(alt_form)
+            if alt_form not in inflection_candidates:
+                inflection_candidates.append(alt_form)
 
     cl_set = set()
     for seq in seqs:
@@ -182,20 +204,28 @@ def attempt_maximal_conjugation(pos, items, seqs):
 
                     for stem_candidate in stem_candidates:
                         stem = stem_candidate[:-len(ending)]
-                        removed_ending = stem_candidate[-len(ending):]
+                        removed_stem_ending = stem_candidate[-len(ending):]
                         detected_num = 0
-                        if ending == removed_ending:
-                            detected_num, detected_conj_details = attempt_conjugation(pos, items, stem, cl)
-                            detected_num -= 1
-                            if len(detected_conj_details)>0:
-                                if detected_num > max_particles_found:
-                                    max_particles_found = detected_num
-                                    max_conj_details = detected_conj_details
-                                elif len(max_conj_details)==0:
-                                    # no additional particles detected but 
-                                    # the Unidic managed to parse it already
-                                    # in the correct inflection
-                                    max_conj_details = detected_conj_details
+                        if ending == removed_stem_ending:
+                            for inflection_candidate in inflection_candidates:
+                                if stem != '' and stem in inflection_candidate:
+                                    inflection = inflection_candidate[len(stem):]
+                                else:
+                                    inflection = inflection_candidate
+
+                                LOG(1,"Conjugate %s %d:%s + %s" % (get_jmdict_pos_code(cl),pos,stem,inflection))
+                                conj_root = [(cl,stem,'Root')]
+                                detected_num, detected_conj_details = attempt_conjugation(pos+1, items, inflection, cl)
+                                #detected_num -= 1
+                                if len(detected_conj_details)>0:
+                                    if detected_num > max_particles_found:
+                                        max_particles_found = detected_num
+                                        max_conj_details = conj_root + detected_conj_details
+                                    elif len(max_conj_details)==0:
+                                        # no additional particles detected but 
+                                        # the Unidic managed to parse it already
+                                        # in the correct inflection
+                                        max_conj_details = conj_root + detected_conj_details
 
             #except:
             #pass
@@ -211,7 +241,7 @@ def check_verbs(pos,items):
     lemma = items[pos].lemma
     # First try to get the JMDict entry in order to find the right verb conjugation (v5r etc)
     seqs = search_sequences_by_word(ortho)
-    if len(seqs) == 0:
+    if len(seqs) == 0 and lemma != '':
         # maybe ortho was in conditional form (作れる) ? Try the lemma (作る)
         alt_form = lemma
         if lemma[0] != ortho[0]:
@@ -265,152 +295,6 @@ def check_verbs(pos,items):
         LOG(1,"Remaining aux verb %s/%s found after conjugation. Adding verb status.." % (items[pos+1].txt, items[pos+1].ortho),items)
         items[pos+1].classes.append(verb_class)
 
-    """
-    processed_str = ''.join([items[j].txt for j in range(pos+1)])
-    if aux_verb_class in items[pos+1].classes or gp_class in items[pos+1].classes \
-            or suffix_class in items[pos+1].classes:
-        oku_verbs = ['取る']
-        # fuse the different (non)colloquial いる forms into main word
-        iru_forms = ['いる','いた','た','ってる','てる']
-        nai_forms = ['ねー','へん']
-        if items[pos+1].txt in iru_forms: 
-            items[pos+1].flags = MERGE_PARTICLE
-            items[pos].is_masu = False
-        elif items[pos+1].txt in nai_forms:
-            allowed = False
-            if items[pos].is_masu:
-                allowed = True
-
-            #### -1 correct ???
-            elif processed_str[-1] == 'て' or processed_str[-1] == 'で':
-                if len(processed_str) > 1:
-                    if processed_str[-2] != 'く' and processed_str[-2] != 'て' and processed_str[-2] != 'で': 
-                        # it's not negative form if it's -くて / ーてて form
-                        # like 忙しくてねー  / 先生にはあこがれててねー
-                        allowed = True
-                else:
-                    allowed = True
-            if allowed:
-                items[pos+1].flags = MERGE_PARTICLE
-                items[pos].alt_forms.append(items[pos].txt + 'ない')
-        elif items[pos+1].txt == "て": 
-            if items[pos].txt[-1] == 'て':
-                # accept the colloquial form, e.g. 生きて + て　+ ほしい
-                items[pos+1].flags = MERGE_PARTICLE
-        elif items[pos+1].txt == "てく": 
-            # divide the colloquial form to separate particles
-            items[pos+1].flags = DIVIDE_PARTICLE
-            if items[pos].lemma in oku_verbs:
-                # e.g. とっ + てく -> とっ + て + おく
-                ku_verb = 'おく'
-            else:
-                # e.g. 寄っ + てく -> 寄っ + て + いく
-                ku_verb = 'いく'
-            items[pos+1].divided_particles = [
-                LexicalItem('て','て',[aux_verb_class]),
-                LexicalItem('く',ku_verb,[verb_class],conjugation_root=ku_verb),
-            ]
-            items[pos].flags |= REPROCESS
-        elif items[pos+1].txt == "ってく": 
-            # divide the colloquial form to separate particles
-            items[pos+1].flags = DIVIDE_PARTICLE
-            if items[pos].lemma in oku_verbs:
-                # e.g. とっ + てく -> とっ + て + おく
-                ku_verb = 'おく'
-            else:
-                # e.g. 寄っ + てく -> 寄っ + て + いく
-                ku_verb = 'いく'
-            items[pos+1].divided_particles = [
-                LexicalItem('って','',[aux_verb_class]),
-                LexicalItem('く',ku_verb,[verb_class],conjugation_root=ku_verb),
-            ]
-            items[pos].flags |= REPROCESS
-        elif items[pos+1].txt == "てか":
-            # divide the colloquial form to separate particles
-            if items[pos].lemma in oku_verbs:
-                # e.g. とっ + てか + ない -> とっ + て + おか　+ ない
-                ku_verb = 'おく'
-                neg_ku_verb = 'おか'
-            else:
-                # e.g. 寄っ + てか + ない -> 寄っ + て + いか　+ ない
-                # e.g. 寄っ + てく -> 寄っ + て + いく
-                ku_verb = 'いく'
-                neg_ku_verb = 'いか'
-            # e.g. 寄っ + てか + ない -> 寄っ + て + いか　+ ない
-            items[pos+1].flags = DIVIDE_PARTICLE
-            items[pos+1].divided_particles = [
-                LexicalItem('て','て',[aux_verb_class]),
-                LexicalItem('か',ku_verb,[verb_class],REPROCESS,alt_forms=[neg_ku_verb], conjugation_root=neg_ku_verb),
-            ]
-            items[pos].flags |= REPROCESS
-        elif items[pos+1].txt == "てこ": 
-            # divide the colloquial form to separate particles
-            items[pos+1].flags = DIVIDE_PARTICLE
-            # e.g. はいっ + てこ -> はいっ + て + いこう
-            ku_verb = 'いく'
-            items[pos+1].divided_particles = [
-                LexicalItem('て','て',[aux_verb_class]),
-                LexicalItem('こ',ku_verb,[verb_class],alt_forms=[ku_verb],conjugation_root=ku_verb),
-            ]
-            items[pos].flags |= REPROCESS
-        elif items[pos+1].txt == "てき": 
-            # divide the colloquial form to separate particles
-            items[pos+1].flags = DIVIDE_PARTICLE
-            # e.g. 探し + てき + なさい -> 探し + て + き + なさい
-            ku_verb = 'くる'
-            items[pos+1].divided_particles = [
-                LexicalItem('て','て',[aux_verb_class]),
-                LexicalItem('き',ku_verb,[verb_class],alt_forms=[ku_verb],conjugation_root=ku_verb),
-            ]
-            items[pos].flags |= REPROCESS
-        else:
-            if max_particles_conjugated == 0:
-                LOG(1,"No exceptional verb conjugations found for %s/%s" % (items[pos].txt, items[pos].ortho),items)
-                items[pos].flags |= ERROR_VERB_CONJUGATION
-    else:
-        if conj_details is None:
-            LOG(1,"No verb conjugations found for %s/%s" % (items[pos].txt, items[pos].ortho),items)
-            items[pos].flags |= ERROR_VERB_CONJUGATION
-        """
-
-
-"""
-def get_conjugations_recursively(root_entries, conj_name, rec_level):
-    tenses = []
-    tense_details = dict()
-    remove_suffix = None
-    for e in root_entries:
-        if e['Name'] == conj_name:
-            for t in e['Tenses']:
-                sfx = t['Suffix']
-                details = t['Tense']
-                if t['Negative']:
-                    details += ' negative'
-                if t['Formal']:
-                    details += ' formal'
-                if remove_suffix == None:
-                    remove_suffix = sfx
-                if sfx != '':
-                    tenses.append(sfx)
-                    tense_details[sfx] = [(conj_name,sfx,details)]
-                if 'Next Type' in t:
-                    nt = t['Next Type']
-                    if rec_level < 2 or 'stem' in nt or 'adj-i' in nt:
-                        sub_conjugations, sub_tense_params, sub_remove_suffix = get_conjugations_recursively(root_entries, nt, rec_level + 1)
-                        lr = len(sub_remove_suffix)
-                        if lr > 0:
-                            base = sfx[:-lr]
-                            removed_part = sfx[-lr:]
-                            if sub_remove_suffix != removed_part:
-                                raise Exception("!!")  # Should not happen
-                        else:
-                            base = sfx
-                        for st in sub_conjugations:
-                            tenses.append(base + st )
-                            tense_details[base + st] =  [(conj_name,base,details)] + sub_tense_params[st]
-
-    return tenses, tense_details, remove_suffix
-"""
     
 def load_conjugations():
     global adj_conjugations, verb_conjugations

@@ -1,56 +1,19 @@
 import fugashi
 from helper import *
 from jp_parser import *
+from jp_parser_print import *
 import sys
+import argparse
 
+parser = argparse.ArgumentParser(
+    prog="jp_parser tool. Parses text for lexical elements",
+    description="",
+)
 
-def print_scanning_results(jlines, results, ud_items):
-    item_idx = 0
-    merged_item_str = ''
-    for line in jlines:
-        for entry in line:
-            w= next(iter(entry))
-            cll =ud_items[item_idx].classes
-            cl_str = '/'.join([unidic_class_list[cl] for cl in cll]).ljust(5,'　')
-            cl_meaning_str = '/'.join([unidic_class_to_string(cl) for cl in cll])
-            print(" %s %s %s" % ( 
-                w.ljust(6,'　'), cl_str, cl_meaning_str
-                )
-            )
+parser.add_argument('text', nargs='?', type=str, default=None, help='Text to be parsed')
+parser.add_argument('--verbose-level', '-v', type=int, default=3, help='Verbose level')
 
-            word_id_refs = entry[w]
-            if len(word_id_refs) == 0:
-                print("\t ** NO WORDS FOUND ** ")
-            else:
-                word_ids = [ results['word_id_list'][w_id_idx] for w_id_idx in word_id_refs]
-                for (word_id) in word_ids:
-                    (seq,senses,word) = expand_word_id(word_id)
-                    if '/' not in word_id:
-                        s_ref = '*'
-                    else:
-                        s_ref = str(senses[0])
-                    print("\t\t[%d/%s] %s\t[F %s/%s]" % (seq,s_ref, word, get_kanji_element_freq(seq), get_reading_freq(seq)))
-                    for i,(sense) in enumerate(senses):
-                        meanings = get_meanings_by_sense(seq,sense)
-                        if s_ref == '*':
-                            count = str(i + 1)+'#'
-                        else:
-                            count = ''
-                        print("\t\t\t%s %s" % (count,meanings))
-                        cl_list = get_class_list_by_seq(seq)[sense]
-                        for cl in cl_list:
-                            print("\t\t\t\t%s" % jmdict_class_list[cl])
-
-            merged_item_str += w
-            if merged_item_str in ud_items[item_idx].txt:
-                if merged_item_str == ud_items[item_idx].txt:
-                    item_idx += 1
-                    merged_item_str = ''
-                else:
-                    # continue using the same lexical item for this text chunk
-                    pass
-            else:
-                raise Exception("programming error!")
+args = vars(parser.parse_args())
 
 
 
@@ -68,6 +31,7 @@ def parse(lines):
 
     print("After unidic scanning:")
     for item in ud_items:
+        print(item)
         if item.ortho == item.txt:
             ortho = '。'
         else:
@@ -77,7 +41,10 @@ def parse(lines):
         cl_meaning_str = '/'.join([unidic_class_to_string(cl) for cl in cll])
         unidic_verb_conj = ''
         if verb_class in cll:
-            unidic_verb_conj = item.details[5]
+            if item.details is not None:
+                unidic_verb_conj = item.details[5]
+            else:
+                unidic_verb_conj = ''
         masu = ''
         if item.is_masu:
             masu = '-masu'
@@ -97,6 +64,8 @@ def parse(lines):
     )
     jlines = reassemble_block(lines, ud_items, results['item_word_id_refs'])
 
+    print("Lines: " + str(lines))
+
     print("\nAfter jmdict scanning:")
     print_scanning_results(jlines, results, ud_items)
 
@@ -110,9 +79,8 @@ if __name__ == "__main__":
     jmdict_kanji_elements, jmdict_kanji_element_seq, jmdict_max_kanji_element_len = get_jmdict_kanji_element_set()
     jmdict_readings, jmdict_reading_seq, jmdict_max_reading_len = get_jmdict_reading_set()
 
-    print("test")
     print(sys.argv)
-    if len(sys.argv)<2:
+    if args['text'] is None:
         jslines = '["ようこそおきな"]' #'["ねえどうして"]'
         lines = json.loads(jslines)
         """
@@ -139,12 +107,21 @@ if __name__ == "__main__":
         lines = ['つきあって','みたらって']
         lines = ["追い出そーと", "しとるんやろ"]
         lines = ["見張ってんのよ"]
-        lines = ["すごー", "ーい"]
+        lines = ['つきあって','みたらって']
+        lines = ['知らない']
+        lines = ["尊敬しちゃいます"]
+        lines = ["バッチつけてんだぜ"]
+        lines = ["食えなくなった"]
+        lines = ['駄目だといっ', 'たら駄目なの']
+        lines = ["特定したくなかった", "からだ！！"]
+        lines = ["迷っちゃ", "おっか？"]
+        lines = ["主人のお友達で", "らした．．．"]
+        lines =  ["エッちゃん！","何してんの","先生が起きて","いいっておっ","しゃったの"]
         
     else:
-        lines = json.loads(sys.argv[1])
+        lines = json.loads(args['text'])
 
     open_log_file("parserlog.txt")
-    set_verbose_level(2)
+    set_verbose_level(args['verbose_level'])
     parse(lines)
     close_log_file()

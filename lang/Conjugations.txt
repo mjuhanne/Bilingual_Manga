@@ -365,6 +365,18 @@
       },
       {
         "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "だったそう", 
+        "Tense" : "Hypothetical"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "だそう", 
+        "Tense" : "Hypothetical"
+      },
+      {
+        "Formal" : false, 
         "Negative" : true, 
         "Suffix" : "でなさそう", 
         "Tense" : "(Seems)"
@@ -407,6 +419,12 @@
         "Suffix" : "る",
         "Tense" : "Continuous action (Colloquial)",
         "Required_verb" : "いる"
+      },
+      {
+        "Formal" : false,
+        "Negative" : false,
+        "Suffix" : "ろ",
+        "Tense" : "Imperative (Colloquial)"
       },
       {
         "Formal" : false,
@@ -456,6 +474,13 @@
         "Suffix" : "しまう",
         "Next Type" : "v5u",
         "Tense" : "Accidentally"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Next Type" : "v1", 
+        "Suffix" : "られる", 
+        "Tense" : "Passive (Colloquial)"
       },
       {
         "Formal" : false,
@@ -1310,6 +1335,12 @@
         "Tense" : "Past"
       },
       {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "かったろう", 
+        "Tense" : "Past assumption"
+      },
+      {
         "Formal" : true, 
         "Negative" : false, 
         "Suffix" : "かったです", 
@@ -1907,6 +1938,12 @@
         "Negative" : false, 
         "Suffix" : "り", 
         "Tense" : "Alternative"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "そう", 
+        "Tense" : "Seems"
       },
       {
         "Formal" : false, 

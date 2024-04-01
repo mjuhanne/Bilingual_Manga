@@ -214,6 +214,8 @@ def get_jmdict_reading_set():
     return _readings_set_by_len, _reading_seq, _max_reading_len
 
 def search_sequences_by_word(word):
+    if len(word)>_max_kanji_element_len or len(word)>_max_reading_len:
+        return []
     seqs = []
     if word in _kanji_element_seq[len(word)]:
         seqs = _kanji_element_seq[len(word)][word]

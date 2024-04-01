@@ -140,6 +140,13 @@ def get_valid_senses_for_scanned_word(scanned_word, pos,num_scanned_items,items,
                             valid_senses[i].update([s_idx])
                             valid_senses[i+1].update([s_idx])
 
+                    if pronoun_class in unidic_classes:
+                        if suffix_class in next_word_classes:
+                            # pronoun + suffix can still be pronoun (私共).
+                            valid_senses[i].update([s_idx])
+                            valid_senses[i+1].update([s_idx])
+
+
                 if jmd_cl in jmdict_noun_pos_list:
                     if prefix_class in unidic_classes and i == 0:
                         if num_scanned_items > 1:
@@ -161,6 +168,16 @@ def get_valid_senses_for_scanned_word(scanned_word, pos,num_scanned_items,items,
                             # allow masu-stem verb as noun
                             # e.g.　作り
                             valid_senses[i].update([s_idx])
+                    if adjective_class in unidic_classes and suffix_class in next_word_classes:
+                        # allow adjective + suffix as noun
+                        # 幼な + じみ
+                        valid_senses[i].update([s_idx])
+                        valid_senses[i+1].update([s_idx])
+                    if pronoun_class in unidic_classes and suffix_class in next_word_classes:
+                        # allow prounoun + suffix as noun
+                        #　俺 + たち
+                        valid_senses[i].update([s_idx])
+                        valid_senses[i+1].update([s_idx])
 
                 if jmd_cl == jmdict_conjunction_class:
                     if noun_class in unidic_classes and next_word == 'に':
@@ -217,6 +234,12 @@ def get_valid_senses_for_scanned_word(scanned_word, pos,num_scanned_items,items,
                             messages[pos+i].append("%s(%s) not allowed for %s(%s)" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_class_list[jmd_cl]))
                         else:
                             valid_senses[i].update([s_idx])
+            
+            if len(valid_senses[i])==0:
+                if items[pos+i].any_class:
+                    messages[i].append("%s(%s) failed otherwise but preliminary matching %s(%s) just due ALL_CLASS" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_class_list[jmd_cl]))
+                    valid_senses[i].update([s_idx])
+
 
         if len(valid_senses[i]) == 0:
             if check_valid_sense_exceptions(word,pos+i,unidic_classes,jmd_cl):
@@ -324,16 +347,21 @@ def create_phrase_permutations(original_words, ortho_forms, alt_forms, items, st
         i = start
     permutations = []
     while i<len(original_words) and (not (items[i].flags & NO_SCANNING) ):
-        permutation_base = original_words[start:i]
-        for ortho_form in ortho_forms[i]:
-            permutations.append(permutation_base + [ortho_form])
-
         if recursive_level < MAX_PERMUTATION_LEVELS:
             for alt_form in alt_forms[i]:
                 new_words = original_words[:i] + [alt_form] + original_words[i+1:]
                 new_perms,i2 = create_phrase_permutations(new_words, ortho_forms, alt_forms, items, start, i+1, recursive_level+1)
                 permutations += new_perms
+        i += 1
 
+    if recursive_start is not None:
+        i = recursive_start
+    else:
+        i = start
+    while i<len(original_words) and (not (items[i].flags & NO_SCANNING) ):
+        permutation_base = original_words[start:i]
+        for ortho_form in ortho_forms[i]:
+            permutations.append(permutation_base + [ortho_form])
         i += 1
     
     if i> 0:
@@ -375,18 +403,24 @@ def parse_with_jmdict(unidic_items, scan_results):
     # a list of alternative (basic/ortho) forms if they differ from the originals.
     # Example: お願いします -> お + 願う + する
     wlen = len(unidic_items)
-    alt_forms = [[] for x in range(wlen)]
-    ortho_forms = [[] for x in range(wlen)]
+    appendable_forms = [[] for x in range(wlen)]
+    end_type_forms = [[] for x in range(wlen)]
     original_forms = [item.txt for item in unidic_items]
     for i, item in enumerate(unidic_items):
-        alt_forms[i] += item.alt_forms
+        appendable_forms[i] += item.appendable_alt_forms
         if not (item.flags & (NO_SCANNING | DISABLE_ORTHO)):
             if (item.txt != item.ortho) and item.ortho != '':
-                ortho_forms[i].append(item.ortho)
+                if item.ortho not in appendable_forms[i]:
+                    end_type_forms[i].append(item.ortho)
+            for alt_form in item.alt_forms:
+                if alt_form not in end_type_forms[i]:
+                    if alt_form not in appendable_forms[i]:
+                        end_type_forms[i].append(alt_form)
         if item.flags & SCAN_WITH_LEMMA:
-            alt_forms[i].append(item.lemma)
-        if elongation_mark_class in item.classes:
-            alt_forms[i].append('')  # add one permutation without the elongation mark
+            end_type_forms[i].append(item.lemma)
+
+        #if elongation_mark_class in item.classes:
+        #    end_type_forms[i].append('')  # add one permutation without the elongation mark
 
         wid = unidic_items[i].word_id
         if wid != '':
@@ -413,13 +447,13 @@ def parse_with_jmdict(unidic_items, scan_results):
     messages = [[] for _ in range(len(unidic_items))]
 
     while pos < len(unidic_items):
-        permutations, next_pos = create_phrase_permutations(original_forms, ortho_forms, alt_forms, unidic_items, pos)
+        permutations, next_pos = create_phrase_permutations(original_forms, end_type_forms, appendable_forms, unidic_items, pos)
         if get_verbose_level()>=1:
-            LOG(2,"Permutations %d-%d" % (pos,next_pos-1))
+            LOG(1,"Permutations %d-%d" % (pos,next_pos-1))
             for p in permutations:
                 p_str = [x.ljust(6) for x in p]
-                LOG(2, "  %s" % (''.join(p_str)))
-            LOG(2,"***********")
+                LOG(1, "  %s" % (''.join(p_str)))
+            LOG(1,"***********")
 
         # Scan this chunk with each permutation and for every lexical item get references 
         # (sequence number+sense index) to JMDict entries
@@ -513,9 +547,17 @@ def parse_with_jmdict(unidic_items, scan_results):
 
 def parse_block_with_unidic(lines, kanji_count):
 
+    kansai_ben = ['']
+    # どった
+    # ったんか  ta-no-ka?
+
     # unidic will generally parse text more reliably if the whole block is processed as one line
     line = ''.join(lines)
     kc, ud_items = parse_line_with_unidic(line,kanji_count)
+
+    # check if the first item is wrongly aux verb
+    #if ud_items[0].classes[0] == aux_verb_class:
+    #    print(bcolors.FAIL,"First item is aux verb! %s in %s" % (ud_items[0].txt,line),bcolors.ENDC)
 
     # HOWEVER, there are times when unidic will match erroneously a word between the lines:
     # e.g.  two line block ['あ～～あ', 'なんてこった']
@@ -528,18 +570,68 @@ def parse_block_with_unidic(lines, kanji_count):
     item_idx = 0
     mismatch = False
     item_txt_list = [item.txt for item in ud_items]
+    """
+
+    if '３０４３０５' in line:
+        pass
+
+    failed = False
+    while item_idx < len(item_txt_list) and not failed:
+        remaining_line = lines[line_idx][line_pos:]
+        if remaining_line == '':
+            print("TODO !!!!!!!!")
+            failed = True
+        else:
+
+            if item_txt_list[item_idx] not in remaining_line:            
+                mismatch = True
+                part1 = item_txt_list[item_idx][:len(remaining_line)]
+                part2 = item_txt_list[item_idx][len(part1):]
+                cll = ud_items[item_idx].classes
+                
+                ud_items[item_idx].flags |= REPLACE_ITEM
+                ud_items[item_idx].txt = part1
+                ud_items[item_idx].is_masu = False
+                ud_items[item_idx].any_class = True
+                item2 = LexicalItem(part2,'',cll)
+                item2.any_class = True
+                ud_items[item_idx].replaced_items = [
+                    ud_items[item_idx],
+                    item2
+                ]
+
+            line_pos += len(item_txt_list[item_idx])
+            item_idx += 1
+            if line_pos >= len(lines[line_idx]):
+                line_pos -= len(lines[line_idx])
+                line_idx += 1
+
+    if not failed:
+        if mismatch:
+            LOG(1,"Unidic parsing mismatch %s vs %s. Dividing items" % (str(lines),str(item_txt_list)))
+            ud_items = merge_or_replace_items(ud_items)
+
+    """
     while item_idx < len(item_txt_list) and not mismatch:
         if item_txt_list[item_idx] not in lines[line_idx][line_pos:]:
-            mismatch = True
+            #print("Possible mismatch: %s (%s)" % (ud_items[item_idx].txt,unidic_class_to_string(ud_items[item_idx].classes[0])))
+            if aux_verb_class not in ud_items[item_idx].classes or \
+                  ud_items[item_idx].txt == 'です': #or \
+                #ud_items[item_idx].txt == 'でし':
+                mismatch = True
+            else:
+                line_pos += len(item_txt_list[item_idx])
+                item_idx += 1
         else:
             line_pos += len(item_txt_list[item_idx])
             item_idx += 1
-        if line_pos == len(lines[line_idx]):
+        if line_pos >= len(lines[line_idx]):
+            line_pos -= len(lines[line_idx])
             line_idx += 1
-            line_pos = 0
 
     if mismatch:
         LOG(1,"Unidic parsing mismatch %s vs %s" % (str(lines),str(item_txt_list)))
+        #print("\nUnidic parsing mismatch %s vs \n%s" % (str(lines),str(item_txt_list)))
         ud_items = []
         kc = 0
         for line in lines:
@@ -548,16 +640,9 @@ def parse_block_with_unidic(lines, kanji_count):
             ud_items += line_ud_items
         item_txt_list = [item.txt for item in ud_items]
         LOG(1,"New parse results %s" % (str(item_txt_list)))
-
-
-
-        
-
+        #print("New parse results: \n%s" % (str(item_txt_list)))
+        pass
     return kc, ud_items
-
-
-
-
 
 def reassemble_block(original_lines, unidic_items, item_sense_ref):
     # re-assemble this block back into lines (list of lists)

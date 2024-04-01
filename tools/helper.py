@@ -84,6 +84,17 @@ _jlpt_word_reading_levels = None
 
 _manga_data = dict()
 
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
 def get_user_set_words():
     try: 
         with open(user_set_word_ids_file,"r",encoding="utf-8") as f:
@@ -262,6 +273,9 @@ katakana = list(
 
 def is_katakana_word(word):
     return all(c in katakana for c in word)
+
+def has_word_katakana(word):
+    return any(c in katakana for c in word)
 
 def is_cjk(c):
     return any(s <= ord(c) <= e for (s, e) in cjk_ranges)

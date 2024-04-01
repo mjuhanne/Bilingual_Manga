@@ -225,6 +225,7 @@ from parser_logging import *
 # 何か高そ〜な店
 # しらない(verb/adjective) not allowed for しらない(interjection (kandoushi))
 # でも、起こさんかったら起こさんかったで、怒るんやろなあいつ  okosan-kattara
+# ["よし！私も", "がんばんなくっちゃ"] gambarannakucha
 # 話したがらなかったから． tagara-nakattara
 # 行かなくちゃって必死に  ikanakuchatte
 # そこ置いといてー 
@@ -238,6 +239,39 @@ from parser_logging import *
 # おめーら気合い入ってんのか。 sama
 
 # 持ってっとく  motte itte oku?
+# そんな不穏当なコトはいわんでくれよ  iwanaide-kure-yo
+# ["おっか", "しいなー？"]
+# 引き取ってくれてればよかった
+# どうしてェ？
+# あー酒くせーの
+# おナカいた～い！
+# する(verb) not allowed for すると(conjunction)
+# ["するとこの", "リッド君をもってる"]'   avoid matching をも
+
+# ["はい気を", "つけたまえ"]
+# ["まってろよ！"   
+# ['一番解放された', 'がってたのが']   sareta-gatteta (doesn't go through all conjugations)
+# '["なに", "言ってんの？"]'  nani at the beginning
+# ["そーいやー", "まだゆうてへん", "かったな．．．"]  kansai-ben
+# ['ボク', 'トイレに行って', 'こよーっと．．．']  ??
+
+# ["もう", "サボッちゃ", "おっかな"]   chaoo-kka
+# ["ああっ", "なんて", "こったい"]  kottai  kansai?
+#  ["という旅館を", "御存じありま", "へんやろか"] kansai
+# ["しかしま", "これで合格できん", "かったらさすがに", "なぁ．．．"]  n after masu -> na/nai
+
+# ["ゴホン！", "個人的にはこんな", "くだらん行事に", "つきあうつもりは", "ないのだがな"]  optimize parsing
+#["．．．何", "言っとるんや", "あんたら"]
+# ["そっか", "じゃあフロでも", "入って待って", "ようか"] motte-i-youka (?)
+#  ["と止まって", "くださー", "．．．"] kudasai
+# ['のような', 'いかが', 'まだ３５'] youna - ikaga
+# ["カンナ", "責任感じて", "るの．．．．．．"]  kanji-te-ru
+#  ["ただじゃ", "おかねえ。"] ?
+# ['おせち、つくっと', 'こうと思って．．．'] tsukutte-okou
+# ["そうですか", "主人のお友達で", "らした．．．"]  rashii
+# ["おまえの", "アパートの", "隣に住んでた", "ろ！！"] sunde-ta-ro
+# ["仁谷神父、", "おぼえて", "らっしゃい", "ますか？"]  irassharu
+# ["冗談は", "慎んで", "くたさい．．．"  kudasai
 
 tests = [
 {'c':'honorific in front of adjective (medetai)','line':'おめでとう','jlines':[[{'お': [4, 2, 5, 1, 0]}, {'めでとう': [4, 2, 5, 3]}]], 'wilist':['2268350:お', '2826528:お', '1647360:おめでたい', '1608630:めでたい', '1270700:おめでとう', '2077340:おめでとう']},
@@ -376,6 +410,10 @@ def test_jmdict():
     line = '戻らないとかいっといて'
     line = 'シカトされ","てただけ'
     line = 'すごー'
+    line = 'いったそうです'
+    line = 'もうちょっとガンバってみるよ'
+    line = 'ひど〜〜い'
+    line = '気にいってる'
     kanji_count = dict()
 
     scan_results = init_scan_results()

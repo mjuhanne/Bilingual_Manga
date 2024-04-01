@@ -1,5 +1,6 @@
 from helper import *
 from jp_parser_helper import *
+from jp_parser_print import pretty_print_lexical_item
 from conjugation import *
 
 import fugashi
@@ -50,10 +51,14 @@ def parse_line_with_unidic(line, kanji_count):
             raise Exception("Unknown class %d in word %s" % (class_name, w))
 
         word = ''
-        if is_all_alpha(w):
+        if is_all_numeric(w):
             # for some reason wide numbers and alphabets are parsed as nouns so
             # switch their class into this pseudoclass
-            cl = alphanum_pseudoclass
+            cl = numeric_pseudoclass
+        elif is_all_alpha(w):
+            # for some reason wide numbers and alphabets are parsed as nouns so
+            # switch their class into this pseudoclass
+            cl = alphabet_pseudoclass
         elif w in mid_sentence_punctuation_marks:
             cl = mid_sentence_punctuation_mark_class
         elif w in elongation_marks:
@@ -83,8 +88,9 @@ def parse_line_with_unidic(line, kanji_count):
                 # for some reason 使っ / だっ verbs have 連用形 flag even though it's not.
                 if w[-1] != 'っ':
                     item.is_masu = True
-            if is_katakana_word(w):
+            if has_word_katakana(w):
                 item.alt_forms = [katagana_to_hiragana(w)]
+                item.appendable_alt_forms = [katagana_to_hiragana(w)]
             if pron_base != '':
                 item.pron_base = katagana_to_hiragana(pron_base)
             items.append(item)
@@ -104,7 +110,21 @@ def parse_line_with_unidic(line, kanji_count):
     return k_c, items 
 
 
+def add_alternative_form_from_lemma(item):
+    lemma = item.lemma
+    # First try to get the JMDict entry to see if there is a match
+    seqs = search_sequences_by_word(item.txt)
+    if len(seqs) == 0 and lemma != '':
+        # maybe the original form had a unusual form (e.g. カン違い)
+        #seqs = search_sequences_by_word(lemma)
+
+        # just add the lemma as an alternative
+        if lemma not in item.alt_forms:
+            item.alt_forms.append(lemma)
+            item.appendable_alt_forms.append(lemma)
+
 def check_adjectival_nouns(pos,items): 
+
     if pos == len(items) - 1:
         return
     if aux_verb_class in items[pos+1].classes:
@@ -115,8 +135,8 @@ def check_adjectival_nouns(pos,items):
             items[pos+1].flags |= DISABLE_ORTHO
     return
 
-
 def check_nouns(pos,items):
+
     if pos + 1 == len(items):
         # nothing further to check
         return
@@ -172,9 +192,6 @@ def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
     for ew in explicit_change_list:
         p_list = ew[0]
         p_classes = ew[1]
-        condition = ew[2]
-        task = ew[3]
-        params = ew[4]
         lp = len(p_list)
         if pos + lp <= lw:
             i = 0
@@ -182,62 +199,61 @@ def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
                 i += 1
             if i == lp:
                 # All items match. Check extra conditions yet.
+                condition = ew[2]
+                task = ew[3]
+                params = ew[4]
                 allowed = True
-                if condition & COND_BLOCK_START and pos>0:
-                    allowed = False
-                if condition & COND_NOT_BEFORE_VERB and pos+lp<lw:
-                    if verb_class in items[pos+lp].classes:
+                if condition:
+                    if condition & COND_BLOCK_START and pos>0:
                         allowed = False
-                if condition & COND_NOT_AFTER_NOUN and pos>0:
-                    if noun_class in items[pos-1].classes:
-                        allowed = False
-                if condition & COND_NOT_AFTER_ADJ and pos>0:
-                    if adjective_class in items[pos-1].classes:
-                        allowed = False
-                if condition & COND_AFTER_MASU:
-                    if pos == 0:
-                        allowed = False
-                    else:
-                        if not items[pos-1].is_masu:
+                    if condition & COND_NOT_BEFORE_VERB and pos+lp<lw:
+                        if verb_class in items[pos+lp].classes:
                             allowed = False
-                if condition & COND_AFTER_TE:
-                    if pos == 0:
-                        allowed = False
-                    else:
-                        if items[pos-1].txt[-1] != 'て':
+                    if condition & COND_NOT_AFTER_NOUN and pos>0:
+                        if noun_class in items[pos-1].classes:
                             allowed = False
+                    if condition & COND_NOT_AFTER_ADJ and pos>0:
+                        if adjective_class in items[pos-1].classes:
+                            allowed = False
+                    if condition & COND_AFTER_MASU:
+                        if pos == 0:
+                            allowed = False
+                        else:
+                            if not items[pos-1].is_masu:
+                                allowed = False
+                    if condition & COND_AFTER_TE:
+                        if pos == 0:
+                            allowed = False
+                        else:
+                            if items[pos-1].txt[-1] != 'て':
+                                allowed = False
+                    if condition & COND_AFTER_AUX_VERB:
+                        if pos == 0:
+                            allowed = False
+                        else:
+                            if aux_verb_class not in items[pos-1].classes:
+                                allowed = False
 
-                oku_verbs = ['取る']
-
-                if condition & COND_AS_OKU_VERB:
-                    if pos == 0:
-                        allowed = False
-                    else:
-                        if items[pos-1].lemma not in oku_verbs:
+                    if condition & COND_BEFORE_ITEM:
+                        if pos+lp == lw:
                             allowed = False
-                if condition & COND_AS_IKU_VERB:
-                    if pos == 0:
-                        allowed = False
-                    else:
-                        if items[pos-1].lemma in oku_verbs:
+                        if params['item_txt'] != items[pos+1].txt:
                             allowed = False
-                if condition & COND_BEFORE_ITEM:
-                    if pos+lp == lw:
-                        allowed = False
-                    if params['item_txt'] != items[pos+1].txt:
-                        allowed = False
-                    if params['item_class'] not in items[pos+1].classes:
-                        allowed = False
+                        if params['item_class'] not in items[pos+1].classes:
+                            allowed = False
 
                 if allowed:
+                    if get_verbose_level()>=1:
+                        LOG(1,"%s matches item alteration %s" % (items[pos].txt,str(ew)))
                     if task == TASK_MERGE:
-                        if 'parts' in params.keys():
+                        if 'parts' in params:
                             # merge several items into two or more items
                             i = 0
                             for part,cl,ortho in zip(params['parts'],params['classes'],params['orthos']):
                                 items[pos+i].txt = part
                                 items[pos+i].ortho = ortho
                                 items[pos+i].alt_forms = []
+                                items[pos+i].appendable_alt_forms = []
                                 items[pos+i].classes = [cl]
                                 i += 1
                             while i<lp:
@@ -245,9 +261,14 @@ def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
                                 i += 1
                         else:
                             # simple merge
-                            target_class = params['class']
-                            # Change the class of the first particle and mark the next ones to be merged
-                            items[pos].classes = [target_class]
+                            if 'class' in params:
+                                target_class = params['class']
+                                # Change the class of the first particle and mark the next ones to be merged
+                                items[pos].classes = [target_class]
+                            elif 'class_list' in params:
+                                    target_class_list = params['class_list']
+                                    # Change the class of the first particle and mark the next ones to be merged
+                                    items[pos].classes = target_class_list
                             for i in range(1,lp):
                                 items[pos+i].flags = MERGE_ITEM
                         changed = True
@@ -255,12 +276,22 @@ def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
                         # replace 1 or more items with two or more items
                         i = 0
                         new_items = []
-                        for i,(part,ortho,cl) in enumerate(zip(params['parts'],params['orthos'],params['classes'])):
-                            it = LexicalItem(part,ortho,[cl])
+                        for i,part in enumerate(params['parts']):
+                            cll = items[pos].classes
+                            if 'classes' in params:
+                                cll = [params['classes'][i]]
+                            elif 'class' in params:
+                                cll = [params['class']]
+                            it = LexicalItem(part,'',cll)
+                            if 'orthos' in params:
+                                it.ortho = params['orthos'][i]
                             if 'conjugation_roots' in params:
                                 it.conjugation_root = params['conjugation_roots'][i]
                             if 'alt_forms' in params:
-                                it.alt_forms.append(params['alt_forms'][i])
+                                alt_form = params['alt_forms'][i]
+                                it.alt_forms.append(alt_form)
+                                if alt_form != '':
+                                    it.appendable_alt_forms.append(alt_form)
                             new_items.append(it)
                         # just replace the first item with all the items
                         # and remove the rest of the replaced items
@@ -270,54 +301,63 @@ def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
                         while i<lp:
                             items[pos+i].flags = REMOVE_ITEM
                             i += 1
-                    else:
-                        if 'add_class' in params.keys():
+                    elif task == TASK_MODIFY:
+                        if 'add_class' in params:
                             # Only add new class to the class list but do not merge or divide
                             target_class = params['add_class']
                             for i in range(0,lp):
                                 if target_class not in items[pos+i].classes:
                                     items[pos+i].classes.append(target_class)
                                     changed = True
-                        elif 'classes' in params.keys():
+                        elif 'classes' in params:
                             # Only set new classes but do not merge or divide
                             for i in range(0,lp):
-                                items[pos+i].classes = [params['classes'][i]]
-                            changed = True
-                        elif 'class' in params.keys():
+                                cll = [params['classes'][i]]
+                                if cll != items[pos+i].classes:
+                                    items[pos+i].classes = cll
+                                    changed = True
+                        elif 'class' in params:
                             # Only set new class but do not merge or divide
                             for i in range(0,lp):
-                                items[pos+i].classes = [params['class']]
-                            changed = True
-                        if 'orthos' in params.keys():
+                                cll = [params['class']]
+                                if cll != items[pos+i].classes:
+                                    items[pos+i].classes = cll
+                                    changed = True
+                        if 'orthos' in params:
                             for i in range(0,lp):
-                                items[pos+i].ortho = params['orthos'][i]
-                            changed = True
+                                ort = params['orthos'][i]
+                                if items[pos+i].ortho != ort:
+                                    items[pos+i].ortho = ort
+                                    changed = True
 
-                    if 'ortho' in params.keys():
+                    if 'ortho' in params:
                         ortho = params['ortho']
                         for i in range(0,lp):
                             items[pos+i].ortho = ortho
-                    if 'alt' in params.keys():
+                    if 'alt' in params:
                         alt_form = params['alt']
-                        #for i in range(0,lp):
-                        #    items[pos+i].alt_txt = alt_txt
-                        if alt_form not in items[pos].alt_forms:
-                            items[pos].alt_forms.append(alt_form)
-                    if 'root_ortho' in params.keys():
+                        items[pos].alt_forms = [alt_form]
+                        if alt_form != '':
+                            items[pos].appendable_alt_forms = [alt_form]
+                    if 'alt_forms' in params:
+                        for i in range(0,lp):
+                            alt_form = params['alt_forms'][i]
+                            items[pos+i].alt_forms = [alt_form]
+                            if alt_form != '':
+                                items[pos+i].appendable_alt_forms = [alt_form]
+                    if 'root_ortho' in params:
                         items[pos].ortho = params['root_ortho']
                         for i in range(1,lp):
                             items[pos+i].ortho = ''
-                    if 'add_flags' in params.keys():
+                    if 'add_flags' in params:
                         item_flags = params['add_flags']
                         for i in range(lp):
                             items[pos+i].flags |= item_flags[i]
-                    if 'word_id' in params.keys():
+                    if 'word_id' in params:
                         # force the word id for these items
                         for i in range(lp):
                             items[pos+i].word_id = params['word_id']
                             items[pos+i].flags |= NO_SCANNING
-
-
     if changed:
         items[pos].flags |= REPROCESS # this allows cascading changes
     return changed
@@ -361,6 +401,8 @@ def add_alternative_forms_and_classes(pos,items):
         for alt_form in alt_forms:
             if alt_form not in items[pos].alt_forms:
                 items[pos].alt_forms.append(alt_form)
+            if alt_form not in items[pos].appendable_alt_forms:
+                items[pos].appendable_alt_forms.append(alt_form)
 
     alt_cll = []
     if items[pos].txt in alternative_classes:
@@ -380,6 +422,8 @@ def add_emphatetic_and_elongated_alternative_forms(pos,items):
             alt_form = items[pos].txt.replace(elong_mark,'')
             if alt_form not in items[pos].alt_forms:
                 items[pos].alt_forms.append(alt_form)
+            if alt_form not in items[pos].appendable_alt_forms:
+                items[pos].appendable_alt_forms.append(alt_form)
             if pos > 0:
                 if alt_form == '':
                     # if current alternative element becomes empty, transfer
@@ -475,33 +519,65 @@ def merge_or_replace_items(items):
     for i in range(len(items)):
         if items[i].flags & MERGE_ITEM:
 
+            if get_verbose_level()>=2:
+                LOG(2,bcolors.OKGREEN + "Merged item" + bcolors.ENDC)
+                pretty_print_lexical_item(items[pos-1])
+                LOG(2,"with")
+                pretty_print_lexical_item(items[i])
+
             prev_txt = processed_items[pos-1].txt
             new_txt = prev_txt + items[i].txt
 
-            # create permutations for merged particle
-            prev_forms = [processed_items[pos-1].txt]
-            for alt_form in processed_items[pos-1].alt_forms:
-                if alt_form not in prev_forms:
-                    prev_forms.append(alt_form)
-            new_alts = []
-            for alt_form in items[i].alt_forms + [items[i].txt]:
-                new_alt = prev_txt + alt_form
-                if new_alt != new_txt and new_alt not in new_alts:
-                    new_alts.append(new_alt)
-                for prev_alt_form in processed_items[pos-1].alt_forms:
+            # create alternative form permutations for merged particle
+            prev_appendable_alt_forms = [processed_items[pos-1].txt]
+            for alt_form in processed_items[pos-1].appendable_alt_forms:
+                if alt_form not in prev_appendable_alt_forms:
+                    prev_appendable_alt_forms.append(alt_form)
+
+            new_alts = processed_items[pos-1].alt_forms
+
+            variations = items[i].alt_forms + [items[i].txt]
+            ortho = items[i].ortho
+            if ortho != '' and ortho not in variations:
+                variations.append(ortho)
+            for alt_form in variations:
+                for prev_alt_form in prev_appendable_alt_forms:
                     new_alt = prev_alt_form + alt_form
                     if new_alt != new_txt and new_alt not in new_alts:
                         new_alts.append(new_alt)
 
+            new_appendable_alt_forms = []
+            for alt_form in items[i].appendable_alt_forms:
+                for prev_alt_form in prev_appendable_alt_forms:
+                    new_alt = prev_alt_form + alt_form
+                    if new_alt != new_txt and new_alt not in new_appendable_alt_forms:
+                        new_appendable_alt_forms.append(new_alt)
+
             processed_items[pos-1].alt_forms = new_alts
+            processed_items[pos-1].appendable_alt_forms = new_appendable_alt_forms
             processed_items[pos-1].txt = new_txt
+
+            if get_verbose_level()>=2:
+                LOG(2,"resulting..")
+                pretty_print_lexical_item(items[pos-1])
+
             #processed_items[pos-1].flags |= REPROCESS
 
         elif items[i].flags & REPLACE_ITEM:
+            if get_verbose_level()>=2:
+                LOG(2,bcolors.OKCYAN + "Replace item" + bcolors.ENDC)
+                pretty_print_lexical_item(items[i])
+                LOG(2,"with")
+                for it in items[i].replaced_items:
+                    pretty_print_lexical_item(it)
             for new_item in items[i].replaced_items:
+                new_item.flags &= (~REPLACE_ITEM) # clear the flag just in case
                 processed_items.append(new_item)
                 pos += 1
         elif items[i].flags & REMOVE_ITEM:
+            if get_verbose_level()>=2:
+                LOG(2,bcolors.WARNING + "Remove item" + bcolors.ENDC)
+                pretty_print_lexical_item(items[i])
             pass
         else:
             processed_items.append(items[i])
@@ -530,6 +606,10 @@ def post_process_unidic_particles(items):
 
     for i in range(len(items)):
         add_emphatetic_and_elongated_alternative_forms(i,items)
+        cll = items[i].classes
+        if aux_verb_class not in cll and gp_class not in cll and verb_class not in cll:
+            add_alternative_form_from_lemma(items[i])
+
 
     if get_verbose_level()>0:
         print("\nAfter unidic preparser:")
