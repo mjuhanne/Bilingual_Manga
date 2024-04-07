@@ -4453,6 +4453,18 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "りゃ", 
+        "Tense" : "Provisional (Colloquial)"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "りや", 
+        "Tense" : "Provisional (Colloquial)"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Next Type" : "v1", 
         "Suffix" : "られる", 
         "Tense" : "Potential\/Passive"

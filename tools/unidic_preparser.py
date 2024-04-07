@@ -296,6 +296,10 @@ def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
                                 it.alt_forms.append(alt_form)
                                 if alt_form != '':
                                     it.appendable_alt_forms.append(alt_form)
+                            if 'word_id' in params:
+                                # force the word id for these items
+                                it.word_id = params['word_id']
+                                it.flags |= NO_SCANNING
                             new_items.append(it)
                         # just replace the first item with all the items
                         # and remove the rest of the replaced items
@@ -410,11 +414,14 @@ def add_alternative_forms_and_classes(pos,items):
             if alt_form not in items[pos].appendable_alt_forms:
                 items[pos].appendable_alt_forms.append(alt_form)
 
-    alt_cll = []
+    alt_cll = set()
     if items[pos].txt in alternative_classes:
-        alt_cll = alternative_classes[items[pos].txt]
+        alt_cll.update(alternative_classes[items[pos].txt])
     if items[pos].ortho in alternative_classes:
-        alt_cll = alternative_classes[items[pos].ortho]
+        alt_cll.update(alternative_classes[items[pos].ortho])
+    for alt_form in items[pos].alt_forms:
+        if alt_form in alternative_classes:
+            alt_cll.update(alternative_classes[alt_form])
     for cl in alt_cll:
         if cl not in items[pos].classes:
             items[pos].classes.append(cl)
@@ -459,29 +466,33 @@ def add_emphatetic_and_elongated_alternative_forms(pos,items):
                             if cl not in items[pos].classes:
                                 items[pos].classes.append(cl)
 
-    if len(items[pos].txt)>1 and items[pos].txt[-1] == 'っ':
-        # Possibly dialect. Check alternative form without the emphasis
-        # おっしえなーい  -> おしえなーい
-        alt_form = items[pos].txt[:-1]
-        if alt_form not in items[pos].alt_forms:
-            items[pos].alt_forms.append(alt_form)
-            items[pos].appendable_alt_forms.append(alt_form)
-            items[pos].alt_scores[alt_form] = int(items[pos].base_score*0.3)
-            if pos != len(items) -1:
-                items[pos].neighbour_alt_score_modifier[alt_form] = 0.3
+    if len(items[pos].txt)>1:
+        if items[pos].txt[-1] == 'っ' or items[pos].txt[-1] == 'ッ':
+            # Possibly dialect. Check alternative form without the emphasis
+            # おっしえなーい  -> おしえなーい
+            alt_form = items[pos].txt[:-1]
+            if alt_form not in items[pos].alt_forms:
+                items[pos].alt_forms.append(alt_form)
+                items[pos].appendable_alt_forms.append(alt_form)
+                items[pos].alt_scores[alt_form] = int(items[pos].base_score*0.3)
+                if pos != len(items) -1:
+                    items[pos].neighbour_alt_score_modifier[alt_form] = 0.3
 
-    """
-    elif 'ー' in items[pos].txt:
+    if 'ー' in items[pos].txt:
         # create an alternative form by extending the vowel when ー is detected
         # Example: ありがとー　->　ありがとう
         i = items[pos].txt.index('ー')
         if i>0:
-            rep = get_vowel_extension(items[pos].txt[i-1]))
+            rep = get_vowel_extension(items[pos].txt[i-1])
             if rep != '':
-                alt_form = items[pos].txt.replace('ー',rep
+                alt_form = items[pos].txt.replace('ー',rep)
                 if alt_form not in items[pos].alt_forms:
                     items[pos].alt_forms.append(alt_form)
-    """
+                if alt_form not in items[pos].appendable_alt_forms:
+                    items[pos].appendable_alt_forms.append(alt_form)
+                items[pos].alt_scores[alt_form] = int(items[pos].base_score*0.9)
+                if pos != len(items) -1:
+                    items[pos].neighbour_alt_score_modifier[alt_form] = 0.9
 
 
 def particle_post_processing(pos, items):
@@ -542,9 +553,10 @@ def particle_post_processing(pos, items):
 def merge_or_replace_items(items):
     pos = 0
     processed_items = []
+    changed_items = []
     for i in range(len(items)):
         if items[i].flags & MERGE_ITEM:
-
+            changed_items.append(processed_items[pos-1])
             if get_verbose_level()>=2:
                 LOG(2,bcolors.OKGREEN + "Merged item" + bcolors.ENDC)
                 pretty_print_lexical_item(items[pos-1])
@@ -620,6 +632,7 @@ def merge_or_replace_items(items):
             for new_item in items[i].replaced_items:
                 new_item.flags &= (~REPLACE_ITEM) # clear the flag just in case
                 processed_items.append(new_item)
+                changed_items.append(new_item)
                 pos += 1
         elif items[i].flags & REMOVE_ITEM:
             if get_verbose_level()>=2:
@@ -629,6 +642,10 @@ def merge_or_replace_items(items):
         else:
             processed_items.append(items[i])
             pos += 1
+
+    for i in range(len(changed_items)):
+        add_alternative_forms_and_classes(i,changed_items)
+
     return processed_items
 
 

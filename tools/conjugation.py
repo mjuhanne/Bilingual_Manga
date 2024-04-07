@@ -51,9 +51,6 @@ def attempt_conjugation(pos, items, inflection, conj_class, rec_level=0):
                 next_type = jmdict_class_list.index('copula')
                 next_type_suffix = suffix
 
-            if suffix == 'ません':
-                pass
-
             i = 0
             #v_str = inflection
             cont = True
@@ -122,11 +119,10 @@ def attempt_conjugation(pos, items, inflection, conj_class, rec_level=0):
                                 ]
                             # also add all the combinations from alternative forms
                             for alt in item.alt_forms:
-                                if alt != '':
-                                    for infl_cand in inflection_candidates:
-                                        candidate = infl_cand + alt
-                                        if candidate not in preliminary_candidates:
-                                            preliminary_candidates.append(candidate)
+                                for infl_cand in inflection_candidates:
+                                    candidate = infl_cand + alt
+                                    if candidate not in preliminary_candidates:
+                                        preliminary_candidates.append(candidate)
                             inflection_candidates = []
                             for candidate in preliminary_candidates:
                                 if candidate in suffix and suffix.index(candidate)==0:

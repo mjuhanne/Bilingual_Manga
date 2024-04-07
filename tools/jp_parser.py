@@ -187,6 +187,11 @@ def get_valid_senses_for_scanned_word(scanned_word, pos,num_scanned_items,items,
                             elif sw_len == 2:
                                 score_modifiers[s_idx] = 0.8
 
+                    if rentaishi_class in unidic_classes and noun_class in next_word_classes:
+                        # many nouns consist of rentaishi class + noun
+                        # e.g. そのまま, その日
+                        valid_senses[i].update([s_idx])
+
                     if adjective_class in unidic_classes and suffix_class in next_word_classes:
                         # allow adjective + suffix as noun
                         # 幼な + じみ
@@ -260,7 +265,9 @@ def get_valid_senses_for_scanned_word(scanned_word, pos,num_scanned_items,items,
                     if sw_len == 1:
                         score_modifiers[s_idx] = 0.5
                     elif sw_len == 2:
-                        score_modifiers[s_idx] = 0.8
+                        score_modifiers[s_idx] = 0.7
+                    elif sw_len >= 3:
+                        score_modifiers[s_idx] = 0.9
 
 
         if len(valid_senses[i]) == 0:
@@ -542,7 +549,7 @@ def parse_with_jmdict(unidic_items, scan_results):
         if wid != '':
             # add explicit word id reference
             seq,sense,word = get_word_id_components(wid)
-            add_matched_sense_reference(word,item.base_score,1,i,seq,[sense],scan_results) 
+            add_matched_sense_reference(word,item.base_score,1,i,seq,[sense],{},scan_results) 
 
     searched_kanji_word_sets = [set() for x in range(wlen)]
     searched_reading_sets = [set() for x in range(wlen)]

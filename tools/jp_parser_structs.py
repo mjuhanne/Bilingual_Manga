@@ -307,7 +307,9 @@ pre_conjugation_modifications = [
     [['ってる'],[aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['って','る'],'classes':[aux_verb_class,verb_class],'orthos':['','いる'],'alt_forms':['','いる'],'conjugation_roots':['','いる']}],
     # wakattoru = wakatte-iru
     [['っとる'],[aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['っと','る'],'classes':[aux_verb_class,verb_class],'orthos':['','いる'],'alt_forms':['って','いる'],'conjugation_roots':['','いる']}],
-    [['し','とる'],[aux_verb_class, verb_class],COND_NONE,TASK_DIVIDE,{'parts':['し','と','る'],'classes':[aux_verb_class,verb_class,aux_verb_class],'orthos':['する','','いる'],'alt_forms':['','て','いる']}],
+    # しとる -> している
+    [['し','とる'],[aux_verb_class, verb_class],COND_NONE,TASK_DIVIDE,{'parts':['し','と','る'],'classes':[aux_verb_class,verb_class,aux_verb_class],'orthos':['する','','いる'],'alt_forms':['','て','いる'],'word_id':'1157170:する'}],
+    [['し','とる'],[verb_class, aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['し','と','る'],'classes':[verb_class,verb_class,aux_verb_class],'orthos':['する','','いる'],'alt_forms':['','て','いる'],'word_id':'1157170:する'}],
     [['って','た'],[aux_verb_class,aux_verb_class],COND_NONE,TASK_MODIFY,{'orthos':['','いる'],'alt_forms':['','いた'],'conjugation_roots':['','いる']}],
 
     # っつって　= と言って
@@ -389,6 +391,8 @@ pre_conjugation_modifications = [
     [['しな'],[suffix_class],COND_END_OF_CLAUSE,TASK_MODIFY,{'classes':[verb_class],'orthos':['する']}],
     [['なれ'],[aux_verb_class],COND_NONE,TASK_MODIFY,{'classes':[verb_class],'orthos':['なる']}],
     [['ま','てェ'],[aux_verb_class,gp_class],COND_NONE,TASK_MODIFY,{'classes':[verb_class,gp_class],'orthos':['待つ',''],'alt_forms':['','って']}],
+    [['どかん'],[adverb_class],COND_NONE,TASK_DIVIDE,{'parts':['どか','ん'],'classes':[verb_class,aux_verb_class],'orthos':['どく','ない']}],
+
 
 
     # まって! at the start of a block is not correctly identified
@@ -551,6 +555,11 @@ explicit_word_changes = [
     # colloquial terms
     [['ど','っから'],[aux_verb_class,gp_class],COND_NONE,TASK_MODIFY,{'alt_forms':['どこ','から'],'classes':[pronoun_class,gp_class]}],
 
+
+    # series specific bindings
+    [['けー','たろ'],[interjection_class,aux_verb_class],COND_NONE,TASK_MERGE,{'alt':'景太郎','class':noun_class}],
+    [['けー','くん'],[interjection_class,adverb_class],COND_NONE,TASK_MERGE,{'alt':'景太郎','class':noun_class}],
+
 ]
 
 # alternative unidic classes for certain words to allow for better
@@ -582,6 +591,8 @@ alternative_classes = {
     'そんな' : [rentaishi_class],
     'こんな' : [rentaishi_class],
 
+    'こんなに' : [adverb_class],
+
     # originally verbs
     'つれない' : [adjective_class],
     '下らない' : [adjective_class],
@@ -600,6 +611,7 @@ alternative_classes = {
     'って' : [gp_class],
 
     '議' : [noun_class],
+    'ブス' : [noun_class],
     
 }
 alternative_forms = {
@@ -613,6 +625,7 @@ alternative_forms = {
     '建て物' : ['建物'],
     'とォ' : ['と'],
     'ゆー' : ['いう'],
+    'かァ' : ['か']
 }
 
 # some common auxiliary verbs, particles and markings which we ignore for frequency analysis
@@ -647,6 +660,14 @@ priority_word_ids = {
     '2091550:しとく' : 20,
     '1610040:せい' : 10,
     '1578150:この' : -20,
+    '2607690:よーし' : 150,
+
+    # lower priority for these hiragana words that get mixed up 
+    '1309910:してい' : -80,
+    '1312070/0:してい' : -80,
+    '1433050:つうか' : -30,
+    '1433070:つうか' : -20,
+    '1559280:連れて' : -100,
 }
 
 manual_additions_to_jmdict_classes = {
