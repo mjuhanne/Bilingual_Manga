@@ -436,6 +436,16 @@ def add_emphatetic_and_elongated_alternative_forms(pos,items):
                     items[pos].alt_forms.append(alt_form)
                 if alt_form not in items[pos].appendable_alt_forms:
                     items[pos].appendable_alt_forms.append(alt_form)
+
+                
+                #items[pos].alt_scores[alt_form] = int(items[pos].base_score*0.3)
+                #if pos != len(items) -1:
+                #    items[pos].neighbour_alt_score_modifier[alt_form] = 0.3
+
+                # remove class restrictions when doing JMDict search
+                # because Unidic most likely didn't recognize the class correctly
+                #items[pos].any_class = True
+
                 if pos > 0:
                     if alt_form == '':
                         # if current alternative element becomes empty, transfer
@@ -449,15 +459,16 @@ def add_emphatetic_and_elongated_alternative_forms(pos,items):
                             if cl not in items[pos].classes:
                                 items[pos].classes.append(cl)
 
-
-    """
     if len(items[pos].txt)>1 and items[pos].txt[-1] == 'っ':
         # Possibly dialect. Check alternative form without the emphasis
         # おっしえなーい  -> おしえなーい
         alt_form = items[pos].txt[:-1]
         if alt_form not in items[pos].alt_forms:
             items[pos].alt_forms.append(alt_form)
-    """
+            items[pos].appendable_alt_forms.append(alt_form)
+            items[pos].alt_scores[alt_form] = int(items[pos].base_score*0.3)
+            if pos != len(items) -1:
+                items[pos].neighbour_alt_score_modifier[alt_form] = 0.3
 
     """
     elif 'ー' in items[pos].txt:

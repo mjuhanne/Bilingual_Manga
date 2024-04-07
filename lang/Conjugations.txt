@@ -434,6 +434,12 @@
         "Tense" : "Continuous action"
       },
       {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "ん", 
+        "Tense" : "Emphasis (Colloquial)"
+      },
+      {
         "Formal" : false,
         "Negative" : false,
         "Suffix" : "ある",
@@ -1780,6 +1786,12 @@
       {
         "Formal" : false, 
         "Negative" : true, 
+        "Suffix" : "ん", 
+        "Tense" : "Negative (Colloquial)"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : true, 
         "Suffix" : "ぬ", 
         "Tense" : "Non-past"
       },
@@ -1812,6 +1824,12 @@
         "Negative" : true, 
         "Suffix" : "なかったら", 
         "Tense" : "Conditional"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : true, 
+        "Suffix" : "にゃ", 
+        "Tense" : "Provisional (Colloquial)"
       },
       {
         "Formal" : false, 
@@ -1962,6 +1980,12 @@
         "Negative" : false, 
         "Suffix" : "ろう", 
         "Tense" : "Past Conjectural\/Presumptive (Colloquial)"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "ん", 
+        "Tense" : "Emphasis (Colloquial)"
       },
       {
         "Formal" : false, 

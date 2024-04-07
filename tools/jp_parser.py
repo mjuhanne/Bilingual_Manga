@@ -113,16 +113,6 @@ def get_valid_senses_for_scanned_word(scanned_word, pos,num_scanned_items,items,
             next_word = items[pos+i+1].txt
             next_word_classes = set(items[pos+i+1].classes)
 
-        """
-        prev_word_in_block = None
-        prev_word_in_block_classes = set()
-        if pos + i - 1 >= 0:
-            prev_word_in_block = items[pos+i-1].txt
-            prev_word_in_block_classes = set(items[pos+i-1].classes)
-            #if prev_word_in_block in alternative_classes:
-            #    prev_word_in_block_classes.update(alternative_classes[prev_word_in_block])
-        """
-
         for s_idx, scanned_word_jmd_cl_list in enumerate(scanned_word_jmd_cl_list_per_sense):
             for jmd_cl in scanned_word_jmd_cl_list:
                 if jmd_cl == jmdict_expression_class:
@@ -188,14 +178,6 @@ def get_valid_senses_for_scanned_word(scanned_word, pos,num_scanned_items,items,
                         if num_scanned_items > 1:
                             # allow numeric class for noun if it's the first item and not alone
                             valid_senses[i].update([s_idx])
-                    """
-                    if verb_class in unidic_classes and items[pos].is_masu:
-                        if noun_class in next_word_classes:
-                            # allow masu-stem verb + noun as noun
-                            # e.g. 食べ + 放題
-                            valid_senses[i].update([s_idx])
-                            valid_senses[i+1].update([s_idx])
-                    """
                     if verb_class in unidic_classes and items[pos].is_masu:
                             # allow masu-stem verb as noun
                             # e.g.　作り
@@ -275,6 +257,10 @@ def get_valid_senses_for_scanned_word(scanned_word, pos,num_scanned_items,items,
                 if items[pos+i].any_class:
                     messages[i].append("%s(%s) failed otherwise but preliminary matching %s(%s) just due ALL_CLASS" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_class_list[jmd_cl]))
                     valid_senses[i].update([s_idx])
+                    if sw_len == 1:
+                        score_modifiers[s_idx] = 0.5
+                    elif sw_len == 2:
+                        score_modifiers[s_idx] = 0.8
 
 
         if len(valid_senses[i]) == 0:
@@ -426,16 +412,22 @@ def create_phrase_permutations(original_words, base_scores, alt_scores, end_type
         while i<len(original_words) and (not (items[i].flags & NO_SCANNING) ) and (max_recursion_level_index == -1):
             if len(appendable_forms[i])>0:
                 for alt_form in [original_words[i]] + appendable_forms[i]:
+                    neighbour_alt_score_modifier = 1
                     new_words = original_words[:i] + [alt_form] + original_words[i+1:]
                     if alt_form in alt_scores[i]:
                         score = alt_scores[i][alt_form]
+                        if alt_form in items[i].neighbour_alt_score_modifier:
+                            neighbour_alt_score_modifier = items[i].neighbour_alt_score_modifier[alt_form]
                     else:
                         score = base_scores[i]
                     #if alt_form == original_words[i]:
                     #    score += ORIGINAL_FORM_SCORE_MODIFIER
                     if alt_form != original_words[i]:
                         score = int(score*APPENDABLE_ALT_FORM_SCORE_MODIFIER)
-                    new_base_scores = base_scores[:i] + [score] + base_scores[i+1:]
+                    if neighbour_alt_score_modifier == 1 or (i==len(base_scores)-1):
+                        new_base_scores = base_scores[:i] + [score] + base_scores[i+1:]
+                    else:
+                        new_base_scores = base_scores[:i] + [score] + [base_scores[i+1]*neighbour_alt_score_modifier] + base_scores[i+2:]
                     new_perms,new_scores, _, max_rec_level = create_phrase_permutations(new_words, new_base_scores, alt_scores, end_type_forms, appendable_forms, items, start, i+1, recursive_level+1)
                     if max_rec_level != -1:
                         max_recursion_level_index = max_rec_level
@@ -646,33 +638,13 @@ def parse_with_jmdict(unidic_items, scan_results):
                                 for cl in cl_list:
                                     LOG(2,"\t\t\t- %s" % (jmdict_class_list[cl]))
 
-        # Sort each JMDict reference by following criteria:
-        # 1) length of the JMDict word/phrase.
-        # 2) the amount of lexical items that reference the JMDict entry
-        # 3) the frequency of the JMDict entry
-                                    
+        # Sort each JMDict reference by its scoring
         longest_common_word_id = 0
         if len(word_ids)>0:
-            """
-            ref_sizes = []
-            for word_id in word_ids:
-                seq,senses,word = expand_word_id(word_id)
-                word = word_id.split(':')[1]
-                word_id_ref_count = scan_results['item_word_id_ref_count'][(word_id,pos_ref_index)]
-                word_id_score = scan_results['item_word_id_score'][(word_id,pos_ref_index)]
-                ref_sizes.append( (word_id,len(word), word_id_score,
-                    get_frequency_by_seq_and_word(seq,word)) )
-            ref_sizes.sort(key=lambda x:x[3], reverse=False)
-            ref_sizes.sort(key=lambda x:x[2], reverse=True)
-            ref_sizes.sort(key=lambda x:x[1], reverse=True)
-            
-            word_ids = [x[0] for x in ref_sizes]
-            """
             scoring = []
             for word_id in word_ids:
                 seq,senses,word = expand_word_id(word_id)
                 word = word_id.split(':')[1]
-                #word_id_ref_count = scan_results['item_word_id_ref_count'][(word_id,pos_ref_index)]
                 score = scan_results['item_word_id_score'][(word_id,pos_ref_index)]
                 refs = scan_results['item_word_id_ref_count'][(word_id,pos_ref_index)]
                 if refs > longest_common_word_id:
@@ -687,13 +659,13 @@ def parse_with_jmdict(unidic_items, scan_results):
         scan_results['item_word_ids'][i] = word_ids
         scan_results['item_longest_common_word_id'].append(longest_common_word_id)
 
-    best_score, best_permutation = calculate_best_phrase_permutation(unidic_items,scan_results)
+    best_score, best_combination = calculate_best_phrase_combination(unidic_items,scan_results)
     scan_results['score'] = best_score
 
     for i,(word_ids) in enumerate(scan_results['item_word_ids']):
         refs = []
         if len(word_ids)>0:
-            best_word_id = best_permutation[i]
+            best_word_id = best_combination[i]
             # always select the best word_id first in the list
             if word_ids[0] != best_word_id:
                 if best_word_id == '':
@@ -736,13 +708,13 @@ def parse_with_jmdict(unidic_items, scan_results):
     del(scan_results['item_longest_common_word_id'])
 
 
-def calculate_best_phrase_permutation(items,scan_results):
+def calculate_best_phrase_combination(items,scan_results):
     best_score = 0
     best_permutation = []
     pos = 0
     while pos < len(items):
         best_chunk_score, best_chunk_permutation, rec_fail = \
-            do_calculate_best_phrase_permutation(pos,items,scan_results)
+            do_calculate_best_phrase_combination(pos,items,scan_results)
         LOG(1,"Chunk permutation score : %d %s" % (best_score, best_permutation))
         if len(best_chunk_permutation)>0:
             best_score += best_chunk_score
@@ -755,9 +727,9 @@ def calculate_best_phrase_permutation(items,scan_results):
     LOG(1,"Best phrase permutation: %d %s" % (best_score, best_permutation))
     return best_score, best_permutation
 
-def do_calculate_best_phrase_permutation(pos,items,scan_results, rec_level=0):
+def do_calculate_best_phrase_combination(pos,items,scan_results, rec_level=0):
     best_score = -1
-    best_permutation = []
+    best_combination = []
 
     if rec_level >= 16:
         # too many recursion levels so just return the first score/word_id in the list (it's already sorted)
@@ -794,7 +766,7 @@ def do_calculate_best_phrase_permutation(pos,items,scan_results, rec_level=0):
 
         if ref_pos == 0:
             # check only from the first element of each word_id
-            permutation = [word_id]*ref_steps
+            combination = [word_id]*ref_steps
             if word not in processed_words:
                 processed_words.add(word)
 
@@ -802,24 +774,24 @@ def do_calculate_best_phrase_permutation(pos,items,scan_results, rec_level=0):
                 print_prefix += "  "
                 if pos + ref_steps < len(items):
                     #print(print_prefix,pos,"Trying sub-items at pos %d" % (pos+ref_steps), scan_results['item_word_ids'][pos+ref_steps])
-                    best_sub_score, best_sub_permutation, fail_rec = do_calculate_best_phrase_permutation(pos+ref_steps,items,scan_results, rec_level+1)
+                    best_sub_score, best_sub_combination, fail_rec = do_calculate_best_phrase_combination(pos+ref_steps,items,scan_results, rec_level+1)
                     if fail_rec:
                         # too many recursion levels
-                        return best_score, best_permutation, True
+                        return best_score, best_combination, True
 
-                    #print(print_prefix,pos,"Result score(%d) + sub " % score,best_sub_score,best_sub_permutation)
+                    #print(print_prefix,pos,"Result score(%d) + sub " % score,best_sub_score,best_sub_combination)
 
                     score += best_sub_score
-                    permutation += best_sub_permutation
-                    if rec_level==0:
-                        LOG(1,"Permutation score %d: %s" % (score,permutation))
+                    combination += best_sub_combination
+                if rec_level==0:
+                    LOG(1,"Combination score %d: %s" % (score,combination))
 
 
                 if score > best_score:
                     best_score = score
-                    best_permutation = permutation
-                    #print(print_prefix,pos,"Best: ",best_score,best_permutation)
-    return best_score, best_permutation, False
+                    best_combination = combination
+                    #print(print_prefix,pos,"Best: ",best_score,best_combination)
+    return best_score, best_combination, False
 
 def parse_block_with_unidic(lines, kanji_count):
 

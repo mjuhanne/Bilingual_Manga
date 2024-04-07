@@ -25,6 +25,8 @@ class LexicalItem:
     base_score: int = 0
     alt_scores:dict = field(default_factory=lambda: dict())
     end_of_clause = False
+    # if this alt form is used then the following item is also scored differently
+    neighbour_alt_score_modifier:dict = field(default_factory=lambda: dict())
 
 mid_sentence_punctuation_marks = [
     '・',
@@ -318,8 +320,10 @@ pre_conjugation_modifications = [
     [['っとら','ん'],[aux_verb_class, aux_verb_class],COND_NONE,TASK_REPLACE,{'parts':['っと','ら','ん'],'classes':[aux_verb_class,aux_verb_class,aux_verb_class],'orthos':['','おる','ない'],'alt_forms':['って','おら','ない']}],
     [['ってろ'],[aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['って','ろ'],'classes':[aux_verb_class,aux_verb_class]}],    
 
-    # 言っとん -> 言っていないん
-    [['っと','ん'],[aux_verb_class, gp_class],COND_NONE,TASK_REPLACE,{'parts':['っと','','ん'],'classes':[aux_verb_class,verb_class,aux_verb_class],'orthos':['','いる',''],'alt_forms':['って','いない','']}],
+    # 言っとん -> 言っているん
+    [['っと','ん'],[aux_verb_class, gp_class],COND_NONE,TASK_REPLACE,{'parts':['っと','','ん'],'classes':[aux_verb_class,verb_class,aux_verb_class],'orthos':['','いる',''],'alt_forms':['って','いる','']}],
+    # 思っとん -> 思っているん
+    [['っとん'],[aux_verb_class],COND_NONE,TASK_REPLACE,{'parts':['っと','','ん'],'classes':[aux_verb_class,verb_class,aux_verb_class],'orthos':['','いる',''],'alt_forms':['って','いる','']}],
 
     [['ってらっしゃる'],[aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['って','らっしゃる'],'classes':[aux_verb_class,verb_class],'orthos':['','おらっしゃる'],'alt_forms':['って','']}],
     
@@ -417,6 +421,7 @@ explicit_word_changes = [
     [['や','ばい'],[aux_verb_class,gp_class],COND_NONE,TASK_MERGE,{'class':adjective_class}],
     [['な','い'],[aux_verb_class,interjection_class],COND_NONE,TASK_MERGE,{'class':adjective_class}],
     [['お','しい'],[prefix_class,verb_class],COND_NONE,TASK_MERGE,{'class':adjective_class}],
+    [['くだら','ん'],[verb_class,aux_verb_class],COND_NONE,TASK_MERGE,{'class':adjective_class}],
 
     # disable scan start from よく so that it よくある / よくなる won't be detected
     # e.g. いつもよりかっこよくあらへん？
@@ -466,10 +471,11 @@ explicit_word_changes = [
 
     # pronouns
     [['自分'],[noun_class],COND_NONE,TASK_MODIFY,{'add_class':pronoun_class}],
+    [['あん','たら'],[verb_class,aux_verb_class],COND_NONE,TASK_REPLACE,{'parts':['あんた','ら'],'classes':[pronoun_class,suffix_class]}],
 
-    [['なん','だ','か'],[pronoun_class,aux_verb_class,gp_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
     [['な','ん','だ','か'],[aux_verb_class,gp_class,aux_verb_class,gp_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
     [['な','ん','だ','けど'],[aux_verb_class,gp_class,aux_verb_class,gp_class],COND_NONE,TASK_MERGE,{'parts':['なん','だけど'],'classes':[pronoun_class,conjunction_class],'orthos':['','']}],
+    [['なん','だ','か'],[pronoun_class,aux_verb_class,gp_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
 
     # interjection
     [['ごめん'],[noun_class],COND_NONE,TASK_MODIFY,{'add_class':interjection_class}],
@@ -485,6 +491,7 @@ explicit_word_changes = [
     [['お','やおや'],[prefix_class,noun_class],COND_NONE,TASK_MERGE,{'class':interjection_class}],
     [['よう','こそ'],[adjective_class,gp_class],COND_NONE,TASK_MERGE,{'class':interjection_class}],
     [['おほ','ん'],[interjection_class,aux_verb_class],COND_NONE,TASK_MERGE,{'class':interjection_class}],
+    [['うっ','せー'],[interjection_class,verb_class],COND_NONE,TASK_MERGE,{'class':interjection_class}],
 
     # force ねえ to interjection only at the beginning of of block (otherwise it could be ない)
     [['ねえ'],[aux_verb_class],COND_BLOCK_START,TASK_MODIFY,{'add_class':interjection_class}],
@@ -639,6 +646,7 @@ priority_word_ids = {
     '2607690:よし' : 20,
     '2091550:しとく' : 20,
     '1610040:せい' : 10,
+    '1578150:この' : -20,
 }
 
 manual_additions_to_jmdict_classes = {
