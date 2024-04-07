@@ -17,6 +17,9 @@ def is_item_allowed_for_conjugation(item):
     if suffix_class in item.classes:
         # -さ (-ness)
         return True
+    if item.txt == 'え':
+        # 言っちゃえ (え is detected by Unidic as interjection)
+        return True
     return False
 
 
@@ -47,20 +50,7 @@ def attempt_conjugation(pos, items, inflection, conj_class, rec_level=0):
                 next_type = jmdict_class_list.index('copula')
                 next_type_suffix = suffix
 
-            """
-            if next_type is not None and next_type_suffix == '':
-                # special case: jump right to next conjugation class because the required 
-                # suffix is empty
-                LOG(2,print_prefix + "Conjugate by default %s " % get_jmdict_pos_code(next_type))
-                sub_conj_item_count, sub_conjs = attempt_conjugation(pos,items,'',next_type, rec_level+1)
-                if sub_conj_item_count > max_sub_conj_item_count:
-                    max_sub_conj_item_count = sub_conj_item_count
-                    max_subj_conj_list = [(next_type,next_type_suffix,tense)] + sub_conjs
-                    LOG(2,print_prefix + "match " + str(max_subj_conj_list))
-                    #print(max_subj_conj_list)
-            """
-
-            if suffix == 'くなかった':
+            if suffix == 'ない':
                 pass
             i = 0
             v_str = inflection
@@ -77,11 +67,20 @@ def attempt_conjugation(pos, items, inflection, conj_class, rec_level=0):
                         LOG(2,print_prefix + "Conjugate %s with %s (%s) %s " % (v_str,tense,next_type_suffix,get_jmdict_pos_code(next_type)))
                         attempted_next_types.add(next_type)
                         sub_conj_item_count, sub_conjs = attempt_conjugation(pos+i,items,next_inflection,next_type, rec_level+1)
-                        if i + sub_conj_item_count > max_sub_conj_item_count:
-                            max_sub_conj_item_count = i + sub_conj_item_count
-                            max_subj_conj_list = [(next_type,next_type_suffix,tense)] + sub_conjs
-                            LOG(1,print_prefix + "match " + str(max_subj_conj_list))
-                            #print(max_subj_conj_list)
+                        if len(sub_conjs) > 0:
+                            if i + sub_conj_item_count > max_sub_conj_item_count:
+                                max_sub_conj_item_count = i + sub_conj_item_count
+                                max_subj_conj_list = [(next_type,next_type_suffix,tense)] + sub_conjs
+                                LOG(1,print_prefix + "match " + str(max_subj_conj_list))
+                                pass
+                        """
+                        elif v_str == next_type_suffix:
+                            if i > max_sub_conj_item_count:
+                                max_sub_conj_item_count = i
+                                max_subj_conj_list = [(next_type,next_type_suffix,tense)]
+                                LOG(1,print_prefix + "match " + str(max_subj_conj_list))
+                                #print(max_subj_conj_list)
+                        """
                 if v_str == suffix:
                     if i > max_sub_conj_item_count:
                         max_sub_conj_item_count = i

@@ -73,7 +73,7 @@ def parse_line_with_unidic(line, kanji_count):
         if previous_cl != cl and previous_cl <= lumped_class:
             # word class changed so save previously collected word
             if collected_particles != '':
-                items.append(LexicalItem(collected_particles,'',[previous_cl]))
+                items.append(LexicalItem(collected_particles,'',[previous_cl], base_score=get_class_base_score(cl)))
                 collected_particles = ''
 
         if cl <= lumped_class:
@@ -82,23 +82,23 @@ def parse_line_with_unidic(line, kanji_count):
             # but instead lump them together
             collected_particles += w
         else:
-            item = LexicalItem(w,word,[cl],details=details,lemma=lemma)
+            item = LexicalItem(w,word,[cl],details=details,lemma=lemma, base_score=get_class_base_score(cl))
             if '連用形' in details[5]:
                 # this should be in -masu form
                 # for some reason 使っ / だっ verbs have 連用形 flag even though it's not.
                 if w[-1] != 'っ':
                     item.is_masu = True
             if has_word_katakana(w):
-                item.alt_forms = [katagana_to_hiragana(w)]
-                item.appendable_alt_forms = [katagana_to_hiragana(w)]
+                item.alt_forms = [katakana_to_hiragana(w)]
+                item.appendable_alt_forms = [katakana_to_hiragana(w)]
             if pron_base != '':
-                item.pron_base = katagana_to_hiragana(pron_base)
+                item.pron_base = katakana_to_hiragana(pron_base)
             items.append(item)
 
         previous_cl = cl
 
     if collected_particles != '':
-        items.append(LexicalItem(collected_particles,'',[cl]))
+        items.append(LexicalItem(collected_particles,'',[cl], base_score=get_class_base_score(cl)))
 
     for k in set(filter_cjk(line)):
         k_c += 1
@@ -221,6 +221,9 @@ def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
                         else:
                             if not items[pos-1].is_masu:
                                 allowed = False
+                    if condition & COND_END_OF_CLAUSE:
+                        if not items[pos].end_of_clause:
+                            allowed = False
                     if condition & COND_AFTER_TE:
                         if pos == 0:
                             allowed = False
@@ -283,6 +286,7 @@ def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
                             elif 'class' in params:
                                 cll = [params['class']]
                             it = LexicalItem(part,'',cll)
+                            it.base_score = get_class_base_score(cll[0])
                             if 'orthos' in params:
                                 it.ortho = params['orthos'][i]
                             if 'conjugation_roots' in params:
@@ -339,6 +343,8 @@ def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
                         items[pos].alt_forms = [alt_form]
                         if alt_form != '':
                             items[pos].appendable_alt_forms = [alt_form]
+                        if 'alt_score' in params:
+                            items[pos].alt_scores[alt_form] = params['alt_score']
                     if 'alt_forms' in params:
                         for i in range(0,lp):
                             alt_form = params['alt_forms'][i]
@@ -418,24 +424,30 @@ def add_emphatetic_and_elongated_alternative_forms(pos,items):
 
     for elong_mark in elongation_marks:
         if elong_mark in items[pos].txt:
-            # create an alternative form by removing ー 
-            alt_form = items[pos].txt.replace(elong_mark,'')
-            if alt_form not in items[pos].alt_forms:
-                items[pos].alt_forms.append(alt_form)
-            if alt_form not in items[pos].appendable_alt_forms:
-                items[pos].appendable_alt_forms.append(alt_form)
-            if pos > 0:
-                if alt_form == '':
-                    # if current alternative element becomes empty, transfer
-                    # the class of previous element to this one and following element
-                    # For example in ['すごー','ー','い']   the middle element is 
-                    # empty and the 'ー' and 'い' elements are marked as adjective
-                    for cl in items[pos-1].classes:
-                        if pos<len(items)-1:
-                            if cl not in items[pos+1].classes:
-                                items[pos+1].classes.append(cl)
-                        if cl not in items[pos].classes:
-                            items[pos].classes.append(cl)
+            allowed = True
+            if pos > 0 and numeric_pseudoclass in items[pos-1].classes:
+                allowed = False
+            if pos < len(items)-1 and numeric_pseudoclass in items[pos+1].classes:
+                allowed = False
+            if allowed:
+                # create an alternative form by removing ー 
+                alt_form = items[pos].txt.replace(elong_mark,'')
+                if alt_form not in items[pos].alt_forms:
+                    items[pos].alt_forms.append(alt_form)
+                if alt_form not in items[pos].appendable_alt_forms:
+                    items[pos].appendable_alt_forms.append(alt_form)
+                if pos > 0:
+                    if alt_form == '':
+                        # if current alternative element becomes empty, transfer
+                        # the class of previous element to this one and following element
+                        # For example in ['すごー','ー','い']   the middle element is 
+                        # empty and the 'ー' and 'い' elements are marked as adjective
+                        for cl in items[pos-1].classes:
+                            if pos<len(items)-1:
+                                if cl not in items[pos+1].classes:
+                                    items[pos+1].classes.append(cl)
+                            if cl not in items[pos].classes:
+                                items[pos].classes.append(cl)
 
 
     """
@@ -499,18 +511,21 @@ def particle_post_processing(pos, items):
                 items[pos].ortho = items[pos].txt
                 # な might often modify the preceding (adjectival) noun
                 # like 素敵(すてき) + な
-                # but JMDict doesn't recognize these forms, nor does it
-                # have an entry to な as a particle in this case, so 
-                # we want to fuse な　into the preceding word later after scanning
-                # is complete
-                items[pos].flags |= BIND_TO_PREVIOUS_ITEM_IF_LEFT_UNTETHERED
+                if pos > 0 and pos < len(items)-1 and \
+                    (adjectival_noun_class in items[pos-1].classes or \
+                     noun_class in items[pos-1].classes or \
+                     suffix_class in items[pos-1].classes
+                     ):
+                    #items[pos].flags |= BIND_TO_PREVIOUS_ITEM_IF_LEFT_UNTETHERED
+                    items[pos].flags |= MERGE_ITEM
             if items[pos].txt == 'に':
                 if pos > 0 and adjectival_noun_class in items[pos-1].classes:
                     # almost identical case as above, but here it's 
                     # adjectival noun + に 
                     # Example: ロマンチック + に 
                     items[pos].ortho = items[pos].txt
-                    items[pos].flags |= BIND_TO_PREVIOUS_ITEM_IF_LEFT_UNTETHERED
+                    items[pos].flags |= MERGE_ITEM
+                    #items[pos].flags |= BIND_TO_PREVIOUS_ITEM_IF_LEFT_UNTETHERED
 
 # merge or replace those particles that are marked
 def merge_or_replace_items(items):
@@ -534,16 +549,31 @@ def merge_or_replace_items(items):
                 if alt_form not in prev_appendable_alt_forms:
                     prev_appendable_alt_forms.append(alt_form)
 
+            # preserve the score of each previous alt form
+            for alt_form in prev_appendable_alt_forms:
+                if alt_form not in processed_items[pos-1].alt_scores:
+                    processed_items[pos-1].alt_scores[alt_form] = processed_items[pos-1].base_score
+
             new_alts = processed_items[pos-1].alt_forms
 
             variations = items[i].alt_forms + [items[i].txt]
             ortho = items[i].ortho
             if ortho != '' and ortho not in variations:
                 variations.append(ortho)
+
             for alt_form in variations:
                 for prev_alt_form in prev_appendable_alt_forms:
                     new_alt = prev_alt_form + alt_form
                     if new_alt != new_txt and new_alt not in new_alts:
+                        if prev_alt_form in processed_items[pos-1].alt_scores:
+                            score = processed_items[pos-1].alt_scores[prev_alt_form]
+                        else:
+                            score = processed_items[pos-1].base_score
+                        if alt_form in items[i].alt_scores:
+                            score += items[i].alt_scores[alt_form]
+                        else:
+                            score += items[i].base_score
+                        processed_items[pos-1].alt_scores[new_alt] = score
                         new_alts.append(new_alt)
 
             new_appendable_alt_forms = []
@@ -553,9 +583,15 @@ def merge_or_replace_items(items):
                     if new_alt != new_txt and new_alt not in new_appendable_alt_forms:
                         new_appendable_alt_forms.append(new_alt)
 
+            prev_ortho = processed_items[pos-1].ortho
+            if prev_ortho != '':
+                if prev_ortho not in processed_items[pos-1].alt_scores:
+                    processed_items[pos-1].alt_scores[prev_ortho] = processed_items[pos-1].base_score
+
             processed_items[pos-1].alt_forms = new_alts
             processed_items[pos-1].appendable_alt_forms = new_appendable_alt_forms
             processed_items[pos-1].txt = new_txt
+            processed_items[pos-1].base_score += items[i].base_score
 
             if get_verbose_level()>=2:
                 LOG(2,"resulting..")
@@ -596,6 +632,14 @@ def post_process_unidic_particles(items):
                     items[i].txt = items[i].txt[:-1]
                     items[i+1].txt = 'っ' + items[i+1].txt
                     items[i+1].ortho = ''
+
+    # identify end-of-clause items
+    for i in range(len(items)):
+        if i==len(items)-1:
+            items[i].end_of_clause = True
+        else:
+            if items[i+1].txt == 'って' or punctuation_mark_class in items[i+1].classes:
+                items[i].end_of_clause = True
 
     # modify items before trying conjugation
     for i in range(len(items)):

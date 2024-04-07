@@ -123,7 +123,7 @@ def process_chapter(f_p, fo_p, chapter_data):
                     if args['item']:
                         for item in ud_items:
                             if selected_class is None or selected_class in ud_items.classes:
-                                if keyword in item.txt:
+                                if keyword == item.txt:
                                     match = True
                                     item.color = bcolors.OKBLUE
                     else:
@@ -189,6 +189,8 @@ def check_chapters(args):
             parsed_ocr_filename = parsed_ocr_dir + chapter_id + ".json"
             process_chapter(input_ocr_file, parsed_ocr_filename, chapter_data)
 
+
+init_parser(load_meanings=True)
 
 read_manga_metadata()
 read_manga_data()

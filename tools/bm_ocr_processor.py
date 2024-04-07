@@ -139,7 +139,8 @@ def process_chapter(f_p, fo_p, chapter_data):
     unique_words_frequency = []
     unique_words_classes = []
     for word_id, word_freq in \
-        zip(results['word_id_list'], results['word_count']):
+        zip(results['priority_word_id_list'], results['priority_word_count']):
+        #zip(results['word_id_list'], results['word_count']):
         seq,senses,word = expand_word_id(word_id)
         word_id0 = str(seq) + ':' + word
         if word_id0 in unique_words_list:
@@ -224,6 +225,9 @@ def process_chapters(args):
                 elif keyword.lower() not in chapter_data['title'].lower():
                     continue
 
+            #if chapter_data['chapter'] != 9:
+            #    continue
+
             if args['first']:
                 if get_chapter_number_by_chapter_id(chapter_id) != 1:
                     continue
@@ -234,7 +238,7 @@ def process_chapters(args):
             if not args['force']:
                 if is_file_up_to_date(target_freq_filename, CURRENT_OCR_SUMMARY_VERSION, CURRENT_LANUGAGE_PARSER_VERSION) and \
                     is_file_up_to_date(parsed_ocr_filename, CURRENT_PARSED_OCR_VERSION, CURRENT_LANUGAGE_PARSER_VERSION):
-                        print("Skipping %s [chapter %d]" % (chapter_data['title'],chapter_data['chapter']))
+                        print("[%d/%d] Skipping %s [chapter %d]" % (i, i_c, chapter_data['title'],chapter_data['chapter']))
                         continue
 
             #try:
@@ -379,6 +383,6 @@ if not os.path.exists(parsed_ocr_dir):
 init_parser(load_meanings=True)
 
 process_chapters(args)
-#process_titles(args)
+process_titles(args)
 
 print("Total errors: %d. Processed %d titles and %d chapters" % (error_count, processed_title_count, processed_chapter_count))

@@ -31,6 +31,8 @@ The matching lexical items (from Fugashi/Unidic) were:
 def get_valid_senses_for_scanned_word(scanned_word, pos,num_scanned_items,items,seq):
     global messages # for debugging
 
+    score_modifiers = dict()
+
     if scanned_word in hard_coded_seqs.keys():
         (unidic_class, wanted_seq) = hard_coded_seqs[scanned_word]
         if num_scanned_items == 1 and unidic_class in items[pos].classes:
@@ -38,9 +40,9 @@ def get_valid_senses_for_scanned_word(scanned_word, pos,num_scanned_items,items,
             # references to these words other than the sequence number selected here
             # User can check the other 9 homophones elsewhere though
             if seq == wanted_seq:
-                return [ALL_SENSES]
+                return [ALL_SENSES], score_modifiers
             else:
-                return []
+                return [], score_modifiers
 
     scanned_word_jmd_cl_list_per_sense = get_class_list_by_seq(seq)
     valid_senses = [set() for x in range(num_scanned_items)]
@@ -70,7 +72,34 @@ def get_valid_senses_for_scanned_word(scanned_word, pos,num_scanned_items,items,
                     kanji_items += 1
             if kanji_items >= 2:
                 return True
+            
+        # let all medium sized words pass regardless of the class
+        # but give them lower score. Words with kanji are given higher score
+        if len(scanned_word) >= 4:
+            if has_cjk(scanned_word):
+                score_modifiers[ALL_SENSES] = 0.7
+            else:
+                score_modifiers[ALL_SENSES] = 0.4
+            return True
+        if len(scanned_word) >= 3:
+            if has_cjk(scanned_word):
+                score_modifiers[ALL_SENSES] = 0.5
+            else:
+                score_modifiers[ALL_SENSES] = 0.3
+            return True
 
+        # let all small sized words pass regardless of the class if they have kanji
+        # but give them lower score
+        if len(scanned_word) >= 2 and has_cjk(scanned_word):
+            score_modifiers[ALL_SENSES] = 0.4
+            return True
+        if len(scanned_word) == 1 and has_cjk(scanned_word):
+            score_modifiers[ALL_SENSES] = 0.3
+            return True
+
+        return False
+            
+    sw_len = len(scanned_word)
 
     for i in range(num_scanned_items):
         word = items[pos+i].txt
@@ -146,7 +175,6 @@ def get_valid_senses_for_scanned_word(scanned_word, pos,num_scanned_items,items,
                             valid_senses[i].update([s_idx])
                             valid_senses[i+1].update([s_idx])
 
-
                 if jmd_cl in jmdict_noun_pos_list:
                     if prefix_class in unidic_classes and i == 0:
                         if num_scanned_items > 1:
@@ -155,6 +183,10 @@ def get_valid_senses_for_scanned_word(scanned_word, pos,num_scanned_items,items,
                     if suffix_class in unidic_classes and is_last:
                         if num_scanned_items > 1:
                             # allow suffix for noun if it's the last item and not alone
+                            valid_senses[i].update([s_idx])
+                    if numeric_pseudoclass in unidic_classes and i == 0:
+                        if num_scanned_items > 1:
+                            # allow numeric class for noun if it's the first item and not alone
                             valid_senses[i].update([s_idx])
                     """
                     if verb_class in unidic_classes and items[pos].is_masu:
@@ -168,6 +200,11 @@ def get_valid_senses_for_scanned_word(scanned_word, pos,num_scanned_items,items,
                             # allow masu-stem verb as noun
                             # e.g.　作り
                             valid_senses[i].update([s_idx])
+                            if sw_len == 1:
+                                score_modifiers[s_idx] = 0.5
+                            elif sw_len == 2:
+                                score_modifiers[s_idx] = 0.8
+
                     if adjective_class in unidic_classes and suffix_class in next_word_classes:
                         # allow adjective + suffix as noun
                         # 幼な + じみ
@@ -216,7 +253,6 @@ def get_valid_senses_for_scanned_word(scanned_word, pos,num_scanned_items,items,
                         valid_senses[i].update([s_idx])
                         valid_senses[i+1].update([s_idx])
 
-
                 # more general allow rules based on jmdict <-> unidic class bindings
                 if s_idx not in valid_senses:
                     if jmd_cl in jmdict_noun_pos_list:
@@ -243,64 +279,94 @@ def get_valid_senses_for_scanned_word(scanned_word, pos,num_scanned_items,items,
 
         if len(valid_senses[i]) == 0:
             if check_valid_sense_exceptions(word,pos+i,unidic_classes,jmd_cl):
-                return [ALL_SENSES] # no need to check other words
+                return [ALL_SENSES], score_modifiers # no need to check other words
 
             messages[pos+i].append("%s(%s) has no matching class for %s(%s)" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_class_list[jmd_cl]))
             # This lexical item matched none of the senses for this word so no need to check other items
-            return []
+            return [], score_modifiers
         
     # get those senses that match all lexical items
     final_valid_senses = set.intersection(*valid_senses)
     if len(final_valid_senses) == len(scanned_word_jmd_cl_list_per_sense):
-        return [ALL_SENSES]
+        return [ALL_SENSES], score_modifiers
     
     if len(final_valid_senses) == 0:
         # check the global exceptions once more in case some particles
         # match some senses and other particles match other senses
         if check_valid_sense_exceptions(scanned_word,pos,unidic_classes,jmd_cl):
-            return [ALL_SENSES] # no need to check other words
+            return [ALL_SENSES], score_modifiers # no need to check other words
 
-    return list(final_valid_senses)
+    return list(final_valid_senses), score_modifiers
 
 
-def add_matched_sense_reference(chunk, chunk_len, pos, seq, valid_senses, scan_results):
+def add_matched_sense_reference(chunk, base_score, chunk_len, pos, seq, valid_senses, score_modifiers, scan_results):
+
+    if has_word_katakana(chunk):
+        # use always hiragana reading instead of katakana reading if it exists
+        h_chunk = katakana_to_hiragana(chunk)
+        readings = get_readings_by_seq(seq)
+        if h_chunk in readings:
+            chunk = h_chunk
+
+    existing_seq_senses = [ 
+        (wid.split(':')[0], len(wid.split(':')[1]), scan_results['item_word_id_ref_count'][(wid,pos)])
+            for wid in scan_results['item_word_ids'][pos]
+    ]
+
     for sense in valid_senses:
+        score_mod = 1
         if sense == ALL_SENSES:
             word_id = str(seq) + ":" + chunk
+            seq_sense = str(seq)
+            if len(score_modifiers)>0:
+                score_mod = next(iter(score_modifiers.values()))
         else:
             word_id = str(seq) + '/' + str(sense) + ":" + chunk
+            seq_sense = str(seq) + '/' + str(sense)
+            if sense in score_modifiers:
+                score_mod = score_modifiers[sense]
 
-        # add this word id (seq/sense:word) reference for all the encompassing lexical items
-        for j in range(chunk_len):
-            scan_results['item_word_ids'][pos+j].append(word_id)
+        #if word_id not in scan_results['item_word_ids'][pos]:
+        if (seq_sense,len(chunk), chunk_len) not in existing_seq_senses:
+            # add this word id (seq/sense:word) reference for all the encompassing lexical items
+            for j in range(chunk_len):
+                scan_results['item_word_ids'][pos+j].append(word_id)
 
-        # add the chunk len for each found  word id (seq/sense:word)  position
-        # for prioritizing purposes
-        for j in range(chunk_len):
-            scan_results['item_word_id_ref_count'][(word_id,pos+j)] = chunk_len
+            # add the chunk len and score for each found word id (seq/sense:word)  position
+            # for prioritizing purposes
+            freq = get_frequency_by_seq_and_word(seq,chunk)
+            freq = 100-freq
+            pos_score = max(0,6-pos)*20
+            score = (len(chunk)*30 + base_score*30 + freq + pos_score)*chunk_len
+            score = int(score*score_mod)
+            # increase score from hard-coded seq list
+            if word_id in priority_word_ids:
+                score += priority_word_ids[word_id]
+            for j in range(chunk_len):
+                scan_results['item_word_id_ref_count'][(word_id,pos+j)] = chunk_len
+                scan_results['item_word_id_ref_pos'][(word_id,pos+j)] = j
+                scan_results['item_word_id_score'][(word_id,pos+j)] = score
 
-        # add word id to word id list and list
-        # also its Parts of Speech classes
-        try:
-            w_idx = scan_results['word_id_list'].index(word_id)
-            scan_results['word_count'][w_idx] += 1
-        except:
-            scan_results['word_id_list'].append(word_id)
-            #scan_results['sense_word_index'].append(w_idx)
-            seq_cl_lists = get_class_list_by_seq(seq)
-            if sense == ALL_SENSES:
-                cl_list = [ cl for cls_per_sense in seq_cl_lists for cl in cls_per_sense]
-            else:
-                cl_list = seq_cl_lists[sense]
-            cl_list = list(set(cl_list)) # get rid of duplicates
-            scan_results['word_class_list'].append(cl_list)
-            scan_results['word_count'].append(1)
+            # add to word id list and word_class (parts of speech) list
+            try:
+                w_idx = scan_results['word_id_list'].index(word_id)
+                scan_results['word_count'][w_idx] += 1
+            except:
+                scan_results['word_id_list'].append(word_id)
+                seq_cl_lists = get_class_list_by_seq(seq)
+                if sense == ALL_SENSES:
+                    cl_list = [ cl for cls_per_sense in seq_cl_lists for cl in cls_per_sense]
+                else:
+                    cl_list = seq_cl_lists[sense]
+                cl_list = list(set(cl_list)) # get rid of duplicates
+                scan_results['word_class_list'].append(cl_list)
+                scan_results['word_count'].append(1)
 
 
 # this will scan for all the possible dictionary entries in the jmdict set
 # (either kanji_elements or readings) using the given phrase
 # and starting at position pos.  
-def greedy_jmdict_scanning(phrase, items, scan_results, searched_chunk_sets, 
+def greedy_jmdict_scanning(phrase, scores, items, scan_results, searched_chunk_sets, 
         start_pos, min_word_len, jmdict_set, jmdict_seq_dict, max_jmdict_len):
     lp = len(phrase) # length of phrase in particles
     
@@ -310,10 +376,12 @@ def greedy_jmdict_scanning(phrase, items, scan_results, searched_chunk_sets,
         i = start_pos + cycle_pos
         clen = 0
         chunk = ''
+        score = 0
         if not (phrase[cycle_pos] == '' or (items[i].flags & START_OF_SCAN_DISABLED)):
             while (cycle_pos + clen < lp):
 
                 chunk += phrase[cycle_pos + clen]
+                score += scores[cycle_pos + clen]
                 clen += 1
 
                 # first check that this chunk hasn't been yet searched for this position
@@ -325,9 +393,9 @@ def greedy_jmdict_scanning(phrase, items, scan_results, searched_chunk_sets,
                             # .. found. Now we can use a bit more time to find the sequence number in the dict
                             seqs = jmdict_seq_dict[clen_c][chunk]
                             for seq in seqs:
-                                senses = get_valid_senses_for_scanned_word(chunk,i,clen,items,seq)
+                                senses, score_modifiers = get_valid_senses_for_scanned_word(chunk,i,clen,items,seq)
                                 if len(senses)>0:
-                                    add_matched_sense_reference(chunk, clen, i, seq, senses, scan_results)
+                                    add_matched_sense_reference(chunk, score, clen, i, seq, senses, score_modifiers, scan_results)
 
                     searched_chunk_sets[i].add(chunk)
 
@@ -339,44 +407,83 @@ def greedy_jmdict_scanning(phrase, items, scan_results, searched_chunk_sets,
 # Permutations are created using original particles/words and ending with 
 # an ortho/basic form. Scanning stops when non-Hiragana/Katakana/Kanji character was
 # detected
-MAX_PERMUTATION_LEVELS = 4
-def create_phrase_permutations(original_words, ortho_forms, alt_forms, items, start=0, recursive_start=None, recursive_level=0):
-    if recursive_start is not None:
-        i = recursive_start
-    else:
-        i = start
-    permutations = []
-    while i<len(original_words) and (not (items[i].flags & NO_SCANNING) ):
-        if recursive_level < MAX_PERMUTATION_LEVELS:
-            for alt_form in alt_forms[i]:
-                new_words = original_words[:i] + [alt_form] + original_words[i+1:]
-                new_perms,i2 = create_phrase_permutations(new_words, ortho_forms, alt_forms, items, start, i+1, recursive_level+1)
-                permutations += new_perms
-        i += 1
+MAX_RECURSION_LEVELS = 5
+APPENDABLE_ALT_FORM_SCORE_MODIFIER = 0.7
+END_TYPE_ALT_FORM_SCORE_MODIFIER = 0.8
+#ORIGINAL_FORM_SCORE_MODIFIER = +5
+def create_phrase_permutations(original_words, base_scores, alt_scores, end_type_forms, appendable_forms, items, start=0, recursive_start=None, recursive_level=0):
 
+    # appendable_Forms.append(items[i].txt )  !!!
+    permutations = []
+    scores = []
+    max_recursion_level_index = -1
+    if recursive_level < MAX_RECURSION_LEVELS:
+        if recursive_start is not None:
+            i = recursive_start
+        else:
+            i = start
+        # appendable alternative forms can permutate recursively
+        while i<len(original_words) and (not (items[i].flags & NO_SCANNING) ) and (max_recursion_level_index == -1):
+            if len(appendable_forms[i])>0:
+                for alt_form in [original_words[i]] + appendable_forms[i]:
+                    new_words = original_words[:i] + [alt_form] + original_words[i+1:]
+                    if alt_form in alt_scores[i]:
+                        score = alt_scores[i][alt_form]
+                    else:
+                        score = base_scores[i]
+                    #if alt_form == original_words[i]:
+                    #    score += ORIGINAL_FORM_SCORE_MODIFIER
+                    if alt_form != original_words[i]:
+                        score = int(score*APPENDABLE_ALT_FORM_SCORE_MODIFIER)
+                    new_base_scores = base_scores[:i] + [score] + base_scores[i+1:]
+                    new_perms,new_scores, _, max_rec_level = create_phrase_permutations(new_words, new_base_scores, alt_scores, end_type_forms, appendable_forms, items, start, i+1, recursive_level+1)
+                    if max_rec_level != -1:
+                        max_recursion_level_index = max_rec_level
+                    permutations += new_perms
+                    scores += new_scores
+            i += 1
+    else:
+        max_recursion_level_index = recursive_start
+
+    # .. whereas end type alternative forms will be the end of this branch
     if recursive_start is not None:
         i = recursive_start
     else:
         i = start
-    while i<len(original_words) and (not (items[i].flags & NO_SCANNING) ):
-        permutation_base = original_words[start:i]
-        for ortho_form in ortho_forms[i]:
-            permutations.append(permutation_base + [ortho_form])
+    while i<len(original_words) and (not (items[i].flags & NO_SCANNING) ) and (i != max_recursion_level_index):
+        permutation_root = original_words[start:i]
+        score_root = base_scores[start:i]
+        for alt_form in end_type_forms[i]:
+            permutations.append(permutation_root + [alt_form])
+            if alt_form in alt_scores[i]:
+                score = alt_scores[i][alt_form]
+            else:
+                score = base_scores[i]
+            #if alt_form == original_words[i]:
+            #    score += ORIGINAL_FORM_SCORE_MODIFIER
+            score = int(score*END_TYPE_ALT_FORM_SCORE_MODIFIER)
+            scores.append(score_root + [score])
         i += 1
     
     if i> 0:
         # finally add the whole original as one permutation
-        #permutations.append(original_words[start:i])
-        permutations = [original_words[start:i]] + permutations
-    if i<len(original_words):
+        orig = original_words[start:i]
+        if orig not in permutations:
+            permutations = [orig] + permutations
+            orig_scores = base_scores[start:i]
+            scores = [orig_scores] + scores
+    if i<len(original_words) and (max_recursion_level_index == -1):
         i += 1  # add one because the last one was a punctuation etc..
-    return permutations, i
+    elif max_recursion_level_index != -1:
+        i -= 1  # start next round 1 item earlier to create overlap if recursion process
+        # was cut prematurely
+    return permutations, scores, i, max_recursion_level_index
 
 
-def scan_jmdict_for_phrase( phrase, pos, items, scan_results, searched_kanji_word_set, searched_reading_set):
+def scan_jmdict_for_phrase( phrase, scores, pos, items, scan_results, searched_kanji_word_set, searched_reading_set):
 
-    greedy_jmdict_scanning(phrase, items, scan_results, searched_kanji_word_set, pos, 1, jmdict_kanji_elements, jmdict_kanji_element_seq, jmdict_max_kanji_element_len)
-    greedy_jmdict_scanning(phrase, items, scan_results, searched_reading_set, pos, 1, jmdict_readings, jmdict_reading_seq, jmdict_max_reading_len)
+    greedy_jmdict_scanning(phrase, scores, items, scan_results, searched_kanji_word_set, pos, 1, jmdict_kanji_elements, jmdict_kanji_element_seq, jmdict_max_kanji_element_len)
+    greedy_jmdict_scanning(phrase, scores, items, scan_results, searched_reading_set, pos, 1, jmdict_readings, jmdict_reading_seq, jmdict_max_reading_len)
 
 def init_scan_results():
     scan_results = dict()
@@ -385,6 +492,8 @@ def init_scan_results():
     scan_results['word_class_list'] = []
     scan_results['word_count_per_unidict_class'] = \
         [0 for x in range(len(unidic_class_list))] 
+    scan_results['priority_word_id_list'] = []
+    scan_results['priority_word_count'] = []
     return scan_results
 
 
@@ -392,9 +501,22 @@ def parse_with_jmdict(unidic_items, scan_results):
     global messages
     if not _parser_initialized:
         raise Exception("Not yet initialized!")
+    
+    def add_to_priority_word_list(word_id):
+        priority_wid_list = scan_results['priority_word_id_list']
+        priority_wid_count = scan_results['priority_word_count']
+        if word_id in priority_wid_list:
+            idx = priority_wid_list.index(word_id)
+            priority_wid_count[idx] += 1
+        else:
+            priority_wid_list.append(word_id)
+            idx = len(priority_wid_list) - 1
+            priority_wid_count.append(1)
 
     scan_results['item_word_ids'] = [[] for x in range(len(unidic_items))]
     scan_results['item_word_id_ref_count'] = dict()
+    scan_results['item_word_id_ref_pos'] = dict()
+    scan_results['item_word_id_score'] = dict()
 
     # By default we use lexical items in the form they word in the original text
     # Example: お願いします -> お + 願い + します
@@ -406,6 +528,8 @@ def parse_with_jmdict(unidic_items, scan_results):
     appendable_forms = [[] for x in range(wlen)]
     end_type_forms = [[] for x in range(wlen)]
     original_forms = [item.txt for item in unidic_items]
+    base_scores = [item.base_score for item in unidic_items]
+    alt_scores = [item.alt_scores for item in unidic_items]
     for i, item in enumerate(unidic_items):
         appendable_forms[i] += item.appendable_alt_forms
         if not (item.flags & (NO_SCANNING | DISABLE_ORTHO)):
@@ -424,8 +548,9 @@ def parse_with_jmdict(unidic_items, scan_results):
 
         wid = unidic_items[i].word_id
         if wid != '':
+            # add explicit word id reference
             seq,sense,word = get_word_id_components(wid)
-            add_matched_sense_reference(word,1,i,seq,[sense],scan_results) 
+            add_matched_sense_reference(word,item.base_score,1,i,seq,[sense],scan_results) 
 
     searched_kanji_word_sets = [set() for x in range(wlen)]
     searched_reading_sets = [set() for x in range(wlen)]
@@ -447,25 +572,28 @@ def parse_with_jmdict(unidic_items, scan_results):
     messages = [[] for _ in range(len(unidic_items))]
 
     while pos < len(unidic_items):
-        permutations, next_pos = create_phrase_permutations(original_forms, end_type_forms, appendable_forms, unidic_items, pos)
+        permutations, scores, next_pos, _ = create_phrase_permutations(original_forms, base_scores, alt_scores, end_type_forms, appendable_forms, unidic_items, pos)
         if get_verbose_level()>=1:
             LOG(1,"Permutations %d-%d" % (pos,next_pos-1))
-            for p in permutations:
-                p_str = [x.ljust(6) for x in p]
+            for perms,sc in zip(permutations,scores):
+                p_str = [("%s(%d)" % (p,s)).ljust(6) for p,s in zip(perms,sc)]
                 LOG(1, "  %s" % (''.join(p_str)))
             LOG(1,"***********")
 
         # Scan this chunk with each permutation and for every lexical item get references 
         # (sequence number+sense index) to JMDict entries
-        for permutated_chunk in permutations:
+        for i, permutated_chunk in enumerate(permutations):
             if len(permutated_chunk)>0:
-                scan_jmdict_for_phrase(permutated_chunk, pos, unidic_items, scan_results, searched_kanji_word_sets, searched_reading_sets)
+                chunk_scores = scores[i]
+                scan_jmdict_for_phrase(permutated_chunk, chunk_scores, pos, unidic_items, scan_results, searched_kanji_word_sets, searched_reading_sets)
 
         pos = next_pos
 
     ### POST PROCESSING
 
     scan_results['item_word_id_refs'] = []
+    scan_results['item_word_id_scores'] = []
+    scan_results['item_longest_common_word_id'] = []
     
     for i,(word_ids) in enumerate(scan_results['item_word_ids']):
         pos_ref_index = i
@@ -507,13 +635,14 @@ def parse_with_jmdict(unidic_items, scan_results):
                     LOG(2,"\t.. remaining references:")
                     for word_id in word_ids:
                         seq,senses,word = expand_word_id(word_id)
+                        score = scan_results['item_word_id_score'][(word_id,pos_ref_index)]
                         for sense in senses:
                             cl_list = get_class_list_by_seq(seq)[sense]
                             meanings = get_meanings_by_sense(seq,sense)
                             if len(cl_list) == 1:
-                                LOG(2,"\t%s[%d/%d] %s %s" % (word.ljust(6,'　'),seq,sense, jmdict_class_list[cl_list[0]], meanings))
+                                LOG(2,"\t%s %d [%d/%d] %s %s" % (word.ljust(6,'　'),score,seq,sense, jmdict_class_list[cl_list[0]], meanings))
                             else:
-                                LOG(2,"\t%s[%d/%d] %s with classes:" % (word.ljust(6,'　'),seq, sense, meanings))
+                                LOG(2,"\t%s %d [%d/%d] %s with classes:" % (word.ljust(6,'　'),score, seq, sense, meanings))
                                 for cl in cl_list:
                                     LOG(2,"\t\t\t- %s" % (jmdict_class_list[cl]))
 
@@ -521,29 +650,176 @@ def parse_with_jmdict(unidic_items, scan_results):
         # 1) length of the JMDict word/phrase.
         # 2) the amount of lexical items that reference the JMDict entry
         # 3) the frequency of the JMDict entry
-        if len(word_ids)>1:
+                                    
+        longest_common_word_id = 0
+        if len(word_ids)>0:
+            """
             ref_sizes = []
             for word_id in word_ids:
                 seq,senses,word = expand_word_id(word_id)
                 word = word_id.split(':')[1]
                 word_id_ref_count = scan_results['item_word_id_ref_count'][(word_id,pos_ref_index)]
-                ref_sizes.append( (word_id,len(word), word_id_ref_count,
+                word_id_score = scan_results['item_word_id_score'][(word_id,pos_ref_index)]
+                ref_sizes.append( (word_id,len(word), word_id_score,
                     get_frequency_by_seq_and_word(seq,word)) )
             ref_sizes.sort(key=lambda x:x[3], reverse=False)
             ref_sizes.sort(key=lambda x:x[2], reverse=True)
             ref_sizes.sort(key=lambda x:x[1], reverse=True)
             
             word_ids = [x[0] for x in ref_sizes]
+            """
+            scoring = []
+            for word_id in word_ids:
+                seq,senses,word = expand_word_id(word_id)
+                word = word_id.split(':')[1]
+                #word_id_ref_count = scan_results['item_word_id_ref_count'][(word_id,pos_ref_index)]
+                score = scan_results['item_word_id_score'][(word_id,pos_ref_index)]
+                refs = scan_results['item_word_id_ref_count'][(word_id,pos_ref_index)]
+                if refs > longest_common_word_id:
+                    longest_common_word_id = refs
+                scoring.append( (word_id,score) )
+            scoring.sort(key=lambda x:x[1], reverse=True)
+            word_ids = [x[0] for x in scoring]
+            word_id_scores = [score for (word_id,score) in scoring] # get only the score
+        else:
+            word_id_scores = []
+        scan_results['item_word_id_scores'].append(word_id_scores)
+        scan_results['item_word_ids'][i] = word_ids
+        scan_results['item_longest_common_word_id'].append(longest_common_word_id)
 
+    best_score, best_permutation = calculate_best_phrase_permutation(unidic_items,scan_results)
+    scan_results['score'] = best_score
+
+    for i,(word_ids) in enumerate(scan_results['item_word_ids']):
         refs = []
-        for word_id in word_ids:
+        if len(word_ids)>0:
+            best_word_id = best_permutation[i]
+            # always select the best word_id first in the list
+            if word_ids[0] != best_word_id:
+                if best_word_id == '':
+                    # TODO: add empty word
+                    pass
+                else:
+                    best_idx = word_ids.index(best_word_id)
+                    word_ids.pop(best_idx)
+                    word_ids = [best_word_id] + word_ids
+                    best_w_score = scan_results['item_word_id_scores'][i].pop(best_idx)
+                    scan_results['item_word_id_scores'][i] = [best_w_score] + scan_results['item_word_id_scores'][i]
+
+            if best_word_id != '':
+                # add the best word id to priority word list and increment freq count
+                ref_count = scan_results['item_word_id_ref_count'][(best_word_id,i)]
+                if scan_results['item_word_id_ref_pos'][(best_word_id,i)] == 0:
+                    add_to_priority_word_list(best_word_id)
+                if ref_count > 1:
+                    # this best word_id is a phrase (consists of multiple lexical items)
+                    # e.g. 手を出す
+                    # in addition to the phrase itself, we want to add 
+                    # each item (手 + を + 出す)
+                    # to the priority word list
+                    if len(word_ids)>1:
+                        next_best_word = word_ids[1]
+                        if scan_results['item_word_id_ref_pos'][(next_best_word,i)] == 0:
+                            if scan_results['item_word_id_ref_count'][(next_best_word,i)] == 1:
+                                add_to_priority_word_list(next_best_word)
+
             # reference the word_id as index number in word_id_list
-            w_idx = scan_results['word_id_list'].index(word_id)
-            refs.append(w_idx)
+            for word_id in word_ids:
+                w_idx = scan_results['word_id_list'].index(word_id)
+                refs.append(w_idx)
         scan_results['item_word_id_refs'].append(refs)
 
-    del(scan_results['item_word_id_ref_count']) # not needed anymore
+    # these are not needed anymore
+    del(scan_results['item_word_id_ref_pos'])
+    del(scan_results['item_word_id_ref_count'])
+    del(scan_results['item_word_id_score'])
+    del(scan_results['item_longest_common_word_id'])
 
+
+def calculate_best_phrase_permutation(items,scan_results):
+    best_score = 0
+    best_permutation = []
+    pos = 0
+    while pos < len(items):
+        best_chunk_score, best_chunk_permutation, rec_fail = \
+            do_calculate_best_phrase_permutation(pos,items,scan_results)
+        LOG(1,"Chunk permutation score : %d %s" % (best_score, best_permutation))
+        if len(best_chunk_permutation)>0:
+            best_score += best_chunk_score
+            best_permutation += best_chunk_permutation
+            pos += len(best_chunk_permutation)
+        else:
+            best_permutation += ['']
+            pos += 1
+
+    LOG(1,"Best phrase permutation: %d %s" % (best_score, best_permutation))
+    return best_score, best_permutation
+
+def do_calculate_best_phrase_permutation(pos,items,scan_results, rec_level=0):
+    best_score = -1
+    best_permutation = []
+
+    if rec_level >= 16:
+        # too many recursion levels so just return the first score/word_id in the list (it's already sorted)
+        # and continue from the next word with level 0
+        if len(scan_results['item_word_id_scores'][pos])>0:
+            return scan_results['item_word_id_scores'][pos][0], [scan_results['item_word_ids'][pos][0]], True
+        else:
+            return 0, [], True
+
+    if items[pos].flags & NO_SCANNING:
+        return 0, [], False
+    
+    if scan_results['item_longest_common_word_id'][pos]==1:
+        # this lexical item references only words that are not shared by other items
+        # so we can return the first score/word_id in the list (it's already sorted)
+        return scan_results['item_word_id_scores'][pos][0], [scan_results['item_word_ids'][pos][0]], False
+
+    _word_ids = scan_results['item_word_ids'][pos]
+    _word_id_scores = scan_results['item_word_id_scores'][pos]
+    word_ids = _word_ids + ['']
+    word_id_scores = _word_id_scores + [-300]
+    processed_words = set()
+    for word_id,score in zip(word_ids,word_id_scores):
+        print_prefix = "\t"*pos
+        if word_id != '':
+            seq,senses,word = expand_word_id(word_id)
+            word = word_id.split(':')[1]
+            ref_pos = scan_results['item_word_id_ref_pos'][(word_id,pos)]
+            ref_steps = scan_results['item_word_id_ref_count'][(word_id,pos)]
+        else:
+            word = ''
+            ref_pos = 0
+            ref_steps = 1
+
+        if ref_pos == 0:
+            # check only from the first element of each word_id
+            permutation = [word_id]*ref_steps
+            if word not in processed_words:
+                processed_words.add(word)
+
+                #print(print_prefix,pos,word)
+                print_prefix += "  "
+                if pos + ref_steps < len(items):
+                    #print(print_prefix,pos,"Trying sub-items at pos %d" % (pos+ref_steps), scan_results['item_word_ids'][pos+ref_steps])
+                    best_sub_score, best_sub_permutation, fail_rec = do_calculate_best_phrase_permutation(pos+ref_steps,items,scan_results, rec_level+1)
+                    if fail_rec:
+                        # too many recursion levels
+                        return best_score, best_permutation, True
+
+                    #print(print_prefix,pos,"Result score(%d) + sub " % score,best_sub_score,best_sub_permutation)
+
+                    score += best_sub_score
+                    permutation += best_sub_permutation
+                    if rec_level==0:
+                        LOG(1,"Permutation score %d: %s" % (score,permutation))
+
+
+                if score > best_score:
+                    best_score = score
+                    best_permutation = permutation
+                    #print(print_prefix,pos,"Best: ",best_score,best_permutation)
+    return best_score, best_permutation, False
 
 def parse_block_with_unidic(lines, kanji_count):
 
@@ -644,29 +920,36 @@ def parse_block_with_unidic(lines, kanji_count):
         pass
     return kc, ud_items
 
-def reassemble_block(original_lines, unidic_items, item_sense_ref):
+def reassemble_block(original_lines, unidic_items, item_word_ref): #, item_word_scores):
     # re-assemble this block back into lines (list of lists)
     i = 0
     block_word_ref = []
+    block_word_scores = []
     next_new_line_str = ''
     next_new_line = []
+    #next_new_line_scores = []
     for line in original_lines:
         if len(next_new_line_str) <= len(line):
             new_line = next_new_line
+            #new_line_scores = next_new_line_scores
         else:
             new_line = []
+            #new_line_scores = []
             w = next_new_line_str
         new_line_str = next_new_line_str
         next_new_line_str = ''
         next_new_line = []
+        #next_new_line_scores = []
         while line not in new_line_str:
             w = unidic_items[i].txt
-            refs = item_sense_ref[i]
+            refs = item_word_ref[i]
+            #scores = item_word_scores[i]
             new_line_str += w
             i += 1
 
             if len(new_line_str) <= len(line):
                 new_line.append({w:refs})
+                #new_line_scores.append(scores)
 
         if len(new_line_str) > len(line):
             # some of the particles were fused temporarily for scanning purposes. 
@@ -675,11 +958,52 @@ def reassemble_block(original_lines, unidic_items, item_sense_ref):
             num_extra_characters = len(new_line_str) - len(line)
             w = w[:-num_extra_characters]
             next_new_line = [{next_new_line_str:refs}]
+            #next_new_line_scores = [scores]
             new_line.append({w:refs})
+            #new_line_scores.append(scores)
 
         block_word_ref.append(new_line)
+        #block_word_scores.append(new_line_scores)
     
-    return block_word_ref
+    return block_word_ref #, block_word_scores
+
+
+def reassemble_block_scores(original_lines, unidic_items, item_word_scores):
+    # re-assemble this block back into lines (list of lists)
+    i = 0
+    block_word_scores = []
+    next_new_line_str = ''
+    next_new_line_scores = []
+    for line in original_lines:
+        if len(next_new_line_str) <= len(line):
+            new_line_scores = next_new_line_scores
+        else:
+            new_line_scores = []
+            w = next_new_line_str
+        new_line_str = next_new_line_str
+        next_new_line_str = ''
+        next_new_line_scores = []
+        while line not in new_line_str:
+            w = unidic_items[i].txt
+            scores = item_word_scores[i]
+            new_line_str += w
+            i += 1
+
+            if len(new_line_str) <= len(line):
+                new_line_scores.append(scores)
+
+        if len(new_line_str) > len(line):
+            # some of the particles were fused temporarily for scanning purposes. 
+            # Don't want to lengthen a line so let's break them up again
+            next_new_line_str = new_line_str[len(line):]
+            num_extra_characters = len(new_line_str) - len(line)
+            w = w[:-num_extra_characters]
+            next_new_line_scores = [scores]
+            new_line_scores.append(scores)
+
+        block_word_scores.append(new_line_scores)
+    
+    return block_word_scores
 
 
 def init_parser(load_meanings=False):

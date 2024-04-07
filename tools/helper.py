@@ -2,11 +2,11 @@ import json
 import os
 
 # Other tools depend on the right format of the parsed OCR and summary files..
-CURRENT_PARSED_OCR_VERSION = 3
-CURRENT_OCR_SUMMARY_VERSION = 3
+CURRENT_PARSED_OCR_VERSION = 4
+CURRENT_OCR_SUMMARY_VERSION = 4
 CURRENT_METADATA_CACHE_VERSION = 2
 # .. whereas older language parser works but may not have parsed all the words as efficiently
-CURRENT_LANUGAGE_PARSER_VERSION = 3
+CURRENT_LANUGAGE_PARSER_VERSION = 5
 
 AVERAGE_PAGES_PER_VOLUME = 180
 
@@ -239,6 +239,8 @@ def get_jlpt_word_jmdict_references():
                     kana = d[2]
                     kana = kana.replace('"','')
                     if kana != '':
+                        if has_word_katakana(kana):
+                            kana = katakana_to_hiragana(kana)
                         if kana not in refs[level][seq]['kana']:
                             refs[level][seq]['kana'].append(kana)
 
@@ -307,7 +309,7 @@ def hiragana_to_katakana(word):
             katakana += chr
     return katakana
 
-def katagana_to_hiragana(word):
+def katakana_to_hiragana(word):
     hiragana = ''
     for chr in word:
         if chr in kata_to_hira:

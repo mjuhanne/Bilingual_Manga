@@ -31,7 +31,6 @@ def parse(lines):
 
     print("After unidic scanning:")
     for item in ud_items:
-        print(item)
         if item.ortho == item.txt:
             ortho = '。'
         else:
@@ -63,11 +62,12 @@ def parse(lines):
         ud_items, results,
     )
     jlines = reassemble_block(lines, ud_items, results['item_word_id_refs'])
+    scores = reassemble_block_scores(lines, ud_items, results['item_word_id_scores'])
 
     print("Lines: " + str(lines))
 
     print("\nAfter jmdict scanning:")
-    print_scanning_results(jlines, results, ud_items)
+    print_scanning_results(jlines, scores, results, ud_items)
 
     jlines_str = str(jlines)
     #print("{'line':'%s','jlines':%s, 'seq':%s, 'word_list':%s}" % (line,str(jlines),str(unique_jmdict_word_seq),str(unique_jmdict_word_list)))
@@ -117,7 +117,29 @@ if __name__ == "__main__":
         lines = ["迷っちゃ", "おっか？"]
         lines = ["主人のお友達で", "らした．．．"]
         lines =  ["エッちゃん！","何してんの","先生が起きて","いいっておっ","しゃったの"]
-        
+        lines = ["．．．パッとした"]
+        lines = ["まだまだ", "帰れそうに", "ない。"]
+        lines = ["頼りないって", "思われてる", "ワケじゃ", "ないのか"]
+        lines = ["そうじゃないのは"]
+        lines = ["妹を", "可哀相", "あつかい", "しないって", "決めたんだ。"]
+        lines = ["ちょっと", "ほっといてみ。"]
+        lines = ["ほら", "手を出す"]
+        lines = ["白丸先輩の", "ゲームセンターの人が", "エアコンを直しに", "きてくれましたが、", "丸ごと交換が必要とかで", "直りませんでした"]
+        lines = ["あいつー", "【秘密を知ってる", "クラスメイトーくんを", "無視しやがってー"]
+        lines = ["お願いしまーす"]
+        lines = ["耳にしたろう．．．"]
+        lines = ["あたしもトトロの", "最初から最後まで", "セリフ言える特技", "披露したかった。"]
+        lines = ["なんで", "こんなに", "ヒマ", "なのよ。"]
+        lines = ["きくのまずかったかな"]
+        lines = ["はるかさん", "こいつどーにか", "してくださいよ"]
+        lines = ["テルテル", "坊主．．．．．．"]
+        lines = ["詳しい話は", "そㇱときしな．．．"]
+        lines = ['まったく', '．．．', '軽率', 'な', 'ヤツラ', 'にゃ', '頭', 'が', '下', 'が', 'る', 'ぜ']
+        lines = ["なにそれ", "知ってるしー。"]
+        lines = ["言いづらくてさ。"]
+        lines = ["おい", "しいー"]
+        lines = ['負傷者は', 'チェックして', 'へリへ運べ']
+        lines = ["そんな事を", "言っとんじゃない"]
     else:
         lines = json.loads(args['text'])
 

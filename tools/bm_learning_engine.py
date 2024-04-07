@@ -88,6 +88,12 @@ def adjust_and_cap_frequency(freq, comprehension):
 # create a manual event (JLPT/custom word/kanji learning event or manual change of learning stage)
 def create_manual_event(item_type, item, stage, timestamp, metadata ):
     global manual_events, manual_event_pointer
+
+    if item_type == 'kanjis':
+        item_str = 'Kanji ' + item
+    else:
+        item_str = item
+
     event = {
         's' : stage,
         't' : timestamp,
@@ -117,7 +123,7 @@ def create_manual_event(item_type, item, stage, timestamp, metadata ):
         learning_freq[item_type][item] = 0
 
     if trace_item is not None:
-        print(' + ' + item + ' Created new manual event: ' + TRACE_EVENT(event))
+        print(' + ' + item_str + ' Created new manual event: ' + TRACE_EVENT(event))
 
 # If a word hasn't been seen after remembering_period then downgrade
 # a KNOWN word/kanji to FORGOTTEN. Also PRE_KNOWN stage will be downgraded back to LEARNING
@@ -149,7 +155,7 @@ def handle_forgotten_event(item_type, item, next_timestamp):
             days_lapsed = int(remembering_period/(24*60*60))
             if current_stage == STAGE_KNOWN:
                 if trace_item is not None:
-                    print(" ! Forgot %s %s" % (item_type,item))
+                    print(" ! Forgot %s %s after %d days" % (item_type,item,days_lapsed))
                 forgotten_event['m']['comment'] = 'Forgot after %d days' % days_lapsed
             else:
                 if item_type == 'words':
@@ -205,6 +211,11 @@ def insert_manual_events( item_type, item, next_event_timestamp=None ):
 def update_item_stage(item_type, item, stage, timestamp, metadata ):
     global event_history, manual_events, manual_event_pointer
 
+    if item_type == 'kanjis':
+        item_str = 'Kanji ' + item
+    else:
+        item_str = item
+
     new_event = {
         's' : stage,
         't' : timestamp,
@@ -219,7 +230,7 @@ def update_item_stage(item_type, item, stage, timestamp, metadata ):
         # this is the first occurence for this word/kanji
         event_history[item_type][item] = [new_event]
         if trace_item is not None:
-            print(' * ' + item + ' First event: ' + TRACE_EVENT(new_event))
+            print(' * ' + item_str + ' First event: ' + TRACE_EVENT(new_event))
     else:
         last_event = event_history[item_type][item][-1]
         current_stage = last_event['s']
@@ -228,7 +239,7 @@ def update_item_stage(item_type, item, stage, timestamp, metadata ):
         if current_stage == STAGE_IGNORED:
             skip = True
             if trace_item is not None:
-                print(' - ' + item + ' Passing through during ignored stage')
+                print(' - ' + item_str + ' Passing through during ignored stage')
 
         elif last_event['m']['src'] == SOURCE_USER and \
             last_event['m']['ci'] == metadata['ci']:
@@ -238,26 +249,29 @@ def update_item_stage(item_type, item, stage, timestamp, metadata ):
                 # to the completion timestamp of this chapter).
                 skip = True
                 if trace_item is not None:
-                    print(' - ' + item + ' Skipped following implicit event ' + TRACE_EVENT(new_event) + "because user")
+                    print(' - ' + item_str + ' Skipped following implicit event ' + TRACE_EVENT(new_event) + "because user")
 
         if not skip:
 
             current_stage = last_event['s']
 
-            if trace_item is not None:
-                print(' + ' + item + ' New event: ' + TRACE_EVENT(new_event))
-
             # reset the remembering period
             if stage != current_stage and stage == STAGE_PRE_KNOWN:
-                remembering_periods[item_type][item] = initial_remembering_period
+                if item not in remembering_periods[item_type]:
+                    remembering_periods[item_type][item] = initial_remembering_period
                     
-            # check if we have forgotten this word/kanji
+            # check if we have forgotten this word/kanji meanwhile
             current_stage = handle_forgotten_event(item_type, item, timestamp)
 
             if current_stage != STAGE_FORGOTTEN:
                 if (stage < current_stage):
                     # do not lower the learning stage by just reading
                     new_event['s'] = current_stage
+                    if trace_item is not None:
+                        print(' ^ ' + item_str + ' Refreshing known stage: ' + TRACE_EVENT(new_event))
+                else:
+                    if trace_item is not None:
+                        print(' + ' + item_str + ' New event: ' + TRACE_EVENT(new_event))
 
                 if RETAIN_FULL_WORD_HISTORY:
                     event_history[item_type][item].append(new_event)
@@ -270,7 +284,7 @@ def update_item_stage(item_type, item, stage, timestamp, metadata ):
                         event_history[item_type][item][-1] = new_event
             else:
                 if trace_item is not None:
-                    print(' - ' + item + ' Passing through during forgotten stage')
+                    print(' - ' + item_str + ' Passing through during forgotten stage')
 
 
 def update_item_stage_by_frequency_and_class(item_type, item, freq, adjusted_freq, class_list, timestamp, metadata ):
@@ -570,14 +584,20 @@ def update(args):
                         if word_id_ke in event_history['words']:
                             stage_ke = event_history['words'][word_id_ke][-1]['s']
                             if ((stage_ke > stage) or (stage == STAGE_FORGOTTEN)) and (stage_ke != STAGE_FORGOTTEN):
-                                event_history['words'][word_id].append( {
+                                comment = 'Set to %s because of %s' % (learning_stage_labels[stage_ke],ke)
+                                event = {
                                     't' : current_timestamp,
                                     's' : stage_ke,
                                     'm' : {
                                         'src':SOURCE_ENGINE,
-                                        'comment':'Set to %s because of %s' % (learning_stage_labels[stage_ke],ke)
+                                        'comment':comment,
                                     },
-                                })
+                                }
+                                event_history['words'][word_id].append(event)
+                                stage = stage_ke
+                                if trace_item is not None:
+                                    print(' + ' + item + ' ' + comment + ':' + TRACE_EVENT(event))
+
 
 
     # extract the current learning stage for faster lookup. Also save the history for browsing
@@ -667,7 +687,8 @@ parser_update.add_argument('--trace', type=str, default=None, help='trace change
 args = vars(parser.parse_args())
 cmd = args.pop('command')
 
-#update({'trace':'人'})
+#update({'trace':'まずい'})
+#update({'trace':None})
 
 if cmd is not None:
     try:

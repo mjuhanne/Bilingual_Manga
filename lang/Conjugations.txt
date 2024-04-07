@@ -1257,6 +1257,12 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "じゃ", 
+        "Tense" : "Colloquial for ては"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Next Type" : "v5u", 
         "Suffix" : "じゃう", 
         "Tense" : "(Accidentally\/Finish Completely)"
@@ -1531,6 +1537,12 @@
         "Negative" : false, 
         "Suffix" : "さ", 
         "Tense" : "-ness"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "くちゃ", 
+        "Tense" : "Colloquial for ては"
       },
       {
         "Formal" : false, 
@@ -1948,6 +1960,12 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "ろう", 
+        "Tense" : "Past Conjectural\/Presumptive (Colloquial)"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Suffix" : "だろう", 
         "Tense" : "Past Conjectural\/Presumptive"
       },
@@ -2124,6 +2142,12 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "しちゃ", 
+        "Tense" : "Colloquial for ては"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Next Type" : "v5u", 
         "Suffix" : "しちゃう", 
         "Tense" : "(Accidentally\/Finish Completely)"
@@ -2254,6 +2278,12 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "っちゃ", 
+        "Tense" : "Colloquial for ては"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Next Type" : "v5u", 
         "Suffix" : "っちゃう", 
         "Tense" : "(Accidentally\/Finish Completely)"
@@ -2362,6 +2392,12 @@
         "Next Type" : "v-ta-stem", 
         "Suffix" : "うた", 
         "Tense" : "Stem"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "うちゃ", 
+        "Tense" : "Colloquial for ては"
       },
       {
         "Formal" : false, 
@@ -2478,6 +2514,12 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "んじゃ", 
+        "Tense" : "Colloquial for ては"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Next Type" : "v5u", 
         "Suffix" : "んじゃう", 
         "Tense" : "(Accidentally\/Finish Completely)"
@@ -2586,6 +2628,12 @@
         "Next Type" : "v-ta-stem", 
         "Suffix" : "いだ", 
         "Tense" : "Stem"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "いじゃ", 
+        "Tense" : "Colloquial for ては"
       },
       {
         "Formal" : false, 
@@ -2702,6 +2750,12 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "いちゃ", 
+        "Tense" : "Colloquial for ては"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Next Type" : "v5u", 
         "Suffix" : "いちゃう", 
         "Tense" : "(Accidentally\/Finish Completely)"
@@ -2810,6 +2864,12 @@
         "Next Type" : "v-ta-stem", 
         "Suffix" : "った", 
         "Tense" : "Stem"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "っちゃ", 
+        "Tense" : "Colloquial for ては"
       },
       {
         "Formal" : false, 
@@ -2932,6 +2992,12 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "んじゃ", 
+        "Tense" : "Colloquial for ては"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Next Type" : "v5u", 
         "Suffix" : "んじゃう", 
         "Tense" : "(Accidentally\/Finish Completely)"
@@ -3044,6 +3110,12 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "んじゃ", 
+        "Tense" : "Colloquial for ては"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Next Type" : "v5u", 
         "Suffix" : "んじゃう", 
         "Tense" : "(Accidentally\/Finish Completely)"
@@ -3152,6 +3224,12 @@
         "Next Type" : "v-ta-stem", 
         "Suffix" : "った", 
         "Tense" : "Stem"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "っちゃ", 
+        "Tense" : "Colloquial form of ては"
       },
       {
         "Formal" : false, 
@@ -3357,6 +3435,12 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "あっちゃ", 
+        "Tense" : "Colloquial for ては"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Next Type" : "v5u", 
         "Suffix" : "あっちゃう", 
         "Tense" : "(Accidentally\/Finish Completely)"
@@ -3546,6 +3630,12 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "っちゃ", 
+        "Tense" : "Colloquial for ては"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Next Type" : "v5u", 
         "Suffix" : "っちゃう", 
         "Tense" : "(Accidentally\/Finish Completely)"
@@ -3654,6 +3744,12 @@
         "Next Type" : "v-ta-stem", 
         "Suffix" : "った", 
         "Tense" : "Stem"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "っちゃ", 
+        "Tense" : "Colloquial for ては"
       },
       {
         "Formal" : false, 
@@ -3782,6 +3878,12 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "えちゃ", 
+        "Tense" : "Colloquial for ては"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Next Type" : "v5u", 
         "Suffix" : "えちゃう", 
         "Tense" : "(Accidentally\/Finish Completely)"
@@ -3895,6 +3997,12 @@
         "Next Type" : "v-ta-stem", 
         "Suffix" : "た", 
         "Tense" : "Stem"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "ちゃ", 
+        "Tense" : "Colloquial for ては"
       },
       {
         "Formal" : false, 
@@ -4023,6 +4131,12 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "来ちゃ", 
+        "Tense" : "Colloquial for ては"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Next Type" : "v5u", 
         "Suffix" : "来ちゃう", 
         "Tense" : "(Accidentally\/Finish Completely)"
@@ -4137,6 +4251,12 @@
         "Next Type" : "v-ta-stem", 
         "Suffix" : "きた", 
         "Tense" : "Stem"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "きちゃ", 
+        "Tense" : "Colloquial for ては"
       },
       {
         "Formal" : false, 
@@ -4265,6 +4385,12 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "っちゃ", 
+        "Tense" : "Colloquial for ては"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Next Type" : "v5u", 
         "Suffix" : "っちゃう", 
         "Tense" : "(Accidentally\/Finish Completely)"
@@ -4385,6 +4511,12 @@
         "Next Type" : "v-ta-stem", 
         "Suffix" : "た", 
         "Tense" : "Stem"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "ちゃ", 
+        "Tense" : "Colloquial for ては"
       },
       {
         "Formal" : false, 
@@ -4621,6 +4753,12 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "しちゃ", 
+        "Tense" : "Colloquial for ては"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Next Type" : "v5u", 
         "Suffix" : "しちゃう", 
         "Tense" : "(Accidentally\/Finish Completely)"
@@ -4846,6 +4984,12 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "しちゃ", 
+        "Tense" : "Colloquial for ては"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Next Type" : "v5u", 
         "Suffix" : "しちゃう", 
         "Tense" : "(Accidentally\/Finish Completely)"
@@ -5032,6 +5176,12 @@
         "Next Type" : "v-ta-stem", 
         "Suffix" : "した", 
         "Tense" : "Stem"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "しちゃ", 
+        "Tense" : "Colloquial for ては"
       },
       {
         "Formal" : false, 
