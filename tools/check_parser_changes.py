@@ -12,6 +12,7 @@ from jp_parser import (
     get_flat_class_list_by_seq, get_sense_meanings_by_seq,
     unidic_class_list, ignored_classes_for_freq
 )
+from jmdict import get_kanji_element_freq, get_reading_freq
 from bm_learning_engine_helper import read_user_settings
 # for loggin
 from jp_parser import open_log_file, close_log_file, set_verbose_level
@@ -206,6 +207,8 @@ def process_chapter(f_p, fo_p, chapter_data):
 
                             new_meaning = ''
                             prev_meaning = ''
+                            new_freq = ''
+                            prev_freq = ''
                             mark = ''
                             if new_wid != prev_wid:
                                 if does_word_id_match(new_wid,prev_wid):
@@ -216,14 +219,16 @@ def process_chapter(f_p, fo_p, chapter_data):
                                         new_seq,_ = get_seq_and_word_from_word_id(new_wid)
                                         new_sense_meanings = get_sense_meanings_by_seq(new_seq)
                                         new_meaning = '(' + new_sense_meanings[0][0] + ')'
+                                        new_freq = '[%s/%d]' % (get_kanji_element_freq(new_seq),get_reading_freq(new_seq))
                                     if prev_wid != '()':
                                         prev_seq,_ = get_seq_and_word_from_word_id(prev_wid)
                                         prev_sense_meanings = get_sense_meanings_by_seq(prev_seq)
                                         prev_meaning =  '(' + prev_sense_meanings[0][0]+ ')'
+                                        prev_freq = '[%s/%d]' % (get_kanji_element_freq(prev_seq),get_reading_freq(prev_seq))
                             else:
                                 if p2 != '':
                                     mark = '!!'
-                            print("\t%s\t%s\t%s%s\t%s%s%s" % (mark,new_p,new_wid,new_meaning,p2,prev_wid,prev_meaning))
+                            print("\t%s\t%s\t%s%s%s\t%s%s%s%s" % (mark,new_p,new_wid,new_meaning,new_freq,p2,prev_wid,prev_meaning,prev_freq))
                     pass
     f.close()
 

@@ -484,6 +484,13 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Next Type" : "v5u", 
+        "Suffix" : "ちゃう", 
+        "Tense" : "(Accidentally\/Finish Completely)"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Next Type" : "v1", 
         "Suffix" : "られる", 
         "Tense" : "Passive (Colloquial)"
@@ -1519,6 +1526,12 @@
         "Negative" : true, 
         "Suffix" : "くなかったり", 
         "Tense" : "Alternative"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "そう", 
+        "Tense" : "Seems"
       },
       {
         "Formal" : false, 

@@ -1,4 +1,5 @@
 from jp_parser_helper import *
+from helper import bcolors
 
 ########### LOGGING FACILITIES ######################
 
@@ -23,9 +24,14 @@ def LOG_HEADING(level=2):
     if level <= verbose_level:
         print("*************")
 
-def LOG(level, msg, items=None):
+def LOG(level, msg, items=None, only_log_items=True,color=None):
     if level <= verbose_level:
-        print(msg)
+        if color is None:
+            print(msg)
+        else:
+            print(color,msg,bcolors.ENDC)
+        if not only_log_items:
+            print("Phrase:"+''.join([item.txt for item in items]))
         if log_file is not None:
             print(msg, file=log_file)
             if items is not None:

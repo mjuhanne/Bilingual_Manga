@@ -156,6 +156,24 @@ def check_nouns(pos,items):
                 items[pos+1].flags |= MERGE_ITEM
     return
 
+small_vowels = "ァィゥェォぁぃぅぇぉ"
+
+small_vowel_fade = {
+    'ァ' : "アカサタナハマヤラワガザダバパあかさたなはまやらわがざだばぱ",
+    'ィ' : "イキシチニヒミリギジヂビピいきしちにひみりぎじぢびぴ",
+    'ゥ' : "ウクスツヌフムユルヴグズヅブプうくすつぬふむゆるぐずづぶぷ",
+    'ェ' : "エケセテネヘメレゲゼデベペえけせてねへめれげぜでべぺ",
+    'ォ' : "オコソトノホモヨロヲゴゾドボポおこそとのほもよろごぞどぼぽ",
+    'ぁ' : "アカサタナハマヤラワガザダバパあかさたなはまやらわがざだばぱ",
+    'ぃ' : "イキシチニヒミリギジヂビピいきしちにひみりぎじぢびぴ",
+    'ぅ' : "ウクスツヌフムユルヴグズヅブプうくすつぬふむゆるぐずづぶぷ",
+    'ぇ' : "エケセテネヘメレゲゼデベペえけせてねへめれげぜでべぺ",
+    'ぉ' : "オコソトノホモヨロヲゴゾドボポおこそとのほもよろごぞどぼぽ",
+}
+short_vowel_fade_by_kana = dict()
+for ext,kana_list in small_vowel_fade.items():
+    for k in kana_list:
+        short_vowel_fade_by_kana[k] = ext
 
 vowel_extension = {
     'ァ' : "ャヮヵ",
@@ -188,18 +206,68 @@ def get_vowel_extension(chr):
 def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
     changed = False
 
+    def set_alt_form(item,alt_form):
+        if isinstance(alt_form, list):
+            alt_forms = alt_form
+        else:
+            alt_forms = [alt_form]
+        item.alt_forms = []
+        item.appendable_alt_forms = []
+        for af in alt_forms:
+            if af != '' and af[-1] == '_':
+                # this is non-appendable alt form
+                af = af[:-1]
+                item.alt_forms.append(af)
+            else:
+                item.alt_forms.append(af)
+                if af != '':
+                    item.appendable_alt_forms.append(af)
+
+    def does_pattern_match(ew):
+        p_list = ew[0]
+        p_classes = ew[1]
+        lp = len(p_list)
+        i = 0
+        j = 0
+        cont = True
+        gaps = []
+        while (i<lp) and (pos+j<len(items)) and cont:
+            if j != 0 and items[pos+j].txt in elongation_marks:
+                gaps.append(i)
+                j += 1
+            else:
+                if items[pos+j].txt != p_list[i]:
+                    cont = False
+                elif p_classes[i] != any_class and p_classes[i] not in items[pos+j].classes:
+                    cont = False
+                i += 1
+                j += 1
+        if i == lp and cont:
+            return True, gaps
+        return False, []
+
     lw = len(items)
     for ew in explicit_change_list:
         p_list = ew[0]
         p_classes = ew[1]
+        condition = ew[2]
         lp = len(p_list)
         if pos + lp <= lw:
-            i = 0
-            while (i<lp) and (items[pos+i].txt==p_list[i]) and (p_classes[i] in items[pos+i].classes):
-                i += 1
-            if i == lp:
+            if condition & COND_FLEXIBLE:
+                # flexible matching mode allows elongation marks inside the pattern but scanning is slower
+                match, gaps = does_pattern_match(ew)
+            else:
+                # rigid pattern and class matching
+                i = 0
+                while (i<lp) and (items[pos+i].txt==p_list[i]) and ((p_classes[i] == any_class) or (p_classes[i] in items[pos+i].classes)):
+                    i += 1
+                if i == lp:
+                    match = True
+                    gaps = []
+                else:
+                    match = False
+            if match:
                 # All items match. Check extra conditions yet.
-                condition = ew[2]
                 task = ew[3]
                 params = ew[4]
                 allowed = True
@@ -252,6 +320,8 @@ def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
                         if 'parts' in params:
                             # merge several items into two or more items
                             i = 0
+                            if len(gaps)>0:
+                                raise Exception("TODO gaps in merge!")
                             for part,cl,ortho in zip(params['parts'],params['classes'],params['orthos']):
                                 items[pos+i].txt = part
                                 items[pos+i].ortho = ortho
@@ -264,6 +334,8 @@ def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
                                 i += 1
                         else:
                             # simple merge
+                            if len(gaps)>0:
+                                raise Exception("TODO gaps in merge!")
                             if 'class' in params:
                                 target_class = params['class']
                                 # Change the class of the first particle and mark the next ones to be merged
@@ -277,30 +349,36 @@ def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
                         changed = True
                     elif task == TASK_REPLACE or task == TASK_DIVIDE:
                         # replace 1 or more items with two or more items
-                        i = 0
                         new_items = []
-                        for i,part in enumerate(params['parts']):
-                            cll = items[pos].classes
-                            if 'classes' in params:
-                                cll = [params['classes'][i]]
-                            elif 'class' in params:
-                                cll = [params['class']]
-                            it = LexicalItem(part,'',cll)
-                            it.base_score = get_class_base_score(cll[0])
-                            if 'orthos' in params:
-                                it.ortho = params['orthos'][i]
-                            if 'conjugation_roots' in params:
-                                it.conjugation_root = params['conjugation_roots'][i]
-                            if 'alt_forms' in params:
-                                alt_form = params['alt_forms'][i]
-                                it.alt_forms.append(alt_form)
-                                if alt_form != '':
-                                    it.appendable_alt_forms.append(alt_form)
-                            if 'word_id' in params:
-                                # force the word id for these items
-                                it.word_id = params['word_id']
-                                it.flags |= NO_SCANNING
-                            new_items.append(it)
+                        j = 0
+                        i = 0
+                        while i < len(params['parts']):
+                            if i in gaps:
+                                gaps.pop(0)
+                                new_items.append(items[pos+j])
+                            else:
+                                part = params['parts'][i]
+                                cll = items[pos].classes
+                                if 'classes' in params:
+                                    cll = [params['classes'][i]]
+                                elif 'class' in params:
+                                    cll = [params['class']]
+                                it = LexicalItem(part,'',cll)
+                                it.base_score = get_class_base_score(cll[0])
+                                if 'orthos' in params:
+                                    it.ortho = params['orthos'][i]
+                                if 'conjugation_roots' in params:
+                                    it.conjugation_root = params['conjugation_roots'][i]
+                                if 'alt_forms' in params:
+                                    set_alt_form(it,params['alt_forms'][i] )
+                                if 'word_id' in params:
+                                    # force the word id for these items
+                                    it.word_id = params['word_id']
+                                    it.flags |= NO_SCANNING
+                                new_items.append(it)
+                                i += 1
+                            j += 1
+                        
                         # just replace the first item with all the items
                         # and remove the rest of the replaced items
                         items[pos].replaced_items = new_items
@@ -351,10 +429,7 @@ def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
                             items[pos].alt_scores[alt_form] = params['alt_score']
                     if 'alt_forms' in params:
                         for i in range(0,lp):
-                            alt_form = params['alt_forms'][i]
-                            items[pos+i].alt_forms = [alt_form]
-                            if alt_form != '':
-                                items[pos+i].appendable_alt_forms = [alt_form]
+                            set_alt_form(items[pos+i], params['alt_forms'][i])
                     if 'root_ortho' in params:
                         items[pos].ortho = params['root_ortho']
                         for i in range(1,lp):
@@ -432,6 +507,7 @@ def add_emphatetic_and_elongated_alternative_forms(pos,items):
     for elong_mark in elongation_marks:
         if elong_mark in items[pos].txt:
             allowed = True
+            # if elongation mark is before/after/sandwiched between numerals, do nothing
             if pos > 0 and numeric_pseudoclass in items[pos-1].classes:
                 allowed = False
             if pos < len(items)-1 and numeric_pseudoclass in items[pos+1].classes:
@@ -443,7 +519,6 @@ def add_emphatetic_and_elongated_alternative_forms(pos,items):
                     items[pos].alt_forms.append(alt_form)
                 if alt_form not in items[pos].appendable_alt_forms:
                     items[pos].appendable_alt_forms.append(alt_form)
-
                 
                 #items[pos].alt_scores[alt_form] = int(items[pos].base_score*0.3)
                 #if pos != len(items) -1:
@@ -466,6 +541,20 @@ def add_emphatetic_and_elongated_alternative_forms(pos,items):
                             if cl not in items[pos].classes:
                                 items[pos].classes.append(cl)
 
+    for small_vowel in small_vowels:
+        if small_vowel in items[pos].txt:
+            idx = items[pos].txt.index(small_vowel)
+            if idx > 0:
+                if items[pos].txt[idx-1] in small_vowel_fade[small_vowel]:
+                    # create an alternative form by removing the small vowel
+                    alt_form = items[pos].txt.replace(small_vowel,'')
+                    if alt_form not in items[pos].alt_forms:
+                        items[pos].alt_forms.append(alt_form)
+                    if alt_form not in items[pos].appendable_alt_forms:
+                        items[pos].appendable_alt_forms.append(alt_form)
+                    items[pos].alt_scores[alt_form] = int(items[pos].base_score*0.8)
+
+
     if len(items[pos].txt)>1:
         if items[pos].txt[-1] == 'っ' or items[pos].txt[-1] == 'ッ':
             # Possibly dialect. Check alternative form without the emphasis
@@ -484,15 +573,21 @@ def add_emphatetic_and_elongated_alternative_forms(pos,items):
         i = items[pos].txt.index('ー')
         if i>0:
             rep = get_vowel_extension(items[pos].txt[i-1])
-            if rep != '':
-                alt_form = items[pos].txt.replace('ー',rep)
-                if alt_form not in items[pos].alt_forms:
-                    items[pos].alt_forms.append(alt_form)
-                if alt_form not in items[pos].appendable_alt_forms:
-                    items[pos].appendable_alt_forms.append(alt_form)
-                items[pos].alt_scores[alt_form] = int(items[pos].base_score*0.9)
-                if pos != len(items) -1:
-                    items[pos].neighbour_alt_score_modifier[alt_form] = 0.9
+        elif pos > 0:
+            # TODO: finetune
+            #rep = get_vowel_extension(items[pos-1].txt[-1])
+            rep = ''
+        else:
+            rep = ''
+        if rep != '':
+            alt_form = items[pos].txt.replace('ー',rep)
+            if alt_form not in items[pos].alt_forms:
+                items[pos].alt_forms.append(alt_form)
+            if alt_form not in items[pos].appendable_alt_forms:
+                items[pos].appendable_alt_forms.append(alt_form)
+            items[pos].alt_scores[alt_form] = int(items[pos].base_score*0.9)
+            if pos != len(items) -1:
+                items[pos].neighbour_alt_score_modifier[alt_form] = 0.9
 
 
 def particle_post_processing(pos, items):
@@ -648,6 +743,22 @@ def merge_or_replace_items(items):
 
     return processed_items
 
+def inhibit_seqs(items):
+    li = len(items)
+    for pattern in inhibit_seq_pattern_list:
+        txt = pattern[0]
+        cl = pattern[1]
+        required_postfix_list = pattern[2]
+        seq_list = pattern[3]
+        
+        for i,item in enumerate(items):
+            if item.txt == txt and cl in item.classes:
+                if i < li - 1:
+                    next_txt = items[i+1].txt
+                    for postfix in required_postfix_list:
+                        if postfix in next_txt and next_txt.index(postfix) == 0:
+                            LOG(2,"%d:%s matched inhibit pattern %s" % (i,item.txt,str(pattern)),color=bcolors.WARNING )
+                            item.inhibit_seq_list += seq_list
 
 def post_process_unidic_particles(items):
     omit_flags = MERGE_ITEM | REPLACE_ITEM | REMOVE_ITEM
@@ -658,8 +769,14 @@ def post_process_unidic_particles(items):
             if items[i].txt[-1] == 'っ':
                 if aux_verb_class in items[i+1].classes or gp_class in items[i+1].classes:
                     items[i].txt = items[i].txt[:-1]
-                    items[i+1].txt = 'っ' + items[i+1].txt
+                    prev_txt = items[i+1].txt
+                    items[i+1].txt = 'っ' + prev_txt
                     items[i+1].ortho = ''
+                    # it's possible that this emphasis mark was due to dialect
+                    # so add a variation without it but with lower score
+                    #if prev_txt not in items[i+1].alt_forms:
+                    #    items[i+1].alt_forms.append(prev_txt)
+                    #    items[i+1].alt_scores[prev_txt] = int(items[i+1].base_score*0.6)
 
     # identify end-of-clause items
     for i in range(len(items)):
@@ -706,5 +823,7 @@ def post_process_unidic_particles(items):
         if any(item.flags & REPROCESS for item in items):
             # do another round
             cont = True
+
+    inhibit_seqs(items)
 
     return items

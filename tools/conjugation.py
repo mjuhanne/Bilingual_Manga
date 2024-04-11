@@ -20,6 +20,9 @@ def is_item_allowed_for_conjugation(item):
     if item.txt == 'え':
         # 言っちゃえ (え is detected by Unidic as interjection)
         return True
+    if item.txt == 'ろ' or item.txt == 'さい' or item.txt == 'みな':
+        # TODO: remove after block mismatch is fixed
+        return True
     return False
 
 
@@ -127,13 +130,13 @@ def attempt_conjugation(pos, items, inflection, conj_class, rec_level=0):
                             for candidate in preliminary_candidates:
                                 if candidate in suffix and suffix.index(candidate)==0:
                                     # there is full match or we can continue building up the suffix
-                                    LOG(3,print_prefix + "item %d:%s matches %s (%s)" % (pos,candidate,suffix,tense))
+                                    LOG(3,print_prefix + "item %d:%s preliminary match with %s (%s)" % (pos,candidate,suffix,tense))
                                     inflection_candidates.append(candidate)
                                 elif next_type is not None and next_type not in attempted_next_types:
 
                                     # TODO: is suffix here ot nexT_type_suffix ??
                                     if candidate in next_type_suffix and suffix.index(candidate)==0:
-                                        LOG(3,print_prefix + "item %d:%s matches next type suffix %s (%s)" % (pos,candidate,next_type_suffix,tense))
+                                        LOG(3,print_prefix + "item %d:%s preliminary match with next type suffix %s (%s)" % (pos,candidate,next_type_suffix,tense))
                                         inflection_candidates.append(candidate)
                                     elif next_type_suffix == '':
                                         LOG(3,print_prefix + "item %d:%s matches empty next type suffix (%s)" % (pos,candidate,tense))
@@ -213,6 +216,7 @@ def attempt_maximal_conjugation(pos, items, seqs):
     ortho = items[pos].ortho
     lemma = items[pos].lemma
 
+    # stem candidates (from basic/ortho form) are used for determining the right conjugation tree
     stem_candidates = []
     if ortho != '':
         stem_candidates.append(ortho)
@@ -222,6 +226,7 @@ def attempt_maximal_conjugation(pos, items, seqs):
     #if items[pos].pron_base != '':
     #    stem_candidates.append(items[pos].pron_base)
             
+    # .. whereas inflection candidates be used for detecting the actual conjugation
     inflection_candidates = [items[pos].txt]
     for alt_form in items[pos].alt_forms:
         if alt_form != '':
@@ -249,9 +254,13 @@ def attempt_maximal_conjugation(pos, items, seqs):
                         removed_stem_ending = stem_candidate[-len(ending):]
                         detected_num = 0
                         if ending == removed_stem_ending:
+                            # correct conjugation tree found. Now we need to find
+                            # the variation with maximal conjugation
                             for inflection_candidate in inflection_candidates:
                                 if stem != '' and stem in inflection_candidate:
                                     inflection = inflection_candidate[len(stem):]
+                                elif inflection_candidate in stem:
+                                    inflection = ''
                                 else:
                                     inflection = inflection_candidate
 

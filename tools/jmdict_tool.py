@@ -3,6 +3,7 @@ from helper import *
 from jp_parser_helper import *
 from jp_parser import *
 import sys
+import argparse
 
 parser = fugashi.Tagger('')
 
@@ -13,7 +14,6 @@ results = []
 result_seq_set = set()
 
 force_exact = False
-target_pos = None
 
 load_jmdict(True)
 load_conjugations()
@@ -43,6 +43,21 @@ for l,entries in jmdict_reading_seq.items():
 
 
 
+parser = argparse.ArgumentParser(
+    prog="jmdict_tool",
+    description="JMDict search tool",
+)
+
+#parser.add_parser('analyze', help='Do comprehension analysis per title')
+parser.add_argument('--exact', '-e', action='store_true', help='Require exact match')
+parser.add_argument('--part-of-speech', '-pos', nargs='?', type=str, default=None, help='Filter entries with this part of speech code')
+parser.add_argument('keyword', nargs='?', type=str, default='', help='search term')
+
+args = vars(parser.parse_args())
+
+term = args['keyword']
+force_exact = args['exact']
+"""
 if len(sys.argv)>1:
     if sys.argv[1] == '-e':
         term = sys.argv[2]
@@ -57,9 +72,16 @@ else:
     force_exact = False
     term = ''
     target_pos = 'aux-v'
+"""
 
-if target_pos is not None:
-    target_class = jmdict_class_list.index(jmdict_parts_of_speech_codes[target_pos])
+if args['part_of_speech'] is not None:
+    if args['part_of_speech'] in jmdict_parts_of_speech_codes:
+        target_class = jmdict_class_list.index(jmdict_parts_of_speech_codes[args['part_of_speech']])
+    else:
+        print("POS %s not found! Select from this list:" % args['part_of_speech'])
+        for pos,expl in jmdict_parts_of_speech_codes.items():
+            print("%s\t%s" % (pos,expl))
+        exit(1)
 else:
     target_class = None
 
@@ -118,5 +140,6 @@ for kanji_elements, readings, matched_word,seq in results:
             pos_code = get_jmdict_pos_code(cl)
             print("\t\t\t%s (%s)" % (cl_name,pos_code))
 
+print("Total %d matches" % len(results))
 
 

@@ -193,25 +193,20 @@ def process_chapters(args):
     keyword = args['keyword']
 
     global error_count, processed_chapter_count
-    
-    files = [f_name for f_name in os.listdir(ocr_dir) if os.path.isfile(ocr_dir + f_name)]
 
     i = 0
-    i_c = len(files)
+    title_names = get_title_names()
+    i_c = len(title_names)
+    for title_id, title_name in title_names.items():
 
-    for f in files:
-        chapter_id = f.split('.')[0]
-        try:
-            title_id = get_title_id_by_chapter_id(chapter_id)
-        except:
-            title_id = ''
+      if args['keyword'] is None or args['keyword'].lower() in title_name.lower():
 
-        if title_id == '':
-            print(f + " unknown!")
-        else:
+        i += 1
+        chapters = get_chapters_by_title_id(title_id)
 
-            i += 1
-            input_ocr_file = ocr_dir + f
+        for chapter_id in chapters:
+
+            input_ocr_file = ocr_dir + str(chapter_id) + '.json'
 
             chapter_data = dict()
             chapter_data['title'] = get_title_by_id(title_id)
@@ -219,10 +214,11 @@ def process_chapters(args):
             chapter_data['num_pages'] =  get_chapter_page_count(chapter_id)
 
             if keyword is not None:
-                if keyword == 'read':
-                    if not is_chapter_read(chapter_id):
-                        continue
-                elif keyword.lower() not in chapter_data['title'].lower():
+                if keyword.lower() not in chapter_data['title'].lower():
+                    continue
+
+            if args['read']:
+                if not is_chapter_read(chapter_id):
                     continue
 
             #if chapter_data['chapter'] != 9:
@@ -232,37 +228,45 @@ def process_chapters(args):
                 if get_chapter_number_by_chapter_id(chapter_id) != 1:
                     continue
 
+            if i < args['start_index']:
+                continue
+
             target_freq_filename = chapter_analysis_dir + chapter_id + ".json"
             parsed_ocr_filename = parsed_ocr_dir + chapter_id + ".json"
-            
-            if not args['force']:
-                if is_file_up_to_date(target_freq_filename, CURRENT_OCR_SUMMARY_VERSION, CURRENT_LANUGAGE_PARSER_VERSION) and \
-                    is_file_up_to_date(parsed_ocr_filename, CURRENT_PARSED_OCR_VERSION, CURRENT_LANUGAGE_PARSER_VERSION):
-                        print("[%d/%d] Skipping %s [chapter %d]" % (i, i_c, chapter_data['title'],chapter_data['chapter']))
-                        continue
 
-            #try:
-            print("[%d/%d] Scanning %s [%d] " 
-                % (i, i_c, chapter_data['title'], chapter_data['chapter']),end='')
+            if os.path.exists(input_ocr_file):
+                
+                if not args['force']:
+                    if is_file_up_to_date(target_freq_filename, CURRENT_OCR_SUMMARY_VERSION, CURRENT_LANUGAGE_PARSER_VERSION) and \
+                        is_file_up_to_date(parsed_ocr_filename, CURRENT_PARSED_OCR_VERSION, CURRENT_LANUGAGE_PARSER_VERSION):
+                            print("[%d/%d] Skipping %s [chapter %d]" % (i, i_c, chapter_data['title'],chapter_data['chapter']))
+                            continue
 
-            c_c, w_c, k_c, skipped_c = process_chapter(input_ocr_file, parsed_ocr_filename, chapter_data)
-            #except Exception as e:
-            #    print("Error scanning %s [%d]" % ( chapter_data['title'], chapter_data['chapter']))
-            #    print(e)
-            #    error_count += 1
-            #    continue
+                #try:
+                print("[%d/%d] Scanning %s [%d] " 
+                    % (i, i_c, chapter_data['title'], chapter_data['chapter']),end='')
 
-            print(" scanned with %d pages and %d/%d/%d/%d characters/words/kanjis/skipped_blocks" 
-                % ( chapter_data['num_pages'], c_c, w_c, k_c, skipped_c))
+                c_c, w_c, k_c, skipped_c = process_chapter(input_ocr_file, parsed_ocr_filename, chapter_data)
+                #except Exception as e:
+                #    print("Error scanning %s [%d]" % ( chapter_data['title'], chapter_data['chapter']))
+                #    print(e)
+                #    error_count += 1
+                #    continue
 
-            chapter_data['version'] = CURRENT_OCR_SUMMARY_VERSION
+                print(" scanned with %d pages and %d/%d/%d/%d characters/words/kanjis/skipped_blocks" 
+                    % ( chapter_data['num_pages'], c_c, w_c, k_c, skipped_c))
 
-            o_f = open(target_freq_filename,"w",encoding="utf-8")
-            json_data = json.dumps(chapter_data,  ensure_ascii = False)
-            o_f.write(json_data)
-            o_f.close()
+                chapter_data['version'] = CURRENT_OCR_SUMMARY_VERSION
 
-            processed_chapter_count += 1
+                o_f = open(target_freq_filename,"w",encoding="utf-8")
+                json_data = json.dumps(chapter_data,  ensure_ascii = False)
+                o_f.write(json_data)
+                o_f.close()
+
+                processed_chapter_count += 1
+            else:
+                print("Warning! Missing %s chapter %d" % (title_name, chapter_data['chapter']))
+
 
 def process_titles(args):
     global processed_title_count
@@ -270,10 +274,11 @@ def process_titles(args):
     for title_id, title_name in get_title_names().items():
 
         if args['keyword'] is not None:
-            if args['keyword'] == 'read':
-                if not is_title_read(title_id):
-                    continue
-            elif args['keyword'].lower() not in title_name.lower():
+            if args['keyword'].lower() not in title_name.lower():
+                continue
+
+        if args['read']:
+            if not is_title_read(title_id):
                 continue
 
         title_data = dict()
@@ -366,12 +371,14 @@ parser = argparse.ArgumentParser(
 #parser.add_parser('analyze', help='Do comprehension analysis per title')
 parser.add_argument('--force', '-f', action='store_true', help='Force reprocessing')
 parser.add_argument('--first', '-1', action='store_true', help='Process only first chapter per title')
+parser.add_argument('--read', '-r', action='store_true', help='Process only read chapters')
+parser.add_argument('--start-index', '-si', nargs='?', type=int, default=1, help='Start from the selected title index')
 parser.add_argument('keyword', nargs='?', type=str, default=None, help='Title has to (partially) match the keyword in order to processed')
 
 args = vars(parser.parse_args())
 
 #args['force'] = True
-#args['keyword'] = 'read'
+#args['keyword'] = 'crusaders'
 
 if not os.path.exists(title_analysis_dir):
     os.mkdir(chapter_analysis_dir)
