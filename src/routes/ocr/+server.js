@@ -61,6 +61,24 @@ async function fetchOcr(chapter_id) {
     return ocr;
 }
 
+function update_OCR_block(new_ocr_data) {
+    let ocr_changes_file = "json/ocr_changes.json"
+    let odata = []
+    try {
+        let data = fs.readFileSync(ocr_changes_file, "utf8");
+        odata = JSON.parse(data);
+    } catch(error) {
+    }
+    odata.push(new_ocr_data);  
+    console.log("New OCR data:" + JSON.stringify(odata));
+    fs.writeFile (ocr_changes_file, JSON.stringify(odata), function(err) {
+        if (err) throw err;
+    });
+    // TODO: parse new ocr block
+    return new_ocr_data.new_ocr_block
+}
+
+
 export async function POST({ request }) {
 	const data = await request.json();
 	console.log("POST /ocr: " + JSON.stringify(data) );
@@ -70,6 +88,11 @@ export async function POST({ request }) {
             success : true,
             'ocr' : await fetchOcr(data.chapter_id)
         };
+    } else if (data.func == 'update_ocr_block') {
+        ret= {
+            success : true, 
+            'parsed_ocr_block' : update_OCR_block(data.ocr_data)
+        };
     }
-	return json(ret);
+return json(ret);
 }

@@ -4,6 +4,7 @@
   import { deserialize } from '$app/forms';
   import WordPopup from '$lib/WordPopup.svelte';
   import { learning_stage_colors, STAGE, SOURCE } from '$lib/LearningData.js';
+  import Edit_OCR_Dialog from '$lib/Edit_OCR_Dialog.svelte'
 
   export let id; // manga id
   export let cid; // chapter id
@@ -29,6 +30,8 @@
   let selected_block; // OCR block number in current page
   let showModal;
   let hovered_block_id = -1;
+  export let edit_mode = false;
+  let edited_ocr_block = [];
 
   function hoverm(e) {
     let a = e.srcElement.children[0];
@@ -49,6 +52,7 @@
     }
     hovered_block_id = -1;
   }
+  $: console.log(hovered_block_id);
 
   function clicked(word_id_index_list, block_id) {
     selected_block = block_id;
@@ -78,6 +82,9 @@
         if (word_id_index_list.length > 0) {
           let widx = word_id_index_list[0];
           stage = word_learning_stages[widx];
+          if (stage==STAGE.FORGOTTEN) {
+            console.log("Forgot" + word_id_list[widx] + ":" + elem.getAttribute("wil"));
+          }
           if ( (stage != STAGE.NONE) && (stage != STAGE.IGNORED) ) {
             if (stage != STAGE.KNOWN) {
               all_known = false;
@@ -149,6 +156,26 @@
   };
 
 
+  async function sendChangedOCRBlock(old_block,new_block,block_id) {
+    let body = JSON.stringify({
+      'func' : 'update_ocr_block', 
+      'ocr_data' : {
+        'cid' : cid,
+        'pr' : page_ref,
+        'b' : block_id,
+        'old_block' : old_block,
+        'new_block' : new_block,
+        },
+      }
+    );
+    const response = await fetch( "/ocr", {
+        headers: {"Content-Type" : "application/json" },
+        method: 'POST',
+        body: body,
+    });
+    const result = deserialize(await response.text());
+  };
+
   const learningStageChanged = (word_id,new_learning_stage,block_id) => {
     sendChangedLearningStage(word_id, block_id, new_learning_stage);
     // change the learning stage for all the word senses. This is just
@@ -172,6 +199,13 @@
     learningStageChanged(e.detail['word_id'], e.detail['stage'], selected_block);
   }
 
+  const OCRBlockUpdated = (e) => {
+    let new_ocr_block = e.detail['ocr_block'];
+    sendChangedOCRBlock(ocrpage[selected_block]["og_lines"], new_ocr_block, selected_block );
+    ocrpage[selected_block]["lines"] = new_ocr_block;
+    //selected_block);
+  }
+
   const getWordIdIndexList = (elem) => {
     let wil_str = elem.getAttribute("wil").split(',');
     if (wil_str[0] == "") {
@@ -182,6 +216,26 @@
       wil.push(parseInt(wi))
     }
     return wil
+  }
+
+  const editHoveredBlock = () => {
+    if (hovered_block_id != -1) {
+      let block_elements = ocr_root.querySelectorAll(".ocrtext");
+      for (let b_elem of block_elements) {
+        let block_id = parseInt(b_elem.getAttribute("block_id"));
+        if (block_id == hovered_block_id) {
+          edited_ocr_block = []
+          let oc = ocrpage[hovered_block_id];
+          oc["og_lines"].forEach((line) => {
+            edited_ocr_block.push(line)
+            });
+          console.log("EditHoveredBlock block_id" + edited_ocr_block);
+          selected_block = block_id;
+          edit_mode = true;
+        }
+      }
+      console.log("EditHoveredBlock" + hovered_block_id);
+    }
   }
 
   const setHoveredBlockWordsKnown = (all_stages) => {
@@ -245,6 +299,8 @@
       setHoveredBlockWordsKnown(false);
     } else if (keyName == 'K') {
       setHoveredBlockWordsKnown(true);
+    } else if (keyName == 'e') {
+      editHoveredBlock();
     }
   }
 
@@ -349,6 +405,7 @@
 <div bind:this={ocr_root}>
 
 <WordPopup bind:word_id_index_list={selected_word_id_index_list} {word_id_list} {word_history} {word_learning_stages} bind:showModal on:learning_stage_changed={learningStageChangedFromPopUpDialog}/>
+<Edit_OCR_Dialog bind:ocr_block={edited_ocr_block} bind:showModal={edit_mode} on:ocr_block_updated={OCRBlockUpdated}/>
 
 {#each tocr as tdi}
   <div class="ocrsp" on:mouseenter={hoverm} on:mouseleave={hovero}>
