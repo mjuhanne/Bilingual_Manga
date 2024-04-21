@@ -127,12 +127,14 @@ results.reverse()
 for kanji_elements, readings, matched_word,seq in results:
     cl_list_per_sense = get_class_list_by_seq(seq) # jmdict_class_list_per_sense[seq]
     meanings_per_sense = get_sense_meanings_by_seq(seq) #) jmdict_meaning_per_sense[seq]
-    k_elems = ' '.join(kanji_elements)
-    r_elems = ' '.join(readings)
+    k_elem_freq = ["%s(%d)" % (elem,get_frequency_by_seq_and_word(seq,elem)) for elem in kanji_elements]
+    r_elem_freq = ["%s(%d)" % (elem,get_frequency_by_seq_and_word(seq,elem)) for elem in readings]
+    k_elems = ' '.join(k_elem_freq)
+    r_elems = ' '.join(r_elem_freq)
     if k_elems != '':
         r_elems = '(' + r_elems + ')'
     
-    print("%s %s %s [F %s/%s]" % (seq, k_elems.ljust(8), r_elems.ljust(8), get_kanji_element_freq(seq), get_reading_freq(seq)))
+    print("%s %s %s" % (seq, k_elems.ljust(8), r_elems.ljust(8)))
     for i, (cl_list, meanings) in enumerate(zip(cl_list_per_sense, meanings_per_sense)):
         print("\t\t%d# %s" % (i,meanings))
         for cl in cl_list:

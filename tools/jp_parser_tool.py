@@ -27,7 +27,7 @@ def parse(lines):
 
     results = init_scan_results()
 
-    kc, ud_items = parse_block_with_unidic(lines,kanji_count)
+    kc, ud_items, mismatch = parse_block_with_unidic(lines,kanji_count)
 
     print("After unidic scanning:")
     for item in ud_items:
@@ -69,6 +69,7 @@ def parse(lines):
     print("\nAfter jmdict scanning:")
     print_scanning_results(jlines, scores, results, ud_items)
 
+    print("Score: %d" % results['score'])
     jlines_str = str(jlines)
     #print("{'line':'%s','jlines':%s, 'seq':%s, 'word_list':%s}" % (line,str(jlines),str(unique_jmdict_word_seq),str(unique_jmdict_word_list)))
           
@@ -140,6 +141,37 @@ if __name__ == "__main__":
         lines = ["おい", "しいー"]
         lines = ['負傷者は', 'チェックして', 'へリへ運べ']
         lines = ["そんな事を", "言っとんじゃない"]
+        lines = ['あれがなくっちゃ', 'パーティも盛り', '上がんねェもㇱな']
+        lines = ["特定したくなかった", "からだ！！"]
+        lines = [ "メールはしといた。"]
+        lines = ["聞こえませー", "ーん！！"]
+        lines = ["おい", "しいー"]
+        lines = ["つめた～い", "かき氷は", "至福だぞ。"]
+        lines = ["今しとる"]
+        lines = ["こーんなに", "かれんな", "ヨーコさんが"]
+        lines = ['そんな事', '言ってる場合は', 'じゃねェぜ']
+        lines = ["ココラー", "出てこ〜い"]
+        lines = ["水路に", "おっこっちゃっ", "てそれっきり"]
+        lines = ["底なし池に", "沈んで", "いったんだけど"]
+        lines = ['捜す手間が', 'はぶけたぜ']
+        lines = ['お母さんも', 'そう言って', 'たわ。']
+        lines = ['お願いします、', 'そしたら次回も', '出席に', 'しときます']
+        lines = ['私は由緒正しき家柄']
+        lines = ['あ～～あ', 'なんてこった']
+        lines = ['部下達は、', '近くの村をくまなく', '回っている']
+        lines = ['やめろ！！', 'ここに', '置いていけ']
+        lines = ['何よりも疑いのかかっている者からの案を採る']
+        lines = ["そんなの", "ほっとき", "なさい！！"]
+        lines = ['わ．．．わかったよ、', 'あんたが嫌なら', 'ヤクもやらないよ。']
+        lines = ["上マエをはねていた。"]
+        lines = ["こいつは二百万倍は", "ある。"]
+        lines = ["私に、新しい女性ができたって悪かないだろ。"]
+        lines = ['昨〜楽しんでくださ', 'かなわぬ夢は']
+        lines = ["そうよ新ちゃん、"]
+        lines = ["意味不", "だけど"]
+        lines = ['くそー', 'カンカラは', 'どこだ．．．']
+        lines = ["私に、", "新しい女性が", "できたって", "悪かないだろ。"]
+        lines = ['◆高所注意', '転落の恐れあり', '特に旅館の', '屋根など注意', '鳥夫の責な', 'にも注意すべ']
     else:
         lines = json.loads(args['text'])
 

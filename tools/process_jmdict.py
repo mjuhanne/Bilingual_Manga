@@ -46,11 +46,11 @@ def calculate_frequency_ranking(freq_elems):
     return freq
 
 # form: 'kanji' or 'kana'
-def get_jlpt_level(seq,form):
+def get_jlpt_level(seq,form,word):
     for i in range(0,5):
         level = 5 - i
         if seq in jlpt_refs[level]:
-            if jlpt_refs[level][seq][form] != []:
+            if word in jlpt_refs[level][seq][form]:
                 return level
     return 0
 
@@ -66,39 +66,62 @@ for elem in entries:
     ent_seq = None
     readings = []
     kanji_elements = []
-    k_freq = None
-    r_freq = None
-    k_freq_elems = []
-    r_freq_elems = []
+
+    elem_freq = dict()
+    elem_pri_elems = dict()
 
     pos_list_per_sense = [] # parts of speech (verb, noun, expression etc)
     ent_seq = elem.find('ent_seq').text
-    k_elems = elem.findall('k_ele')
     gloss_list_per_sense = []
-    for k_elem in k_elems:
-        keb = k_elem.find('keb')
-        kanji_elements.append(keb.text)
-        k_pri_els = k_elem.findall('ke_pri')
-        for k_pri_el in k_pri_els:
-            pr = k_pri_el.text
-            if pr[0:2] == 'nf':
-                k_freq = int(pr[2:])
-            else:
-                k_freq_elems.append(pr)
+    min_r_freq = 99
 
     r_elems = elem.findall('r_ele')
     for r_elem in r_elems:
-        reb = r_elem.find('reb')
-        readings.append(reb.text)
-        if reb.text == 'ある':
-            pass
+        reb_elem = r_elem.find('reb')
+        reb = reb_elem.text
+        readings.append(reb)
+        elem_freq[reb] = None
+        elem_pri_elems[reb] = []
         r_pri_els = r_elem.findall('re_pri')
         for r_pri_el in r_pri_els:
             pr = r_pri_el.text
             if pr[0:2] == 'nf':
-                r_freq = int(pr[2:])
+                elem_freq[reb] = int(pr[2:])
             else:
-                r_freq_elems.append(pr)
+                elem_pri_elems[reb].append(pr)
+        if elem_freq[reb] is None:
+            elem_freq[reb] = calculate_frequency_ranking(elem_pri_elems[reb])
+        r_jlpt_level = get_jlpt_level(int(ent_seq), 'kana', reb)
+        if r_jlpt_level > 0:
+            elem_freq[reb] = apply_jlpt_modifier_to_frequency_ranking(int(ent_seq), elem_freq[reb], r_jlpt_level)
+            elem_pri_elems[reb].append('JLPT' + str(r_jlpt_level))
+        if elem_freq[reb] < min_r_freq:
+            min_r_freq = elem_freq[reb]
+
+    k_elems = elem.findall('k_ele')
+    for k_elem in k_elems:
+        keb_elem = k_elem.find('keb')
+        keb = keb_elem.text
+        kanji_elements.append(keb)
+        k_pri_els = k_elem.findall('ke_pri')
+        elem_freq[keb] = None
+        elem_pri_elems[keb] = []
+        for k_pri_el in k_pri_els:
+            pr = k_pri_el.text
+            if pr[0:2] == 'nf':
+                elem_freq[keb] = int(pr[2:])
+            else:
+                elem_pri_elems[keb].append(pr)
+        if elem_freq[keb] is None:
+            elem_freq[keb] = calculate_frequency_ranking(elem_pri_elems[keb])
+        k_jlpt_level = get_jlpt_level(int(ent_seq), 'kanji', keb)
+        if k_jlpt_level > 0:
+            elem_freq[keb] = apply_jlpt_modifier_to_frequency_ranking(int(ent_seq), elem_freq[keb], k_jlpt_level)
+            elem_pri_elems[keb].append('JLPT' + str(k_jlpt_level))
+        # give slight edge also for those kanji elements whose reading frequency is common
+        # (in contrast to those entries for which both kanji/kana readings are uncommon)
+        if elem_freq[keb] == 99 and min_r_freq < 99:
+            elem_freq[keb] -= 1
 
     s_elems = elem.findall('sense')
     for s_ele in s_elems:
@@ -117,6 +140,9 @@ for elem in entries:
         gl_elems = s_ele.findall('gloss')
         for gl_elem in gl_elems:
             gloss_list.append(gl_elem.text)
+        s_inf_elem = s_ele.find('ent_seq')
+        if s_inf_elem is not None:
+            gloss_list.append('(%s)' % s_inf_elem.text)
         pos_list_per_sense.append(pos_list)
         gloss_list_per_sense.append(gloss_list)
     if len(s_elems)>1:
@@ -124,45 +150,21 @@ for elem in entries:
     if len(s_elems)>3:
         entries_with_more_than_3_senses += 1
 
-    if k_freq is None:
-        k_freq = calculate_frequency_ranking(k_freq_elems)
-    if r_freq is None:
-        r_freq = calculate_frequency_ranking(r_freq_elems)
-
-    k_jlpt_level = get_jlpt_level(int(ent_seq), 'kanji')
-    if k_jlpt_level > 0:
-        k_freq = apply_jlpt_modifier_to_frequency_ranking(int(ent_seq), k_freq, k_jlpt_level)
-        k_freq_elems.append('JLPT' + str(k_jlpt_level))
-
-    r_jlpt_level = get_jlpt_level(int(ent_seq), 'kana')
-    if r_jlpt_level > 0:
-        r_freq = apply_jlpt_modifier_to_frequency_ranking(int(ent_seq), r_freq, r_jlpt_level)
-        r_freq_elems.append('JLPT' + str(r_jlpt_level))
-
-    all_freq_elems = set( k_freq_elems + r_freq_elems )
-    common_freq_elems = []
-    only_k_freq_elems = []
-    only_r_freq_elems = []
-    for fe in all_freq_elems:
-        if fe in k_freq_elems and fe in r_freq_elems:
-            common_freq_elems.append(fe)
-        elif fe in k_freq_elems:
-            only_k_freq_elems.append(fe)
-        else:
-            only_r_freq_elems.append(fe)
-
+    k_freq = ','.join([str(elem_freq[keb]) for keb in kanji_elements])
+    r_freq = ','.join([str(elem_freq[reb]) for reb in readings])
+    pri_elem_str=json.dumps(elem_pri_elems, ensure_ascii=False)
     pos_list=json.dumps(pos_list_per_sense)
     gloss_str = json.dumps(gloss_list_per_sense)
-    row = "%s\t%s\t%s\t%s\t%d\t%s\t%s\t%s\t%s\n" % \
+    row = "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" % \
         (ent_seq, ','.join(kanji_elements), ','.join(readings), 
         pos_list, k_freq, r_freq,
-        ','.join(common_freq_elems),','.join(only_k_freq_elems), ','.join(only_r_freq_elems),
+        pri_elem_str,
         )
 
-    row_m = "%s\t%s\t%s\t%s\t%d\t%s\t%s\t%s\t%s\t%s\n" % \
+    row_m = "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" % \
         (ent_seq, ','.join(kanji_elements), ','.join(readings), 
          pos_list, k_freq, r_freq, 
-        ','.join(common_freq_elems),','.join(only_k_freq_elems), ','.join(only_r_freq_elems),
+        pri_elem_str,
          gloss_str)
     
     if pos_list_updated:

@@ -20,6 +20,9 @@ def is_item_allowed_for_conjugation(item):
     if item.txt == 'え':
         # 言っちゃえ (え is detected by Unidic as interjection)
         return True
+    if item.txt == 'まえ':
+        # 待ちたまえ (まえ is detected as noun)
+        return True
     if item.txt == 'ろ' or item.txt == 'さい' or item.txt == 'みな':
         # TODO: remove after block mismatch is fixed
         return True
@@ -167,8 +170,11 @@ def check_adjectives(pos,items):
     if pos == len(items) - 1:
         return
     
-    ortho = items[pos].ortho
-    if ortho == '':
+    orthos = items[pos].alt_orthos
+    if items[pos].ortho != '':
+        orthos.append(items[pos].ortho)
+    
+    if len(orthos) == 0:
         return
     
     txt = items[pos].txt
@@ -185,27 +191,40 @@ def check_adjectives(pos,items):
         return
     best_conj_item_count = 0
     best_conj_details = []
-    for candidate in candidates:
-        if ortho[-1] == 'い':  # i-adjective
-            cl = jmdict_adj_i_class
-            stem = ortho[:-1]
-            inflection = candidate[len(stem):]
-            LOG(1,"Conjugate i-adj %s (stem %s)" % (candidate,stem))
-        else:  # na-adjective
-            cl = jmdict_adjectival_noun_class
-            stem = candidate
-            inflection = ''
-            LOG(1,"Conjugate na-adj %s" % (candidate))
-        detected_conj_particles, detected_conj_len, detected_conj_details = attempt_conjugation(pos+1, items, inflection, cl)
-        if len(detected_conj_details)>0:
-            if detected_conj_particles > best_conj_item_count:
-                best_conj_item_count = detected_conj_particles
-                best_conj_details = detected_conj_details
+    best_conj_ortho = ''
+    for ortho in orthos:
+        for candidate in candidates:
+            if ortho[-1] == 'い':  # i-adjective
+                cl = jmdict_adj_i_class
+                stem = ortho[:-1]
+                if stem in candidate:
+                    inflection = candidate[len(stem):]
+                    LOG(1,"Conjugate i-adj %s (stem %s)" % (candidate,stem))
+                else:
+                    inflection = None
+            else:  # na-adjective
+                cl = jmdict_adjectival_noun_class
+                stem = candidate
+                inflection = ''
+                LOG(1,"Conjugate na-adj %s" % (candidate))
+            if inflection is not None:
+                detected_conj_particles, detected_conj_len, detected_conj_details = attempt_conjugation(pos+1, items, inflection, cl)
+                if len(detected_conj_details)>0:
+                    if detected_conj_particles > best_conj_item_count:
+                        best_conj_item_count = detected_conj_particles
+                        best_conj_details = detected_conj_details
+                        best_conj_ortho = ortho
 
     if len(best_conj_details)>0:
         for i in range(best_conj_item_count):
             items[pos+i+1].flags = MERGE_ITEM
+        if detected_conj_particles > 0:
+            items[pos].is_base_form = False
         items[pos].conj_details = best_conj_details
+        if best_conj_ortho in items[pos].alt_orthos:
+            # conjugation succeeded with alternative ortho so let's select it for
+            # scanning
+            items[pos].ortho = best_conj_ortho 
         LOG(1,"Best conjugation for adjective %s: %s" % (items[pos].txt, str(best_conj_details)))
     else:
         LOG(1,"No conjugation detected for adjective %s" % (items[pos].txt))
@@ -285,7 +304,7 @@ def attempt_maximal_conjugation(pos, items, seqs):
     return max_conj_particles, max_conj_details
 
 def check_verbs(pos,items): 
-    if items[pos].conjugated:
+    if items[pos].is_conjugated:
         # do not re-conjugate even if reprocessing
         return
     ortho = items[pos].ortho
@@ -321,8 +340,10 @@ def check_verbs(pos,items):
     if len(conj_details)>0:
         for i in range(max_particles_conjugated):
             items[pos+i+1].flags = MERGE_ITEM
-            items[pos+i+1].conjugated = True
-        items[pos].conjugated = True
+            items[pos+i+1].is_conjugated = True
+        if max_particles_conjugated > 0:
+            items[pos].is_base_form = False
+        items[pos].is_conjugated = True
         items[pos].conj_details = conj_details
         # clear the -masu flag that was in the stem
         if max_particles_conjugated > 0:

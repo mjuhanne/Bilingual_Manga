@@ -12,7 +12,7 @@ from jp_parser import (
     get_flat_class_list_by_seq, get_sense_meanings_by_seq,
     unidic_class_list, ignored_classes_for_freq
 )
-from jmdict import get_kanji_element_freq, get_reading_freq
+from jmdict import get_frequency_by_seq_and_word
 from bm_learning_engine_helper import read_user_settings
 # for loggin
 from jp_parser import open_log_file, close_log_file, set_verbose_level
@@ -25,6 +25,8 @@ parsed_ocr_dir = base_dir + "parsed_ocr/"
 error_count = 0
 processed_chapter_count = 0
 processed_title_count = 0
+
+item_must_match = False
 
 def is_chapter_read(cid):
     for chapter_id, reading_data in chapter_comprehension.items():
@@ -97,7 +99,7 @@ def process_chapter(f_p, fo_p, chapter_data):
                     pass
 
                 #for line in lines:
-                kc, ud_items = \
+                kc, ud_items, mismatch = \
                     parse_block_with_unidic(lines, kanji_count)
 
                 k_c += kc
@@ -128,9 +130,14 @@ def process_chapter(f_p, fo_p, chapter_data):
     prev_data = json.loads(f.read())
     ignore_keys = ['parsed_data','version','parser_version']
     sorted_keys = sorted(list(pages.keys()))
+    page = 0
     for key in sorted_keys:
         if key in ignore_keys:
             continue
+        ch = chapter_data['chapter'] - 1
+        url = 'http://localhost:5173/manga/%s?lang=jp&chen=%d&chjp=%d&enp=%d&jpp=%d#img_store' \
+            % (chapter_data['title_id'],ch,ch,page,page)
+        page += 1
         new_blocks = pages[key]
         prev_blocks = prev_data[key]
         for new_block, prev_block in zip(new_blocks,prev_blocks):
@@ -138,7 +145,13 @@ def process_chapter(f_p, fo_p, chapter_data):
             mismatch_elems = []
             mismatched_new_elems = []
             for new_jl, prev_jl in zip(new_block['jlines'], prev_block['jlines']):
-                for new_part, prev_part in zip(new_jl,prev_jl):
+                new_jl_i = 0
+                prev_jl_i = 0
+                sub_i = 0
+                #for new_part, prev_part in zip(new_jl,prev_jl):
+                while new_jl_i < len(new_jl):
+                    new_part = new_jl[new_jl_i]
+                    prev_part = prev_jl[prev_jl_i]
                     new_refs = next(iter(new_part.values()))
                     prev_refs = next(iter(prev_part.values()))
                     new_p = next(iter(new_part.keys()))
@@ -150,7 +163,30 @@ def process_chapter(f_p, fo_p, chapter_data):
                     prev_wid = '()'
                     if len(prev_refs)>0:
                         prev_wid = prev_data['parsed_data']['word_id_list'][prev_refs[0]]
-                    if not does_word_id_match(new_wid,prev_wid) or new_p != prev_p:
+
+                    if new_p == prev_p:
+                        new_jl_i += 1
+                        prev_jl_i += 1
+                    elif new_p in prev_p:
+                        new_jl_i += 1
+                        sub_i += len(new_p)
+                        #if prev_p[-len(new_p):] == new_p:
+                        if sub_i == len(prev_p):
+                            prev_jl_i += 1
+                            sub_i = 0
+                    elif prev_p in new_p:
+                        prev_jl_i += 1
+                        sub_i += len(prev_p)
+                        #if new_p[-len(prev_p):] == prev_p:
+                        if sub_i == len(new_p):
+                            new_jl_i += 1
+                            sub_i = 0
+                    else:
+                        print('\n' + str([next(iter(p.keys())) for p in new_jl]))
+                        print(str([next(iter(p.keys())) for p in prev_jl]))
+                        raise Exception("mismatch: %s vs %s" % (new_p,prev_p))
+
+                    if not does_word_id_match(new_wid,prev_wid) or (item_must_match and new_p != prev_p):
                         mismatch = True
                         mismatch_elems.append((new_p,new_wid,prev_p,prev_wid))
                         mismatched_new_elems.append((new_p,new_wid))
@@ -170,7 +206,7 @@ def process_chapter(f_p, fo_p, chapter_data):
                             mismatch_count[m] = 1
                         else:
                             mismatch_count[m] += 1
-                    print('\n[%s] %s' % (key,str(new_block['lines']).replace("'",'"')))
+                    print('\n[%s] %s %s' % (key,str(new_block['lines']).replace("'",'"'),url))
                     for new_jl, prev_jl in zip(new_block['jlines'], prev_block['jlines']):
                         if len(new_jl) != len(prev_jl):
                             pass
@@ -211,20 +247,25 @@ def process_chapter(f_p, fo_p, chapter_data):
                             prev_freq = ''
                             mark = ''
                             if new_wid != prev_wid:
+                                
                                 if does_word_id_match(new_wid,prev_wid):
                                     mark = '!'
                                 else:
                                     mark = '!!!'
                                     if new_wid != '()':
-                                        new_seq,_ = get_seq_and_word_from_word_id(new_wid)
+                                        new_seq,new_word = get_seq_and_word_from_word_id(new_wid)
                                         new_sense_meanings = get_sense_meanings_by_seq(new_seq)
                                         new_meaning = '(' + new_sense_meanings[0][0] + ')'
-                                        new_freq = '[%s/%d]' % (get_kanji_element_freq(new_seq),get_reading_freq(new_seq))
+                                        new_freq = '[%d]' % (get_frequency_by_seq_and_word(new_seq,new_word))
                                     if prev_wid != '()':
-                                        prev_seq,_ = get_seq_and_word_from_word_id(prev_wid)
-                                        prev_sense_meanings = get_sense_meanings_by_seq(prev_seq)
+                                        prev_seq,prev_word = get_seq_and_word_from_word_id(prev_wid)
+                                        try:
+                                            prev_sense_meanings = get_sense_meanings_by_seq(prev_seq)
+                                            prev_freq = '[%d]' % (get_frequency_by_seq_and_word(prev_seq, prev_word))
+                                        except:
+                                            prev_sense_meanings = [['N/A']]
+                                            prev_freq = '[N/A]'
                                         prev_meaning =  '(' + prev_sense_meanings[0][0]+ ')'
-                                        prev_freq = '[%s/%d]' % (get_kanji_element_freq(prev_seq),get_reading_freq(prev_seq))
                             else:
                                 if p2 != '':
                                     mark = '!!'
@@ -256,8 +297,12 @@ def check_chapters(args):
             chapter_data['title'] = get_title_by_id(title_id)
             chapter_data['chapter'] = get_chapter_number_by_chapter_id(chapter_id)
             chapter_data['num_pages'] =  get_chapter_page_count(chapter_id)
+            chapter_data['title_id'] = title_id
 
             if args['read'] and not is_chapter_read(chapter_id):
+                continue
+
+            if args['chapter'] is not None and chapter_data['chapter'] != args['chapter']:
                 continue
 
             parsed_ocr_filename = parsed_ocr_dir + chapter_id + ".json"
@@ -280,6 +325,7 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument('keyword', nargs='?', type=str, default=None, help='Title has to (partially) match the keyword in order to processed')
 parser.add_argument('--read', '-r', action='store_true', help='Process only read chapters')
+parser.add_argument('--chapter', '-ch',  nargs='?', type=int, default=None, help='Chapter')
 
 args = vars(parser.parse_args())
 
@@ -289,7 +335,9 @@ open_log_file("ocr-log.txt")
 set_verbose_level(0)
 t = time.time()
 
-#args['keyword'] = '20th'
+args['keyword'] = 'hina'
+#args['chapter'] = 6
+args['read'] = True
 
 check_chapters(args)
 

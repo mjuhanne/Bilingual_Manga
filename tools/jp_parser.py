@@ -11,7 +11,6 @@ _parser_initialized = False
 jmdict_noun_pos_list = []
 jmdict_verb_pos_list = []
 
-
 """
 This makes sure that only appropriate jmdict senses are assigned to 
 the unidic lex items that make up the scanned word/phrase
@@ -32,6 +31,29 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
     global messages # for debugging
 
     score_modifiers = dict()
+
+    # inhibit words with certain conditions
+    if seq in seq_blacklist_with_conditions.keys():
+        cond = seq_blacklist_with_conditions[seq]
+        if cond & COND_NON_BASE_FORM:
+            for i in range(num_scanned_items):
+                if not items[pos+i].is_base_form:
+                    messages[pos].append("%s inhibited (non-base-form)" % (items[pos+i].txt))
+                    return [], score_modifiers
+        if cond & COND_NON_ORIGINAL_FORM:
+            if scanned_word != original_scanned_word:
+                messages[pos].append("%s inhibited (!= original form %s)" % (scanned_word,original_scanned_word))
+                return [], score_modifiers
+        if cond & COND_BEFORE_VERB:
+            if pos+num_scanned_items < len(items):
+                if verb_class in items[pos+num_scanned_items].classes:
+                    messages[pos].append("%s inhibited (before verb)" % (items[pos].txt))
+                    return [], score_modifiers
+        if cond & COND_END_OF_CLAUSE:
+            if items[pos+num_scanned_items-1].end_of_clause:
+                messages[pos].append("%s inhibited (end of clause)" % (items[pos].txt))
+                return [], score_modifiers
+                
 
     if scanned_word in hard_coded_seqs.keys():
         (unidic_class, wanted_seq) = hard_coded_seqs[scanned_word]
@@ -76,7 +98,7 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
         # allow word with normal score if it's in the whitelist
         if seq in seq_whitelist:
             return True
-
+        
         # let all medium sized words pass regardless of the class
         # but give them lower score. Words with kanji are given higher score
         if len(scanned_word) >= 4:
@@ -84,7 +106,7 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
                 score_modifiers[ALL_SENSES] = 0.7
                 return True
             elif (scanned_word == original_scanned_word) and gp_class not in items[pos].classes:
-                freq = get_reading_freq(seq)
+                freq = get_frequency_by_seq_and_word(seq,scanned_word)
                 if freq < 99:
                     if seq not in high_frequency_seq_blacklist:
                         score_modifiers[ALL_SENSES] = 0.7
@@ -187,7 +209,7 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
                 if jmd_cl == jmdict_adj_no_class:
                     # some adj-no words (such as 役立たず or 世間知らず)
                     # are recognized as 役 (noun) + 立たず (verb)
-                    if verb_class in unidic_classes and word[-1] == 'ず':
+                    if verb_class in unidic_classes and word != '' and word[-1] == 'ず':
                         valid_senses[i].update([s_idx])
 
                 if jmd_cl in jmdict_noun_pos_list:
@@ -354,9 +376,22 @@ def add_matched_sense_reference(original_word, chunk, base_score, chunk_len, pos
         freq = get_frequency_by_seq_and_word(seq,chunk)
         freq = 100-freq
         pos_score = max(0,6-pos)*20
-        raw_score = (len(chunk)*50 + base_score*30 + freq + pos_score)*chunk_len
+        raw_score = (len(chunk)*60 + base_score*30 + freq + pos_score)*chunk_len
         #raw_score = (len(original_word)*50 + base_score*30 + freq + pos_score)*chunk_len
         score = int(raw_score*score_mod)
+        if is_jmnedict(seq):
+            if has_numbers(chunk):
+                score = int(0.5*score)
+            else:
+                if len(chunk) < 4:
+                    score = int(0.7*score)
+                else:
+                    score = int(0.8*score)
+        # increase score from hard-coded seq list
+        if word_id in priority_word_ids:
+            score += priority_word_ids[word_id]
+        elif chunk in priority_words:
+            score += priority_words[chunk]
 
         #if (seq_sense,len(chunk), chunk_len) not in existing_seq_senses:
         if score > max_previous_score:
@@ -365,9 +400,6 @@ def add_matched_sense_reference(original_word, chunk, base_score, chunk_len, pos
                 scan_results['item_word_ids'][pos+j].append(word_id)
 
             LOG(3,"Match %s with score %d (mod %.2f pos %d freq %d)" % (word_id,score,score_mod,pos_score,freq))
-            # increase score from hard-coded seq list
-            if word_id in priority_word_ids:
-                score += priority_word_ids[word_id]
             # add the chunk len and score for each found word id (seq/sense:word)  position
             # for prioritizing purposes
             for j in range(chunk_len):
@@ -409,25 +441,28 @@ def greedy_jmdict_scanning(original_form, variation, scores, items, scan_results
         if not (variation[cycle_pos] == '' or (items[i].flags & START_OF_SCAN_DISABLED)):
             while (cycle_pos + clen < lp):
 
-                chunk += variation[cycle_pos + clen]
+                variation_item = variation[cycle_pos + clen]
+                chunk += variation_item
                 score += scores[cycle_pos + clen]
                 original_form_chunk += original_form[cycle_pos + clen]
                 clen += 1
 
-                # first check that this chunk hasn't been yet searched for this position
-                if chunk not in searched_chunk_sets[i]:
-                    clen_c = len(chunk) # chunk size in characters, not particles
-                    if clen_c >= min_word_len and clen_c <= max_jmdict_len:
-                        # then check if the word chunk is in the jmdict set.. (this is much faster)
-                        if chunk in jmdict_set[clen_c]:
-                            # .. found. Now we can use a bit more time to find the sequence number in the dict
-                            seqs = jmdict_seq_dict[clen_c][chunk]
-                            for seq in seqs:
-                                senses, score_modifiers = get_valid_senses_for_scanned_word(original_form_chunk, chunk,i,clen,items,seq)
-                                if len(senses)>0:
-                                    add_matched_sense_reference(original_form_chunk, chunk, score, clen, i, seq, senses, score_modifiers, scan_results,items)
+                # the current item cannot be the last piece of the scanned word
+                if variation_item not in items[i+clen-1].non_ending_alt_forms: 
+                    # check that this chunk hasn't been yet searched for this position
+                    if chunk not in searched_chunk_sets[i]:
+                        clen_c = len(chunk) # chunk size in characters, not particles
+                        if clen_c >= min_word_len and clen_c <= max_jmdict_len:
+                            # then check if the word chunk is in the jmdict set.. (this is much faster)
+                            if chunk in jmdict_set[clen_c]:
+                                # .. found. Now we can use a bit more time to find the sequence number in the dict
+                                seqs = jmdict_seq_dict[clen_c][chunk]
+                                for seq in seqs:
+                                    senses, score_modifiers = get_valid_senses_for_scanned_word(original_form_chunk, chunk,i,clen,items,seq)
+                                    if len(senses)>0:
+                                        add_matched_sense_reference(original_form_chunk, chunk, score, clen, i, seq, senses, score_modifiers, scan_results,items)
 
-                    searched_chunk_sets[i].add(chunk)
+                        searched_chunk_sets[i].add(chunk)
 
         cycle_pos += 1
         if cycle_pos > lp - 1:
@@ -774,7 +809,7 @@ def calculate_best_phrase_combination(items,scan_results):
 
 def do_calculate_best_phrase_combination(pos,items,scan_results, rec_level=0):
     global iter_count
-    best_score = -1
+    best_score = -500
     best_combination = []
 
     if rec_level >= 16:
@@ -855,93 +890,96 @@ def do_calculate_best_phrase_combination(pos,items,scan_results, rec_level=0):
                     #print(print_prefix,pos,"Best: ",best_score,best_combination)
     return best_score, best_combination, False
 
-def parse_block_with_unidic(lines, kanji_count):
+def parse_block_with_unidic(lines, kanji_count, concat_lines=True):
 
     kansai_ben = ['']
     # どった
     # ったんか  ta-no-ka?
-
-    # unidic will generally parse text more reliably if the whole block is processed as one line
-    line = ''.join(lines)
-    kc, ud_items = parse_line_with_unidic(line,kanji_count)
-
-    # check if the first item is wrongly aux verb
-    #if ud_items[0].classes[0] == aux_verb_class:
-    #    print(bcolors.FAIL,"First item is aux verb! %s in %s" % (ud_items[0].txt,line),bcolors.ENDC)
-
-    # HOWEVER, there are times when unidic will match erroneously a word between the lines:
-    # e.g.  two line block ['あ～～あ', 'なんてこった']
-    # will be parsed into following lexical elements:
-    # ['あ','～～',あなん,'て','こった']
-    # In this case unidic will find a word 'あなん' which wasn't there in the first place
-    # so we want to dissect it
-    line_pos = 0
-    line_idx = 0
-    item_idx = 0
     mismatch = False
-    item_txt_list = [item.txt for item in ud_items]
-    """
+    if concat_lines:
 
-    if '３０４３０５' in line:
-        pass
+        # unidic will generally parse text more reliably if the whole block is processed as one line
+        line = ''.join(lines)
+        kc, ud_items = parse_line_with_unidic(line,kanji_count)
 
-    failed = False
-    while item_idx < len(item_txt_list) and not failed:
-        remaining_line = lines[line_idx][line_pos:]
-        if remaining_line == '':
-            print("TODO !!!!!!!!")
-            failed = True
-        else:
+        # check if the first item is wrongly aux verb
+        #if ud_items[0].classes[0] == aux_verb_class:
+        #    print(bcolors.FAIL,"First item is aux verb! %s in %s" % (ud_items[0].txt,line),bcolors.ENDC)
 
-            if item_txt_list[item_idx] not in remaining_line:            
-                mismatch = True
-                part1 = item_txt_list[item_idx][:len(remaining_line)]
-                part2 = item_txt_list[item_idx][len(part1):]
-                cll = ud_items[item_idx].classes
-                
-                ud_items[item_idx].flags |= REPLACE_ITEM
-                ud_items[item_idx].txt = part1
-                ud_items[item_idx].is_masu = False
-                ud_items[item_idx].any_class = True
-                item2 = LexicalItem(part2,'',cll)
-                item2.any_class = True
-                ud_items[item_idx].replaced_items = [
-                    ud_items[item_idx],
-                    item2
-                ]
+        # HOWEVER, there are times when unidic will match erroneously a word between the lines:
+        # e.g.  two line block ['あ～～あ', 'なんてこった']
+        # will be parsed into following lexical elements:
+        # ['あ','～～',あなん,'て','こった']
+        # In this case unidic will find a word 'あなん' which wasn't there in the first place
+        # so we want to dissect it
+        line_pos = 0
+        line_idx = 0
+        item_idx = 0
+        item_txt_list = [item.txt for item in ud_items]
+        """
 
-            line_pos += len(item_txt_list[item_idx])
-            item_idx += 1
+        if '３０４３０５' in line:
+            pass
+
+        failed = False
+        while item_idx < len(item_txt_list) and not failed:
+            remaining_line = lines[line_idx][line_pos:]
+            if remaining_line == '':
+                print("TODO !!!!!!!!")
+                failed = True
+            else:
+
+                if item_txt_list[item_idx] not in remaining_line:            
+                    mismatch = True
+                    part1 = item_txt_list[item_idx][:len(remaining_line)]
+                    part2 = item_txt_list[item_idx][len(part1):]
+                    cll = ud_items[item_idx].classes
+                    
+                    ud_items[item_idx].flags |= REPLACE_ITEM
+                    ud_items[item_idx].txt = part1
+                    ud_items[item_idx].is_masu = False
+                    ud_items[item_idx].any_class = True
+                    item2 = LexicalItem(part2,'',cll)
+                    item2.any_class = True
+                    ud_items[item_idx].replaced_items = [
+                        ud_items[item_idx],
+                        item2
+                    ]
+
+                line_pos += len(item_txt_list[item_idx])
+                item_idx += 1
+                if line_pos >= len(lines[line_idx]):
+                    line_pos -= len(lines[line_idx])
+                    line_idx += 1
+
+        if not failed:
+            if mismatch:
+                LOG(1,"Unidic parsing mismatch %s vs %s. Dividing items" % (str(lines),str(item_txt_list)))
+                ud_items = merge_or_replace_items(ud_items)
+
+        """
+        while item_idx < len(item_txt_list) and not mismatch:
+            if item_txt_list[item_idx] not in lines[line_idx][line_pos:]:
+                #print("Possible mismatch: %s (%s)" % (ud_items[item_idx].txt,unidic_class_to_string(ud_items[item_idx].classes[0])))
+                if aux_verb_class not in ud_items[item_idx].classes or \
+                    ud_items[item_idx].txt == 'です': #or \
+                    #ud_items[item_idx].txt == 'でし':
+                    mismatch = True
+                else:
+                    line_pos += len(item_txt_list[item_idx])
+                    item_idx += 1
+            else:
+                line_pos += len(item_txt_list[item_idx])
+                item_idx += 1
             if line_pos >= len(lines[line_idx]):
                 line_pos -= len(lines[line_idx])
                 line_idx += 1
 
-    if not failed:
         if mismatch:
-            LOG(1,"Unidic parsing mismatch %s vs %s. Dividing items" % (str(lines),str(item_txt_list)))
-            ud_items = merge_or_replace_items(ud_items)
+            LOG(1,"Unidic parsing mismatch %s vs %s" % (str(lines),str(item_txt_list)))
+        #return kc, ud_items, mismatch
 
-    """
-    while item_idx < len(item_txt_list) and not mismatch:
-        if item_txt_list[item_idx] not in lines[line_idx][line_pos:]:
-            #print("Possible mismatch: %s (%s)" % (ud_items[item_idx].txt,unidic_class_to_string(ud_items[item_idx].classes[0])))
-            if aux_verb_class not in ud_items[item_idx].classes or \
-                  ud_items[item_idx].txt == 'です': #or \
-                #ud_items[item_idx].txt == 'でし':
-                mismatch = True
-            else:
-                line_pos += len(item_txt_list[item_idx])
-                item_idx += 1
-        else:
-            line_pos += len(item_txt_list[item_idx])
-            item_idx += 1
-        if line_pos >= len(lines[line_idx]):
-            line_pos -= len(lines[line_idx])
-            line_idx += 1
-
-    if mismatch:
-        LOG(1,"Unidic parsing mismatch %s vs %s" % (str(lines),str(item_txt_list)))
-        #print("\nUnidic parsing mismatch %s vs \n%s" % (str(lines),str(item_txt_list)))
+    if not concat_lines or mismatch:
         ud_items = []
         kc = 0
         for line in lines:
@@ -949,10 +987,21 @@ def parse_block_with_unidic(lines, kanji_count):
             kc += line_kc
             ud_items += line_ud_items
         item_txt_list = [item.txt for item in ud_items]
-        LOG(1,"New parse results %s" % (str(item_txt_list)))
-        #print("New parse results: \n%s" % (str(item_txt_list)))
-        pass
-    return kc, ud_items
+        LOG(1,"Parse results with disconnected lines #1 %s" % (str(item_txt_list)))
+        #for item in ud_items:
+        #    pretty_print_lexical_item(item)
+
+        """
+        line = '\n'.join(lines)
+        kc, ud_items = parse_line_with_unidic(line,kanji_count)
+        item_txt_list = [item.txt for item in ud_items]
+
+        LOG(1,"Parse results with disconnected lines #2 %s" % (str(item_txt_list)))
+        #for item in ud_items:
+        #    pretty_print_lexical_item(item)
+        """
+
+    return kc, ud_items, False
 
 def reassemble_block(original_lines, unidic_items, item_word_ref): #, item_word_scores):
     # re-assemble this block back into lines (list of lists)

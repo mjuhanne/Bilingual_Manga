@@ -99,7 +99,7 @@ def process_chapter(f_p, fo_p, chapter_data):
                 block['jlines'] = []
             else:
                 line = ''.join(lines)
-                kc, ud_items = \
+                kc, ud_items, mismatch = \
                     parse_block_with_unidic(lines, kanji_count)
 
                 k_c += kc

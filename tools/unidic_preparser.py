@@ -93,6 +93,9 @@ def parse_line_with_unidic(line, kanji_count):
                 item.appendable_alt_forms = [katakana_to_hiragana(w)]
             if pron_base != '':
                 item.pron_base = katakana_to_hiragana(pron_base)
+            #if lemma != '' and lemma != word:
+            #    item.alt_forms.append(lemma)
+            #    item.alt_scores[lemma] = 0.5
             items.append(item)
 
         previous_cl = cl
@@ -135,11 +138,99 @@ def check_adjectival_nouns(pos,items):
             items[pos+1].flags |= DISABLE_ORTHO
     return
 
+def brute_force_check_for_verbs_and_adjectives(pos,items):
+    txt = items[pos].txt
+    if len(txt) == 1 and is_cjk(txt[0]):
+        next_ch = items[pos+1].txt[0]
+        seqs = get_adjective_seqs_for_single_kanji(txt)
+        for seq in seqs:
+            for k_elem in get_kanji_elements_by_seq(seq):
+                if next_ch == k_elem[1]:
+                    # possible adjective
+                    items[pos].alt_orthos = [k_elem]
+                    items[pos].classes.append(adjective_class)
+                    items[pos].flags |= REPROCESS
+
+
+def divide_item(pos,items):
+    new_items = []
+
+    i = 0
+    for ch in items[pos].txt:
+        cll = items[pos].classes
+        if i<len(items[pos].ortho):
+            ortho = items[pos].ortho[i]
+        else:
+            ortho = ''
+        it = LexicalItem(ch,ortho,cll)
+        it.base_score = get_class_base_score(cll[0])
+        new_items.append(it)
+        i += 1
+    
+    # just replace the first item with all the items
+    # and remove the rest of the replaced items
+    items[pos].replaced_items = new_items
+    items[pos].flags |= REPROCESS | REPLACE_ITEM
+    i = 1
+
+jmdict_kanji_elements, jmdict_kanji_element_seq, jmdict_max_kanji_element_len = get_jmdict_kanji_element_set()
+
+def get_highest_freq_seq_for_word(word):
+    best_seq = None
+    best_freq = 10000
+    if word in jmdict_kanji_elements[len(word)]:
+        seqs = jmdict_kanji_element_seq[len(word)][word]
+        for seq in seqs:
+            freq = get_frequency_by_seq_and_word(seq,word)
+            if freq < best_freq:
+                best_freq = freq
+                best_seq = seq
+    return best_seq, best_freq
+
+
+spatio_temporal_kanjis = list('左右')
+def is_spatiotemporal(word):
+    return all(c in spatio_temporal_kanjis for c in word)
+
+
 def check_nouns(pos,items):
+
+    txt = items[pos].txt
+
+    if is_numerical(txt):
+        divide_item(pos,items)
+    if is_spatiotemporal(txt[0]):
+        divide_item(pos,items)
+    elif len(txt) == 2 and is_cjk(txt[0]) and is_cjk(txt[1]):
+        primary_seq, primary_freq = get_highest_freq_seq_for_word(txt)
+        if primary_seq is not None:
+            # divide nouns into smaller parts if Unidic separates the word inefficiently
+            # and other combination seems more likely. Greedy parser can then 
+            # find the words more easily
+            # e.g. 部下 + 達 instead of 部 + 下達
+            allowed = False
+            if pos > 0 and noun_class in items[pos-1].classes:
+                variant = items[pos-1].txt[-1] + txt[0]
+                allowed=True
+            if pos < len(items) -1 and (noun_class in items[pos+1].classes or suffix_class in items[pos+1].classes):
+                variant = txt[1] + items[pos+1].txt[0] 
+                allowed=True
+            if allowed:
+                variant_seq, variant_freq = get_highest_freq_seq_for_word(variant)
+                if variant_freq < primary_freq:
+                    divide_item(pos,items)
+        else:
+            # no word was found for this kanji-only noun. Divide it to allow
+            # matching later with individual kanjis
+            #divide_item(pos,items)
+            pass
 
     if pos + 1 == len(items):
         # nothing further to check
         return
+
+    #brute_force_check_for_verbs_and_adjectives(pos,items)
+    
     if aux_verb_class in items[pos+1].classes:
         if items[pos+1].txt == 'に' and items[pos+1].ortho == 'だ':
             # Erroneously detected aux verb. Disable the ortho form to prevent false results
@@ -189,7 +280,7 @@ vowel_extension = {
 
     'あ' : "かがさざただなはばぱまやわ",
     'い' : "きぎせぜちてでにしじけげひびぴみめりれ",
-    'う' : "くぐこごそぞつとどぬのすずふぷぶほぼぽむもゆよるろ",
+    'う' : "くぐこごそぞつとどぬのすずふぷぶほぼぽむもゆよょるろ",
     'え' : "ねへべぺ",
 }
 
@@ -535,24 +626,35 @@ def add_emphatetic_and_elongated_alternative_forms(pos,items):
                         # For example in ['すごー','ー','い']   the middle element is 
                         # empty and the 'ー' and 'い' elements are marked as adjective
                         for cl in items[pos-1].classes:
-                            if pos<len(items)-1:
-                                if cl not in items[pos+1].classes:
-                                    items[pos+1].classes.append(cl)
-                            if cl not in items[pos].classes:
-                                items[pos].classes.append(cl)
+                            if cl != prefix_class:
+                                if pos<len(items)-1:
+                                    if cl not in items[pos+1].classes:
+                                        items[pos+1].classes.append(cl)
+                                if cl not in items[pos].classes:
+                                    items[pos].classes.append(cl)
 
     for small_vowel in small_vowels:
         if small_vowel in items[pos].txt:
             idx = items[pos].txt.index(small_vowel)
+            allowed = False
             if idx > 0:
+                # is the previous character in the lexical item suitable e.g. のォ ?
                 if items[pos].txt[idx-1] in small_vowel_fade[small_vowel]:
-                    # create an alternative form by removing the small vowel
-                    alt_form = items[pos].txt.replace(small_vowel,'')
-                    if alt_form not in items[pos].alt_forms:
-                        items[pos].alt_forms.append(alt_form)
-                    if alt_form not in items[pos].appendable_alt_forms:
-                        items[pos].appendable_alt_forms.append(alt_form)
-                    items[pos].alt_scores[alt_form] = int(items[pos].base_score*0.8)
+                    allowed = True
+            else:
+                if pos > 0:
+                    # is the last character in the previous lexical item suitable e.g. この + ォ ?
+                    if len(items[pos-1].txt)>0 and items[pos-1].txt[-1] in small_vowel_fade[small_vowel]:
+                        allowed = True
+
+            if allowed:
+                # create an alternative form by removing the small vowel
+                alt_form = items[pos].txt.replace(small_vowel,'')
+                if alt_form not in items[pos].alt_forms:
+                    items[pos].alt_forms.append(alt_form)
+                if alt_form not in items[pos].appendable_alt_forms:
+                    items[pos].appendable_alt_forms.append(alt_form)
+                items[pos].alt_scores[alt_form] = int(items[pos].base_score*0.8)
 
 
     if len(items[pos].txt)>1:
@@ -606,12 +708,34 @@ def particle_post_processing(pos, items):
 
         if verb_class in cll or (aux_verb_class in cll and (items[pos].ortho=='だ')or(items[pos].ortho=='ない')):
             check_verbs(pos,items)
+        if prefix_class in cll and pos < len(items) - 1 and is_hiragana(items[pos+1].txt[0]):
+            # erroneously assigned as prefix, most likely an adjective
+            seqs = get_adjective_seqs_for_single_kanji(items[pos].txt)
+            for seq in seqs:
+                kanji_elements = get_kanji_elements_by_seq(seq)
+                for k_elem in kanji_elements:
+                    if items[pos].txt in k_elem:
+                        if k_elem not in items[pos].alt_orthos:
+                            items[pos].alt_orthos.append(k_elem)
+            if len(seqs)>0:
+                items[pos].classes.append(adjective_class)
         if adjective_class in cll and not verb_class in cll:
             return check_adjectives(pos,items)
         if adjectival_noun_class in cll:
             return check_adjectival_nouns(pos,items)
         if noun_class in cll:
             return check_nouns(pos,items)
+        if interjection_class in cll:
+            if pos > 0 and prefix_class in items[pos-1].classes:
+                # wrong classification
+                items[pos].any_class = True
+        if aux_verb_class in cll and pos == 0 and items[pos].txt != 'じゃ':
+            # wrong classification
+            items[pos].any_class = True
+        if suffix_class in cll and pos == 0:
+            # wrong classification
+            items[pos].any_class = True
+
         #if suffix_class in cll:
         #    return check_suffix(pos,items)
         if aux_verb_class in cll:
@@ -642,6 +766,9 @@ def particle_post_processing(pos, items):
                     # Example: ロマンチック + に 
                     items[pos].ortho = items[pos].txt
                     items[pos].flags |= MERGE_ITEM
+                    # many adjectival noun + に combinations work as adverbs
+                    # e.g. 非常に
+                    items[pos-1].classes.append(adverb_class)
                     #items[pos].flags |= BIND_TO_PREVIOUS_ITEM_IF_LEFT_UNTETHERED
 
 # merge or replace those particles that are marked
@@ -654,7 +781,7 @@ def merge_or_replace_items(items):
             changed_items.append(processed_items[pos-1])
             if get_verbose_level()>=2:
                 LOG(2,bcolors.OKGREEN + "Merged item" + bcolors.ENDC)
-                pretty_print_lexical_item(items[pos-1])
+                pretty_print_lexical_item(processed_items[pos-1])
                 LOG(2,"with")
                 pretty_print_lexical_item(items[i])
 
@@ -713,7 +840,7 @@ def merge_or_replace_items(items):
 
             if get_verbose_level()>=2:
                 LOG(2,"resulting..")
-                pretty_print_lexical_item(items[pos-1])
+                pretty_print_lexical_item(processed_items[pos-1])
 
             #processed_items[pos-1].flags |= REPROCESS
 
@@ -777,6 +904,44 @@ def post_process_unidic_particles(items):
                     #if prev_txt not in items[i+1].alt_forms:
                     #    items[i+1].alt_forms.append(prev_txt)
                     #    items[i+1].alt_scores[prev_txt] = int(items[i+1].base_score*0.6)
+
+                    # This item cannot be the last item of a scanned word
+                    ending_alt_form_exceptions = ['だ']
+                    if items[i].txt not in ending_alt_form_exceptions:
+                        items[i].non_ending_alt_forms.append(items[i].txt)
+
+    # add variants for possible OCR misread
+    misread_list = {
+        'つ' : 'っ',
+        'ぱ' : 'ば',
+        'ば' : 'ぱ',
+        'び' : 'ぴ',
+        'ぴ' : 'び',
+        'ぶ' : 'ぷ',
+        'ぷ' : 'ぶ',
+        'べ' : 'ぺ',
+        'ぺ' : 'べ',
+        'ぼ' : 'ぽ',
+        'ぽ' : 'ぼ',
+        'バ' : 'パ',
+        'パ' : 'バ',
+        'ビ' : 'ピ',
+        'ピ' : 'ビ',
+        'ブ' : 'プ',
+        'プ' : 'ブ',
+        'ベ' : 'ペ',
+        'ペ' : 'ベ',
+        'ボ' : 'ポ',
+        'ポ' : 'ボ',
+    }
+    for i in range(len(items)):
+        for misread_letter,correct_letter in misread_list.items():
+            if misread_letter in items[i].txt:
+                alt = items[i].txt.replace(misread_letter,correct_letter)
+                if alt not in items[i].alt_forms:
+                    items[i].alt_forms.append(alt)
+                    items[i].appendable_alt_forms.append(alt)
+                    items[i].alt_scores[alt] = 0.4
 
     # identify end-of-clause items
     for i in range(len(items)):

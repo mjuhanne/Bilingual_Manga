@@ -6,7 +6,7 @@ CURRENT_PARSED_OCR_VERSION = 4
 CURRENT_OCR_SUMMARY_VERSION = 4
 CURRENT_METADATA_CACHE_VERSION = 2
 # .. whereas older language parser works but may not have parsed all the words as efficiently
-CURRENT_LANUGAGE_PARSER_VERSION = 5
+CURRENT_LANUGAGE_PARSER_VERSION = 6
 
 AVERAGE_PAGES_PER_VOLUME = 180
 
@@ -282,8 +282,22 @@ def has_word_katakana(word):
 def is_cjk(c):
     return any(s <= ord(c) <= e for (s, e) in cjk_ranges)
 
+numerics = list('一二三四五六七八九十百億')
+def is_numerical(word):
+    return all(c in numerics for c in word)
+    
+def num_cjk(word):
+    count = 0
+    for c in word:
+        if is_cjk(c):
+            count += 1
+    return count
+
 def has_cjk(word):
     return any(is_cjk(c) for c in word)
+
+def has_numbers(word):
+    return any(c in numerics for c in word)
 
 def filter_cjk(text):
     return filter(has_cjk, text)
@@ -291,6 +305,12 @@ def filter_cjk(text):
 hira_start = int("3041", 16)
 hira_end = int("3096", 16)
 kata_start = int("30a1", 16)
+
+def is_hiragana(c):
+    return hira_start <= ord(c) <= hira_end
+
+def is_hiragana_word(word):
+    return all(is_hiragana(c) for c in word)
 
 hira_to_kata = dict()
 kata_to_hira = dict()

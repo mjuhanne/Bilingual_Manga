@@ -1,25 +1,25 @@
-from helper import base_dir, has_cjk
+from helper import base_dir, has_cjk, is_cjk, num_cjk, is_katakana_word, katakana_to_hiragana
 import json
 
 _readings_by_seq = dict()
 _readings_set_by_len = dict()
 _reading_seq = dict()
-_reading_freq = dict()
+_elem_freq = dict()
 _kanji_elements_by_seq = dict()
 _kanji_elements_set_by_len = dict()
 _kanji_element_seq = dict()
-_kanji_element_freq = dict()
 _class_list_per_sense = dict()
 _flat_class_list = dict()
 _meaning_per_sense = dict()
 _max_reading_len = 0
 _max_kanji_element_len = 0
-_common_pri_tags = dict()
-_k_pri_tags = dict()
-_r_pri_tags = dict()
+_pri_tags = dict()
+_single_kanji_adjectives = dict()
+_single_kanji_verbs = dict()
 
 jmdict_file = base_dir + "lang/JMdict_e_s.tsv"
 jmdict_with_meanings_file = base_dir + "lang/JMdict_e_m.tsv"
+jmnedict_file = base_dir + "lang/JMnedict_e.tsv"
 
 # JMDict Parts of Speech (classes)
 # DO NOT CHANGE THE ORDER
@@ -188,6 +188,55 @@ jmdict_parts_of_speech_codes = {
 'sk': "search-only kana form",
 }
 
+#jmdict_noun_class = jmdict_class_list.index('noun (common) (futsuumeishi)')
+jmdict_prefix_class = jmdict_class_list.index('prefix')
+jmdict_suffix_class = jmdict_class_list.index('suffix')
+jmdict_noun_as_suffix_class = jmdict_class_list.index('noun, used as a suffix')
+
+jmdict_prenominal_class = jmdict_class_list.index('noun or verb acting prenominally')
+
+jmdict_suru_verb_class = jmdict_class_list.index('suru verb - included')
+jmdict_godan_ru_i_verb_class = jmdict_class_list.index("Godan verb with 'ru' ending (irregular verb)")
+
+jmdict_adjectival_noun_class = jmdict_class_list.index('adjectival nouns or quasi-adjectives (keiyodoshi)')
+jmdict_adj_i_class = jmdict_class_list.index('adjective (keiyoushi)')
+jmdict_adj_ii_class = jmdict_class_list.index('adjective (keiyoushi) - yoi/ii class')
+jmdict_adj_pn_class = jmdict_class_list.index('pre-noun adjectival (rentaishi)')
+
+jmdict_pronoun_class = jmdict_class_list.index('pronoun')
+
+jmdict_interjection_class = jmdict_class_list.index('interjection (kandoushi)')
+
+jmdict_expression_class = jmdict_class_list.index('expressions (phrases, clauses, etc.)')
+
+jmdict_adverb_class = jmdict_class_list.index('adverb (fukushi)')
+jmdict_adverb_to_class = jmdict_class_list.index("adverb taking the 'to' particle")
+
+jmdict_conjunction_class = jmdict_class_list.index('conjunction')
+jmdict_particle_class = jmdict_class_list.index('particle')
+
+jmdict_numeric_class = jmdict_class_list.index('numeric')
+jmdict_counter_class = jmdict_class_list.index('counter')
+
+jmdict_aux_adj_class = jmdict_class_list.index('auxiliary adjective')
+jmdict_auxiliary_class = jmdict_class_list.index('auxiliary')
+
+jmdict_auxiliary_verb_class = jmdict_class_list.index('auxiliary verb')
+
+jmdict_adj_no_class = jmdict_class_list.index("nouns which may take the genitive case particle 'no'")
+
+jmdict_noun_class = jmdict_class_list.index("noun (common) (futsuumeishi)")
+
+# create combined verb and noun classes for easier lookup
+_jmdict_verb_pos_list = []
+for cl in jmdict_class_list:
+    idx = jmdict_class_list.index(cl)
+    if 'adverb' not in cl:
+        if 'verb' in cl:
+            _jmdict_verb_pos_list.append(idx)
+_jmdict_verb_pos_set = set(_jmdict_verb_pos_list)
+
+
 pos_code_by_class = dict()
 for i,jmdict_class_expl in enumerate(jmdict_class_list):
     for pos_code, cl_expl in jmdict_parts_of_speech_codes.items():
@@ -213,7 +262,10 @@ def get_jmdict_kanji_element_set():
 def get_jmdict_reading_set():
     return _readings_set_by_len, _reading_seq, _max_reading_len
 
-def search_sequences_by_word(word):
+def is_jmnedict(seq):
+    return seq >= 5000000
+
+def search_sequences_by_word(word, only_jmdict=True):
     if len(word)>_max_kanji_element_len or len(word)>_max_reading_len:
         return []
     seqs = []
@@ -222,6 +274,8 @@ def search_sequences_by_word(word):
     else:
         if word in _reading_seq[len(word)]:
             seqs = _reading_seq[len(word)][word]
+    if only_jmdict:
+        seqs = [seq for seq in seqs if seq > 1000000 and seq < 5000000]
     return seqs
 
 def search_sequences_by_elements(kanji_element,reading):
@@ -249,17 +303,24 @@ def get_class_list_by_seq(seq):
     return _class_list_per_sense[seq]
 
 def get_combined_seq_frequency(seq):
+    raise Exception("TODO")
     return min(_kanji_element_freq[seq],_reading_freq[seq])
 
 def get_frequency_by_seq_and_word(seq,word):
-    if has_cjk(word):
-        return _kanji_element_freq[seq]
-    return _reading_freq[seq]
+    if word in _elem_freq[seq]:
+        return _elem_freq[seq][word]
+    if is_katakana_word(word):
+        hw = katakana_to_hiragana(word)
+        if hw in _elem_freq[seq]:
+            return _elem_freq[seq][hw]
+    return 100
 
 def get_kanji_element_freq(seq):
+    raise Exception("TODO")
     return _kanji_element_freq[seq]
 
 def get_reading_freq(seq):
+    raise Exception("TODO")
     return _reading_freq[seq]
 
 def get_meanings_by_sense(seq,sense):
@@ -275,21 +336,39 @@ def get_readings_by_seq(seq):
     return _readings_by_seq[seq]
 
 def get_common_priority_tags(seq):
+    raise Exception("TODO")
     return _common_pri_tags[seq]
 
 def get_kanji_element_priority_tags(seq):
+    raise Exception("TODO")
     return _k_pri_tags[seq]
 
 def get_reading_priority_tags(seq):
+    raise Exception("TODO")
     return _r_pri_tags[seq]
 
-def load_jmdict(load_meanings=False):
-    global _kanji_elements_set_by_len, _kanji_element_seq, _kanji_element_freq, _max_kanji_element_len
-    global _readings_set_by_len, _reading_seq, _reading_freq, _max_reading_len
+def get_priority_tags(seq,word):
+    return _pri_tags[seq][word]
+
+def get_verb_seqs_for_single_kanji(word):
+    if word[0] in _single_kanji_verbs:
+        return _single_kanji_verbs[word[0]]
+    return []
+
+def get_adjective_seqs_for_single_kanji(word):
+    if word[0] in _single_kanji_adjectives:
+        return _single_kanji_adjectives[word[0]]
+    return []
+
+def load_jmdict(load_meanings=False, load_jmnedict=True):
+    global _kanji_elements_set_by_len, _kanji_element_seq, _max_kanji_element_len
+    global _readings_set_by_len, _reading_seq, _max_reading_len
+    global _elem_freq
     global _class_list_per_sense, _flat_class_list
     global _meaning_per_sense
     global _kanji_elements_by_seq, _readings_by_seq
-    global _common_pri_tags,_k_pri_tags, _r_pri_tags
+    global _pri_tags
+    global _single_kanji_verbs, _single_kanji_adjectives
 
     print("Loading JMdict..")
     if load_meanings:
@@ -304,9 +383,18 @@ def load_jmdict(load_meanings=False):
         d[-1] = d[-1].strip()
         seq = int(d[0])
 
+        l_l = json.loads(d[3])
+        _class_list_per_sense[seq] = l_l
+        # flatten the class list for faster lookup
+        flat_cll = list(set([x for sense_cl_l in l_l for x in sense_cl_l]))
+        _flat_class_list[seq] = flat_cll
+        cl_set = set(flat_cll)
+
+        _elem_freq[seq] = dict()
         k_elems = d[1].split(',')
+        k_elem_freq = d[4].split(',')
         _kanji_elements_by_seq[seq] = [] 
-        for k_elem in k_elems:
+        for k_elem,k_freq in zip(k_elems,k_elem_freq):
             if k_elem != '':
                 l = len(k_elem)
                 if l not in _kanji_element_seq:
@@ -318,9 +406,25 @@ def load_jmdict(load_meanings=False):
                 if l > _max_kanji_element_len:
                     _max_kanji_element_len = l
                 _kanji_elements_by_seq[seq].append(k_elem)
+                _elem_freq[seq][k_elem] = int(k_freq)
+
+                k = k_elem[0]
+                if l > 1 and is_cjk(k) and num_cjk(k_elem) == 1:
+                    if jmdict_adj_i_class in cl_set:
+                        if k not in _single_kanji_adjectives:
+                            _single_kanji_adjectives[k] = [seq]
+                        else:
+                            _single_kanji_adjectives[k].append(seq)
+                    if len(cl_set.intersection(_jmdict_verb_pos_set))>1:
+                        if k not in _single_kanji_verbs:
+                            _single_kanji_verbs[k] = [seq]
+                        else:
+                            _single_kanji_verbs[k].append(seq)
+
         r_elems = d[2].split(',')
+        r_elem_freq = d[5].split(',')
         _readings_by_seq[seq] = [] 
-        for r_elem in r_elems:
+        for r_elem,r_freq in zip(r_elems,r_elem_freq):
             l = len(r_elem)
             if l not in _reading_seq:
                 _reading_seq[l] = dict()
@@ -331,21 +435,62 @@ def load_jmdict(load_meanings=False):
             if l > _max_reading_len:
                 _max_reading_len = l
             _readings_by_seq[seq].append(r_elem)
+            _elem_freq[seq][r_elem] = int(r_freq)
 
-        l_l = json.loads(d[3])
-        _class_list_per_sense[seq] = l_l
-        # flatten the class list for faster lookup
-        _flat_class_list[seq] = list(set([x for sense_cl_l in l_l for x in sense_cl_l]))
-
-        _kanji_element_freq[seq] = int(d[4])
-        _reading_freq[seq] = int(d[5])
-
-        _common_pri_tags[seq] = d[6].split(',')
-        _k_pri_tags[seq] = d[7].split(',')
-        _r_pri_tags[seq] = d[8].split(',')
+        _pri_tags[seq] = json.loads(d[6])
 
         if load_meanings:
-            _meaning_per_sense[seq] = json.loads(d[9])
+            _meaning_per_sense[seq] = json.loads(d[7])
+
+    if load_jmnedict:
+        print("Loading JMnedict..")
+        o_f = open(jmnedict_file,"r",encoding="utf-8")
+        lines = o_f.readlines()
+        o_f.close()
+
+        for line in lines:
+            d = line.split('\t')
+            d[-1] = d[-1].strip()
+            seq = int(d[0])
+
+            l_l = json.loads(d[3])
+
+            _elem_freq[seq] = dict()
+            _flat_class_list[seq] = [jmdict_noun_class]
+            _class_list_per_sense[seq] = [[jmdict_noun_class]]
+            k_elems = d[1].split(',')
+            freq = d[3]
+            _kanji_elements_by_seq[seq] = [] 
+            for k_elem in k_elems:
+                if k_elem != '':
+                    l = len(k_elem)
+                    if l not in _kanji_element_seq:
+                        _kanji_element_seq[l] = dict()
+                    if k_elem not in _kanji_element_seq[l]:
+                        _kanji_element_seq[l][k_elem] = [seq]
+                    else:
+                        _kanji_element_seq[l][k_elem].append(seq)
+                    if l > _max_kanji_element_len:
+                        _max_kanji_element_len = l
+                    _kanji_elements_by_seq[seq].append(k_elem)
+                    _elem_freq[seq][k_elem] = int(freq)
+
+            r_elems = d[2].split(',')
+            _readings_by_seq[seq] = []
+            for r_elem in r_elems:
+                l = len(r_elem)
+                if l not in _reading_seq:
+                    _reading_seq[l] = dict()
+                if r_elem not in _reading_seq[l]:
+                    _reading_seq[l][r_elem] = [seq]
+                else:
+                    _reading_seq[l][r_elem].append(seq)
+                if l > _max_reading_len:
+                    _max_reading_len = l
+                _readings_by_seq[seq].append(r_elem)
+                _elem_freq[seq][r_elem] = int(freq)
+
+            _meaning_per_sense[seq] = [[d[4]]]
 
     # make sure every length has at least empty entry. 
     # Also create sets consisting of just a word for faster lookup

@@ -1302,6 +1302,12 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "き", 
+        "Tense" : "Adnominal (archaic)"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Suffix" : "し", 
         "Tense" : "Non-past"
       },
@@ -1316,6 +1322,12 @@
         "Negative" : true, 
         "Suffix" : "くない", 
         "Tense" : "Non-past"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : true, 
+        "Suffix" : "かない", 
+        "Tense" : "Non-past (Colloquial)"
       },
       {
         "Formal" : false, 
@@ -1702,6 +1714,12 @@
         "Negative" : false, 
         "Suffix" : "なさい", 
         "Tense" : "Imperative"
+      },
+      {
+        "Formal" : true, 
+        "Negative" : false, 
+        "Suffix" : "たまえ", 
+        "Tense" : "Imperative (archaic)"
       },
       {
         "Formal" : false, 

@@ -115,26 +115,28 @@ async function fetchWordInfo(seq_list) {
             <div class="details">
                     {#each ready_seq_list as seq}
                     <table class="word_info_table" class:selected_seq={seq == selected_seq} on:click={()=>{selectedWord(seq)}}>
-                        {#if word_info_by_seq[seq]['kanji_elements'][0].length>0}
+                        {#if word_info_by_seq[seq]['kanji_elements'].length>0}
                         <tr style="background:{learning_stage_colors[learning_stage_by_seq[seq]]}">
                             <td colspan=2>{word_info_by_seq[seq]['kanji_elements']}</td>
                         </tr>
                         {/if}
                         <tr style="background:{learning_stage_colors[learning_stage_by_seq[seq]]}">
                             <td>{word_info_by_seq[seq]['readings']}</td>
-                            <td>{seq}</td>
+                            <td>{seq} (#{word_info_by_seq[seq]['seq_order']}:{word_info_by_seq[seq]['seq_count']})</td>
                         </tr>
-                        {#if word_info_by_seq[seq]['common_priority_tags'][0].length>0}
+                        {#if word_info_by_seq[seq]['priority_tags'].length>0}
                             <tr style="background:{learning_stage_colors[learning_stage_by_seq[seq]]}">
-                                <td colspan=2>{word_info_by_seq[seq]['common_priority_tags']}</td>
+                                <td colspan=2>{word_info_by_seq[seq]['priority_tags'][0]}</td>
                             </tr>
                         {/if}
+                        <!--
                         {#if (word_info_by_seq[seq]['kanji_element_only_priority_tags'][0].length>0) || (word_info_by_seq[seq]['reading_only_priority_tags'][0].length>0)}
                             <tr style="background:{learning_stage_colors[learning_stage_by_seq[seq]]}">
                                 <td>{word_info_by_seq[seq]['kanji_element_only_priority_tags']}</td>
                                 <td>{word_info_by_seq[seq]['reading_only_priority_tags']}</td>
                             </tr>
                         {/if}
+                        -->
                         {#each word_info_by_seq[seq]['meanings'] as sense_meanings,i}
                         <tr style="background:{learning_stage_colors[learning_stage_by_seq[seq]]}">
                             <td class="meaning_td" colspan=2>{i+1}. 

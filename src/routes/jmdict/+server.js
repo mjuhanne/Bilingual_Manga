@@ -8,9 +8,10 @@ let meanings = {};
 let readings = {};
 let classes = {};
 let kanji_elements = {};
-let common_pri_tags = {};
-let k_pri_tags = {};
-let r_pri_tags = {};
+let k_elem_freq = {};
+let r_elem_freq = {};
+let pri_tags = {};
+let seq_frequency = {};
 
 function loadJMDict() {
     console.log("Loading JMDict");
@@ -23,20 +24,53 @@ function loadJMDict() {
             let items = line.split('\t');
             let seq = parseInt(items[0]);
             kanji_elements[seq] = items[1].split(',');
+            k_elem_freq[seq] = items[4].split(',');
             readings[seq] = items[2].split(',');
-            common_pri_tags[seq] = items[6].split(',');
-            k_pri_tags[seq] = items[7].split(',');
-            r_pri_tags[seq] = items[8].split(',');
-            meanings[seq] = JSON.parse(items[9]);
+            r_elem_freq[seq] = items[5].split(',');
+            pri_tags[seq] = JSON.parse(items[6]);
+            meanings[seq] = JSON.parse(items[7]);
         } catch (e) {
             console.log(`Error in line ${line_count} : '${line}' `);
         }
         line_count += 1;
     }
     console.log(`Loaded ${Object.keys(meanings).length} entries`);
+
+
+    console.log("Loading JMnedict");
+    data = fs.readFileSync("lang/JMnedict_e.tsv", "utf8");
+    console.log("Parsing JMnedict");
+    var lines = data.split('\n');
+    line_count = 1;
+    for (let line of lines) {
+        try {
+            let items = line.split('\t');
+            let seq = parseInt(items[0]);
+            kanji_elements[seq] = items[1].split(',');
+            readings[seq] = items[2].split(',');
+            k_elem_freq[seq] = parseInt(items[3]);
+            r_elem_freq[seq] = k_elem_freq[seq]
+            pri_tags[seq] = []
+            meanings[seq] = [[items[4]]];
+        } catch (e) {
+            console.log(`Error in line ${line_count} : '${line}' `);
+        }
+        line_count += 1;
+    }
+    console.log(`Loaded ${Object.keys(meanings).length} entries`);
+
+}
+
+
+function load_seq_freq() {
+    console.log("Loading seq freq");
+    let data = fs.readFileSync("lang/seq_count.json", "utf8");
+    seq_frequency = JSON.parse(data);
+    console.log(`Loaded ${seq_frequency['sorted_freq_list'].length} entries`);
 }
 
 loadJMDict();
+load_seq_freq();
 
 function get_meanings(seq_list) {
     let selected_meanings = {};
@@ -51,13 +85,18 @@ function get_word_info(seq_list) {
     let selected_info = {};
     console.log("seq_list: "+seq_list);
     for (let seq of seq_list) {
+        let seq_int = parseInt(seq);
         selected_info[seq] = {}
         selected_info[seq]['meanings'] = meanings[seq];
         selected_info[seq]['readings'] = readings[seq];
         selected_info[seq]['kanji_elements'] = kanji_elements[seq];
-        selected_info[seq]['common_priority_tags'] = common_pri_tags[seq];
-        selected_info[seq]['kanji_element_only_priority_tags'] = k_pri_tags[seq];
-        selected_info[seq]['reading_only_priority_tags'] = r_pri_tags[seq];
+        selected_info[seq]['priority_tags'] = pri_tags[seq];
+
+        selected_info[seq]['k_elem_freq'] = k_elem_freq[seq]
+        selected_info[seq]['r_elem_freq'] = k_elem_freq[seq]
+
+        selected_info[seq]['seq_order'] = seq_frequency['sorted_freq_list'].indexOf(seq_int);
+        selected_info[seq]['seq_count'] = seq_frequency['seq_count'][seq];
         console.log(seq + ": "+JSON.stringify(selected_info[seq]));
     }
     return selected_info;
