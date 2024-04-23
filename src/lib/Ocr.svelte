@@ -291,10 +291,28 @@
     }
   }
 
+  async function debugOcr() {
+    if (hovered_block_id != -1) {
+      let body = JSON.stringify({
+      'func' : 'debug_ocr',
+      'chapter_id' : cid,
+      'page_ref' : page_ref,
+      'block_id' : hovered_block_id,
+      });
+      const response = await fetch( "/ocr", {
+        headers: {"Content-Type" : "application/json" },
+        method: 'POST',
+        body: body,
+      });
+    }
+  }
+
   const keyPressListener = (event) => {
     var keyName = event.key;
     if (keyName == 'p') {
       debugParser();
+    } else if (keyName == 'o') {
+      debugOcr();
     } else if (keyName == 'k') {
       setHoveredBlockWordsKnown(false);
     } else if (keyName == 'K') {

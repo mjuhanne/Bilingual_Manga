@@ -138,20 +138,6 @@ def check_adjectival_nouns(pos,items):
             items[pos+1].flags |= DISABLE_ORTHO
     return
 
-def brute_force_check_for_verbs_and_adjectives(pos,items):
-    txt = items[pos].txt
-    if len(txt) == 1 and is_cjk(txt[0]):
-        next_ch = items[pos+1].txt[0]
-        seqs = get_adjective_seqs_for_single_kanji(txt)
-        for seq in seqs:
-            for k_elem in get_kanji_elements_by_seq(seq):
-                if next_ch == k_elem[1]:
-                    # possible adjective
-                    items[pos].alt_orthos = [k_elem]
-                    items[pos].classes.append(adjective_class)
-                    items[pos].flags |= REPROCESS
-
-
 def divide_item(pos,items):
     new_items = []
 
@@ -228,8 +214,6 @@ def check_nouns(pos,items):
     if pos + 1 == len(items):
         # nothing further to check
         return
-
-    #brute_force_check_for_verbs_and_adjectives(pos,items)
     
     if aux_verb_class in items[pos+1].classes:
         if items[pos+1].txt == 'に' and items[pos+1].ortho == 'だ':
@@ -732,6 +716,10 @@ def particle_post_processing(pos, items):
         if aux_verb_class in cll and pos == 0 and items[pos].txt != 'じゃ':
             # wrong classification
             items[pos].any_class = True
+            if len(items)>1:
+                if aux_verb_class in items[pos+1].classes:
+                    # also the next item has likely wrong classification
+                    items[pos+1].any_class = True
         if suffix_class in cll and pos == 0:
             # wrong classification
             items[pos].any_class = True

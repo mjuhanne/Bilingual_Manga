@@ -52,7 +52,9 @@ $: {
                 selected_seq = seq;
             }
             learning_stage_by_seq[seq] = word_learning_stages[widx];
-            word_by_seq[seq] = word;
+            if (!(seq in word_by_seq)) {
+                word_by_seq[seq] = word;
+            }
         }
         fetchWordInfo(seq_list);
         if (word_id_index_list.length>1) {

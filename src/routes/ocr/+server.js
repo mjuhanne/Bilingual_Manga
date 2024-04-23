@@ -16,23 +16,24 @@ const OCR_PATH = './ocr/';
 const PARSED_OCR_PATH = './parsed_ocr/';
 const INTERACTIVE_OCR_FILE = './parsed_ocr/temp.json';
 
-async function createInteractiveOcr(input_file, output_file) {
-    let exec_cmd = `python tools/interactive_ocr.py ${input_file} ${output_file}`
+async function createInteractiveOcr(input_file, output_file, page_ref, block_id) {
+    let exec_cmd = `python tools/interactive_ocr.py ${input_file} ${output_file} ${page_ref} ${block_id}`
     try {
         const { stdout, stderr } = await execSync(exec_cmd);
+        console.log("* Res: " + stdout);
         } catch (error) {
-        console.log(error.stderr);
+        console.log("Error: ",error);
         return error.stderr;
     }
     return '';
 }
 
-async function fetchOcr(chapter_id) {
+async function fetchOcr(chapter_id,page_ref,block_id) {
     let ocr_file = `${OCR_PATH + chapter_id + '.json'}`
     let parsed_ocr_file = `${PARSED_OCR_PATH + chapter_id + '.json'}`
     let ocr;
     if (fs.existsSync(parsed_ocr_file)) {
-        let res = await createInteractiveOcr(parsed_ocr_file, INTERACTIVE_OCR_FILE);
+        let res = await createInteractiveOcr(parsed_ocr_file, INTERACTIVE_OCR_FILE, page_ref, block_id);
         if (res == '') {
             console.log(`Reading Interactive OCR: ${INTERACTIVE_OCR_FILE}`);
             ocr = fs.readFileSync(INTERACTIVE_OCR_FILE, "utf8");
@@ -86,7 +87,12 @@ export async function POST({ request }) {
 	if (data.func == 'fetch_ocr') {
         ret= {
             success : true,
-            'ocr' : await fetchOcr(data.chapter_id)
+            'ocr' : await fetchOcr(data.chapter_id,"","")
+        };
+    } else if (data.func == 'debug_ocr') {
+        ret= {
+            success : true,
+            'ocr' : await fetchOcr(data.chapter_id,data.page_ref,data.block_id)
         };
     } else if (data.func == 'update_ocr_block') {
         ret= {

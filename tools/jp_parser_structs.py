@@ -246,6 +246,14 @@ COND_NON_BASE_FORM = 1024
 COND_NON_ORIGINAL_FORM = 2048
 COND_BEFORE_VERB = 4096
 
+condition_text = {
+    COND_NON_BASE_FORM : 'non-base-form',
+    COND_NON_ORIGINAL_FORM : '!= original form',
+    COND_BEFORE_VERB : 'before verb',
+    COND_END_OF_CLAUSE : 'end of clause',
+}
+
+
 
 TASK_MODIFY = 0
 TASK_MERGE = 1
@@ -327,6 +335,8 @@ pre_conjugation_modifications = [
     # -tte oku (do something ahead)
     # # e.g. いっとく -> い　+　って + おく
     [['っとく'],[aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['っと','く'],'classes':[aux_verb_class,verb_class],'orthos':['','おく'],'alt_forms':['って',''],'conjugation_roots':['','おく']}],
+    # しとく -> し　+　て + おく
+    [['とく'],[aux_verb_class],COND_AFTER_MASU,TASK_DIVIDE,{'parts':['と','く'],'classes':[aux_verb_class,verb_class],'orthos':['','おく'],'alt_forms':['て',''],'conjugation_roots':['','おく']}],
     # # e.g. いっといて -> い　+　って + おいて
     [['っとい','て'],[aux_verb_class,gp_class],COND_NONE,TASK_REPLACE,{'parts':['っと','い','て'],'classes':[aux_verb_class,verb_class,aux_verb_class],'orthos':['','おく',''],'alt_forms':['って','お','いて'],'conjugation_roots':['','おく','']}],
     # 頼ん + ど + い + て + くれ -> 頼んで + おいて + くれ
@@ -528,6 +538,7 @@ explicit_word_changes = [
     [['何','ン','か'],[pronoun_class,gp_class,gp_class],COND_NONE,TASK_MERGE,{'class_list':[adverb_class,pronoun_class,interjection_class],'ortho':''}],
     [['な','ん','て'],[aux_verb_class,aux_verb_class,gp_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
     [['いく','つ'],[noun_class,suffix_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
+    [['要','は'],[noun_class,gp_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
 
     # auxiliary
     # remove だ ortho from なら and で
@@ -545,15 +556,8 @@ explicit_word_changes = [
     #[['そっ','かー'],[adverb_class,gp_class],COND_NONE,TASK_MERGE,{'class':expression_class,'ortho':''}],
     # stupid unidic thinks this is 気に行ってる. Force it to 入る
     [['気','に','い','って','る'],[noun_class,gp_class,verb_class,aux_verb_class,verb_class],COND_NONE,TASK_MODIFY,{'orthos':['','','入る','','']}],
-    # stupid unidic thinks this is 信ずる. Force it to　信じる
-    [['信じ','て','る'],[verb_class,aux_verb_class,verb_class],COND_NONE,TASK_MODIFY,{'orthos':['信じる','','いる']}],
-    #[['信じ','ら'],[verb_class,aux_verb_class],COND_NONE,TASK_MODIFY,{'orthos':['信じる','']}],
-    [['信じ'],[verb_class],COND_NONE,TASK_MODIFY,{'orthos':['信じる']}],
     [['往'],[verb_class],COND_NONE,TASK_MODIFY,{'orthos':['往く']}],
     [['思い巡ら'],[verb_class],COND_NONE,TASK_MODIFY,{'orthos':['思い巡らす']}],
-    [['動じ'],[verb_class],COND_NONE,TASK_MODIFY,{'orthos':['動じる']}],
-
-
 
     # separate incorrectly merged items
     [['文部'],[noun_class],COND_NONE,TASK_DIVIDE,{'parts':['文','部']}],
@@ -593,6 +597,7 @@ alternative_classes = {
     'っつ' : [conjunction_class],
     'なんて' : [interjection_class],
     'よし' : [interjection_class],
+    'ずつ' : [suffix_class],
 
     # Pre-noun Adjectivals, detected originally as adjectival nouns
     'そんな' : [rentaishi_class],
@@ -663,7 +668,7 @@ hard_coded_seqs = {
     'そう' : (adjectival_noun_class,2137720),
 }
 
-priority_word_ids = {
+word_id_score_adjustment = {
     '1313580:こと' : 100,
     '1343100:とこ' : 30,
     '2607690:よし' : 20,
@@ -687,6 +692,9 @@ priority_word_ids = {
     '1256490:兼' : 80,
     '1006870:その実' : 200,
     '2840247:みたく' : 250,
+    '2396190:それと' : 550,
+    '1404730:足らず' : 150,
+    '2141560:何よりも' : 50,
 
 
     # lower priority for these hiragana words that get mixed up 
@@ -733,14 +741,11 @@ priority_word_ids = {
     '5661634:なにし' : -500,
 
     # emphasize these jmndict entries
-    '5024977:キートン' : 150,
     '5555810:東大' : 50,
     '5322427:山手線' : 50,
-    '5405667:新一' : 10,
-    '5273008:工藤' : 10,
 }
 
-priority_words = {
+word_score_adjustment = {
     'きすぎ' : -300,
     'にいこ' : -300,
     'にいこう': -300,

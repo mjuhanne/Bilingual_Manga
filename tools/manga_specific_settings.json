@@ -1,0 +1,21 @@
+{
+    "Death Note" : {
+        "word_id_score_adjustment" : {
+            "5025808:キラ" : 150,
+            "5096544:ワタリ" : 300,
+            "5703463:竜崎" : 10,
+            "5273815:幸子" : 10
+        }
+    },
+    "Master Keaton" : {
+        "word_id_score_adjustment" : {
+            "5024977:キートン" : 150
+        }
+    },
+    "Conan" : {
+        "word_id_score_adjustment" : {
+            "5405667:新一" : 10,
+            "5273008:工藤" : 10
+        }
+    }
+}

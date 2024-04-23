@@ -79,7 +79,7 @@ if __name__ == "__main__":
     init_parser(load_meanings=True)
     jmdict_kanji_elements, jmdict_kanji_element_seq, jmdict_max_kanji_element_len = get_jmdict_kanji_element_set()
     jmdict_readings, jmdict_reading_seq, jmdict_max_reading_len = get_jmdict_reading_set()
-
+    load_manga_specific_adjustments("ALL")
     print(sys.argv)
     if args['text'] is None:
         jslines = '["ようこそおきな"]' #'["ねえどうして"]'
@@ -172,6 +172,9 @@ if __name__ == "__main__":
         lines = ['くそー', 'カンカラは', 'どこだ．．．']
         lines = ["私に、", "新しい女性が", "できたって", "悪かないだろ。"]
         lines = ['◆高所注意', '転落の恐れあり', '特に旅館の', '屋根など注意', '鳥夫の責な', 'にも注意すべ']
+        lines = [ '「第二のキラ」というのは']
+        lines = ["才能があれば", "こなせるはずです"]
+        lines = ["キラを焦らせ焚きつけ", "自分に会わせようとする"]
     else:
         lines = json.loads(args['text'])
 

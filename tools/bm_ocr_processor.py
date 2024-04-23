@@ -37,7 +37,7 @@ from helper import *
 from jp_parser import (
     init_scan_results, parse_block_with_unidic, post_process_unidic_particles, parse_with_jmdict, 
     init_parser, reassemble_block, expand_word_id, #, get_highest_freq_class_list_with_particle_priority,
-    get_flat_class_list_by_seq,
+    get_flat_class_list_by_seq, load_manga_specific_adjustments,
     unidic_class_list, ignored_classes_for_freq
 )
 from bm_learning_engine_helper import read_user_settings
@@ -201,6 +201,8 @@ def process_chapters(args):
 
       if args['keyword'] is None or args['keyword'].lower() in title_name.lower():
 
+        load_manga_specific_adjustments(title_name)
+
         i += 1
         chapters = get_chapters_by_title_id(title_id)
 
@@ -213,12 +215,19 @@ def process_chapters(args):
             chapter_data['chapter'] = get_chapter_number_by_chapter_id(chapter_id)
             chapter_data['num_pages'] =  get_chapter_page_count(chapter_id)
 
+            if args['chapter'] is not None and chapter_data['chapter'] != args['chapter']:
+                if args['verbose']:
+                    print("Skipped chapter %d" % chapter_data['chapter'] )
+                continue
+
             if keyword is not None:
                 if keyword.lower() not in chapter_data['title'].lower():
                     continue
 
             if args['read']:
                 if not is_chapter_read(chapter_id):
+                    if args['verbose']:
+                        print("Skipped not read chapter %d" % chapter_data['chapter'] )
                     continue
 
             #if chapter_data['chapter'] != 9:
@@ -311,6 +320,7 @@ def process_titles(args):
             for chapter_id in vs:
                 chapter_filename = chapter_analysis_dir + chapter_id + ".json"
                 chapter = get_chapter_number_by_chapter_id(chapter_id)
+
                 if os.path.exists(chapter_filename):
                     o_f = open(chapter_filename,"r",encoding="utf-8")
                     chapter_data = json.loads(o_f.read())
@@ -372,13 +382,16 @@ parser = argparse.ArgumentParser(
 parser.add_argument('--force', '-f', action='store_true', help='Force reprocessing')
 parser.add_argument('--first', '-1', action='store_true', help='Process only first chapter per title')
 parser.add_argument('--read', '-r', action='store_true', help='Process only read chapters')
+parser.add_argument('--verbose', '-v', action='store_true', help='Verbose')
 parser.add_argument('--start-index', '-si', nargs='?', type=int, default=1, help='Start from the selected title index')
+parser.add_argument('--chapter', '-ch',  nargs='?', type=int, default=None, help='Chapter')
 parser.add_argument('keyword', nargs='?', type=str, default=None, help='Title has to (partially) match the keyword in order to processed')
 
 args = vars(parser.parse_args())
 
 #args['force'] = True
-#args['keyword'] = 'crusaders'
+#args['keyword'] = 'death note'
+#args['chapter'] = 4
 
 if not os.path.exists(title_analysis_dir):
     os.mkdir(chapter_analysis_dir)
@@ -390,6 +403,7 @@ if not os.path.exists(parsed_ocr_dir):
 init_parser(load_meanings=True)
 
 process_chapters(args)
-process_titles(args)
+if args['chapter'] is None:
+    process_titles(args)
 
 print("Total errors: %d. Processed %d titles and %d chapters" % (error_count, processed_title_count, processed_chapter_count))

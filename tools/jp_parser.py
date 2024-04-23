@@ -10,6 +10,24 @@ _parser_initialized = False
 
 jmdict_noun_pos_list = []
 jmdict_verb_pos_list = []
+custom_word_id_score_adjustment = dict()
+
+def check_matching_condition(items,pos,conditions,word,original_word,num_scanned_items):
+    if conditions & COND_NON_BASE_FORM:
+        for i in range(num_scanned_items):
+            if not items[pos+i].is_base_form:
+                return COND_NON_BASE_FORM
+    if conditions & COND_NON_ORIGINAL_FORM:
+        if word != original_word:
+            return COND_NON_ORIGINAL_FORM
+    if conditions & COND_BEFORE_VERB:
+        if pos+num_scanned_items < len(items):
+            if verb_class in items[pos+num_scanned_items].classes:
+                return COND_BEFORE_VERB
+    if conditions & COND_END_OF_CLAUSE:
+        if items[pos+num_scanned_items-1].end_of_clause:
+            return COND_END_OF_CLAUSE
+    return COND_NONE
 
 """
 This makes sure that only appropriate jmdict senses are assigned to 
@@ -35,24 +53,14 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
     # inhibit words with certain conditions
     if seq in seq_blacklist_with_conditions.keys():
         cond = seq_blacklist_with_conditions[seq]
-        if cond & COND_NON_BASE_FORM:
-            for i in range(num_scanned_items):
-                if not items[pos+i].is_base_form:
-                    messages[pos].append("%s inhibited (non-base-form)" % (items[pos+i].txt))
-                    return [], score_modifiers
-        if cond & COND_NON_ORIGINAL_FORM:
-            if scanned_word != original_scanned_word:
-                messages[pos].append("%s inhibited (!= original form %s)" % (scanned_word,original_scanned_word))
-                return [], score_modifiers
-        if cond & COND_BEFORE_VERB:
-            if pos+num_scanned_items < len(items):
-                if verb_class in items[pos+num_scanned_items].classes:
-                    messages[pos].append("%s inhibited (before verb)" % (items[pos].txt))
-                    return [], score_modifiers
-        if cond & COND_END_OF_CLAUSE:
-            if items[pos+num_scanned_items-1].end_of_clause:
-                messages[pos].append("%s inhibited (end of clause)" % (items[pos].txt))
-                return [], score_modifiers
+        matched_cond = check_matching_condition(items,pos,cond,scanned_word,original_scanned_word,num_scanned_items)
+        if matched_cond != COND_NONE:
+            if matched_cond in condition_text:
+                cond_txt = '(%s)' % condition_text[matched_cond]
+            else:
+                cond_txt = ''
+            messages[pos].append("%s inhibited %s" % (items[pos].txt,cond_txt))
+            return [], score_modifiers
                 
 
     if scanned_word in hard_coded_seqs.keys():
@@ -307,7 +315,7 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
             
             if len(valid_senses[i])==0:
                 if items[pos+i].any_class:
-                    messages[i].append("%s(%s) failed otherwise but preliminary matching %s(%s) just due ALL_CLASS" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_class_list[jmd_cl]))
+                    messages[i].append("%s(%s) failed otherwise but preliminary matching %s(%s) just due ANY_CLASS" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_class_list[jmd_cl]))
                     valid_senses[i].update([s_idx])
                     if sw_len == 1:
                         score_modifiers[s_idx] = 0.5
@@ -387,11 +395,13 @@ def add_matched_sense_reference(original_word, chunk, base_score, chunk_len, pos
                     score = int(0.7*score)
                 else:
                     score = int(0.8*score)
-        # increase score from hard-coded seq list
-        if word_id in priority_word_ids:
-            score += priority_word_ids[word_id]
-        elif chunk in priority_words:
-            score += priority_words[chunk]
+        # modify score based on hard-coded table
+        if word_id in custom_word_id_score_adjustment:
+            score += custom_word_id_score_adjustment[word_id]
+        if word_id in word_id_score_adjustment:
+            score += word_id_score_adjustment[word_id]
+        elif chunk in word_score_adjustment:
+            score += word_score_adjustment[chunk]
 
         #if (seq_sense,len(chunk), chunk_len) not in existing_seq_senses:
         if score > max_previous_score:
@@ -714,6 +724,8 @@ def parse_with_jmdict(unidic_items, scan_results):
                                 LOG(2,"\t%s %d [%d/%d] %s with classes:" % (word.ljust(6,'　'),score, seq, sense, meanings))
                                 for cl in cl_list:
                                     LOG(2,"\t\t\t- %s" % (jmdict_class_list[cl]))
+                else:
+                    LOG(2," %d : %s" % (i,unidic_items[i]))
 
         # Sort each JMDict reference by its scoring
         longest_common_word_id = 0
@@ -1087,6 +1099,20 @@ def reassemble_block_scores(original_lines, unidic_items, item_word_scores):
         block_word_scores.append(new_line_scores)
     
     return block_word_scores
+
+def load_manga_specific_adjustments(manga):
+    global custom_word_id_score_adjustment
+    custom_word_id_score_adjustment = dict()
+    try: 
+        with open(manga_specific_settings_file,"r",encoding="utf-8") as f:
+            data = f.read()
+            j_data = json.loads(data)
+            for key,settings in j_data.items():
+                if key.lower() in manga.lower() or manga == 'ALL':
+                    for word_id,score in settings['word_id_score_adjustment'].items():
+                        custom_word_id_score_adjustment[word_id] = score
+    except:
+        print("Manga specific settings file doesn't exist")
 
 
 def init_parser(load_meanings=False):

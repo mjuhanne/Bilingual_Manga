@@ -76,11 +76,12 @@ def attempt_conjugation(pos, items, inflection, conj_class, rec_level=0):
                             LOG(2,print_prefix + "Conjugate %s with %s (%s) %s " % (infl_cand,tense,next_type_suffix,get_jmdict_pos_code(next_type)))
                             attempted_next_types.add(next_type)
                             sub_conj_item_count, sub_conj_len, sub_conjs = attempt_conjugation(pos+i,items,next_inflection,next_type, rec_level+1)
-                            if len(sub_conjs) > 0:
+                            conj_len = len(stem) + sub_conj_len
+                            #if len(sub_conjs) > 0:
+                            if conj_len > 0:
                                 # try to maximize the number of lexical items the conjugation
                                 # swallows and the depth of the conjugative tree
                                 #if i + sub_conj_item_count + len(sub_conjs) > max_sub_conj_item_count + len(max_subj_conj_list):
-                                conj_len = len(stem) + sub_conj_len
                                 if conj_len > max_conj_len:
                                     max_conj_item_count = i + sub_conj_item_count
                                     max_conj_len = conj_len
@@ -88,7 +89,7 @@ def attempt_conjugation(pos, items, inflection, conj_class, rec_level=0):
                                     LOG(1,print_prefix + "match (%d)" % conj_len + str(max_conj_list))
                                     pass
                             """
-                            elif v_str == next_type_suffix:
+                            elif infl_cand == next_type_suffix:
                                 if i > max_sub_conj_item_count:
                                     max_sub_conj_item_count = i
                                     max_subj_conj_list = [(next_type,next_type_suffix,tense)]
@@ -156,7 +157,7 @@ def attempt_conjugation(pos, items, inflection, conj_class, rec_level=0):
                             if not found:
                                 LOG(2,print_prefix + "items %d:%s no match for %s/%s (%s)" % (pos,str(preliminary_candidates),suffix,next_type_suffix,tense))
                     else:
-                        LOG(2,print_prefix + "item %d:%s not allowed for conjugation" % (pos+i,item.txt))
+                        LOG(3,print_prefix + "item %d:%s not allowed for conjugation" % (pos+i,item.txt))
                         pass
 
                 #if (len(inflection_candidates) == 0) or ((next_type is None or next_type in attempted_next_types) and len(v_str)>len(suffix)):
@@ -242,6 +243,7 @@ def attempt_maximal_conjugation(pos, items, seqs):
     if lemma != '':
         if lemma not in stem_candidates:
             stem_candidates.append(lemma)
+    stem_candidates += items[pos].alt_orthos
     #if items[pos].pron_base != '':
     #    stem_candidates.append(items[pos].pron_base)
             
@@ -260,6 +262,7 @@ def attempt_maximal_conjugation(pos, items, seqs):
     max_conj_particles = 0
     max_conj_len = 0
     max_conj_details = []
+    max_conj_ortho = ''
     for cl in cl_set:
             #try:
             cl_txt = jmdict_class_list[cl]
@@ -293,6 +296,7 @@ def attempt_maximal_conjugation(pos, items, seqs):
                                         max_conj_particles = detected_num_particles
                                         max_conj_len = detected_conj_len
                                         max_conj_details = conj_root + detected_conj_details
+                                        max_conj_ortho = stem_candidate
                                     elif len(max_conj_details)==0:
                                         # no additional particles detected but 
                                         # the Unidic managed to parse it already
@@ -301,7 +305,33 @@ def attempt_maximal_conjugation(pos, items, seqs):
 
             #except:
             #pass
-    return max_conj_particles, max_conj_details
+    return max_conj_particles, max_conj_details, max_conj_ortho
+
+"""
+def brute_force_scan_for_verbs_and_adjectives(pos,items):
+    txt = items[pos].txt
+    if len(txt) == 1 and is_cjk(txt[0]):
+        next_ch = items[pos+1].txt[0]
+        seqs = get_adjective_seqs_for_single_kanji(txt)
+        for seq in seqs:
+            for k_elem in get_kanji_elements_by_seq(seq):
+                if next_ch == k_elem[1]:
+                    # possible adjective
+                    items[pos].alt_orthos = [k_elem]
+                    items[pos].classes.append(adjective_class)
+                    items[pos].flags |= REPROCESS
+"""
+def brute_force_scan_for_verbs(pos,items):
+    txt = items[pos].txt
+    seqs = []
+    if is_cjk(txt[0]):
+        seqs = get_verb_seqs_for_single_kanji(txt)
+        for seq in seqs:
+            for k_elem in get_kanji_elements_by_seq(seq):
+                if k_elem not in items[pos].alt_orthos:
+                    items[pos].alt_orthos.append(k_elem)
+    return seqs
+
 
 def check_verbs(pos,items): 
     if items[pos].is_conjugated:
@@ -311,6 +341,15 @@ def check_verbs(pos,items):
     if ortho == '':
         return
     lemma = items[pos].lemma
+    txt = items[pos].txt
+
+    # stupid Unidict part 32132
+    # Many verbs with kanji + じ (e.g. 感じる) are detected as 感ずる (the old form)
+    if len(txt) == 2 and is_cjk(txt[0]) and txt[1] == 'じ':
+        if ortho == txt[0] + 'ずる':
+            ortho = txt[0] + 'じる'
+            items[pos].ortho = ortho
+
     # First try to get the JMDict entry in order to find the right verb conjugation (v5r etc)
     seqs = search_sequences_by_word(ortho)
     if len(seqs) == 0 and lemma != '':
@@ -323,11 +362,16 @@ def check_verbs(pos,items):
                 alt_form = ortho[0] + lemma[1:]
             else:
                 # ortho is hiragana so we have to fetch the reading of lemma
-                s_lemma = search_sequences_by_word(lemma)
-                if len(s_lemma) > 0:
-                    readings = get_readings_by_seq(s_lemma[0])
-                    alt_form = readings[0]
-                else:
+                lemma_seqs = search_sequences_by_word(lemma)
+                found = False
+                for lemma_seq in lemma_seqs:
+                    readings = get_readings_by_seq(lemma_seq)
+                    # we cannot of course do full comparison but for sanity check
+                    # just check that the first character matches
+                    if readings[0][0] == ortho[0]:
+                        alt_form = readings[0]
+                        found = True
+                if not found:
                     LOG(1,"Couldn't find seq for lemma %s when doing verb conjugations found for %s/%s" % (lemma,items[pos].txt, items[pos].ortho),items)
         seqs = search_sequences_by_word(alt_form)
         if len(seqs)>0:
@@ -335,9 +379,18 @@ def check_verbs(pos,items):
             #items[pos].flags |= SCAN_WITH_LEMMA
             if alt_form not in items[pos].alt_forms:
                 items[pos].alt_forms.append(alt_form)
+        else:
+            # finally do brute force single kanji search if everything else fails
+            seqs = brute_force_scan_for_verbs(pos,items)
 
-    max_particles_conjugated, conj_details = attempt_maximal_conjugation(pos, items, seqs)
+    max_particles_conjugated, conj_details, max_conj_ortho = attempt_maximal_conjugation(pos, items, seqs)
     if len(conj_details)>0:
+
+        if max_conj_ortho in items[pos].alt_orthos:
+            # conjugation succeeded with alternative ortho so let's select it for
+            # scanning
+            items[pos].ortho = max_conj_ortho 
+
         for i in range(max_particles_conjugated):
             items[pos+i+1].flags = MERGE_ITEM
             items[pos+i+1].is_conjugated = True

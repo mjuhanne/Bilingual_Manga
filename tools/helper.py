@@ -70,6 +70,9 @@ jlpt_vocab_with_waller_kanji_restrictions_path_= base_dir + "lang/jlpt-vocab/dat
 jlpt_vocab_path =  base_dir + "lang/jlpt-vocab/data/"
 jlpt_vocab_jmdict_file =  base_dir + "lang/jlpt/jlpt_vocab_jmdict.json"
 
+manga_specific_settings_file = base_dir + "tools/manga_specific_settings.json"
+counter_word_id_file = base_dir + "lang/counter_word_ids.tsv"
+
 _title_names = dict()
 _title_name_to_id = dict()
 _chapter_id_to_title_id = dict()
@@ -83,6 +86,10 @@ _jlpt_word_levels = None
 _jlpt_word_reading_levels = None
 
 _manga_data = dict()
+
+full_width_alpha_characters = "ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ％"
+full_width_numeric_characters = "０１２３４５６７８９"
+numerics = list('一二三四五六七八九十百億') + list(full_width_numeric_characters)
 
 class bcolors:
     HEADER = '\033[95m'
@@ -282,7 +289,6 @@ def has_word_katakana(word):
 def is_cjk(c):
     return any(s <= ord(c) <= e for (s, e) in cjk_ranges)
 
-numerics = list('一二三四五六七八九十百億')
 def is_numerical(word):
     return all(c in numerics for c in word)
     

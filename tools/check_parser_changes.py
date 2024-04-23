@@ -9,7 +9,7 @@ from helper import *
 from jp_parser import (
     init_scan_results, parse_block_with_unidic, post_process_unidic_particles, parse_with_jmdict, 
     init_parser, reassemble_block, expand_word_id, #, get_highest_freq_class_list_with_particle_priority,
-    get_flat_class_list_by_seq, get_sense_meanings_by_seq,
+    get_flat_class_list_by_seq, get_sense_meanings_by_seq, load_manga_specific_adjustments,
     unidic_class_list, ignored_classes_for_freq
 )
 from jmdict import get_frequency_by_seq_and_word
@@ -285,6 +285,8 @@ def check_chapters(args):
 
       if args['keyword'] is None or args['keyword'].lower() in title_name.lower():
 
+        load_manga_specific_adjustments(title_name)
+
         i += 1
         chapters = get_chapters_by_title_id(title_id)
 
@@ -335,9 +337,9 @@ open_log_file("ocr-log.txt")
 set_verbose_level(0)
 t = time.time()
 
-args['keyword'] = 'hina'
+#args['keyword'] = 'hina'
 #args['chapter'] = 6
-args['read'] = True
+#args['read'] = True
 
 check_chapters(args)
 
