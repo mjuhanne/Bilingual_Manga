@@ -57,6 +57,18 @@ def attempt_conjugation(pos, items, inflection, conj_class, rec_level=0):
                 next_type = jmdict_class_list.index('copula')
                 next_type_suffix = suffix
 
+            if 'Conditions' in details:
+                if 'not_end_of_clause' in details['Conditions']:
+                    if items[pos].end_of_clause:
+                        LOG(3,print_prefix + "skipped conj %s (%s) at pos %d because EOC" % (suffix,tense,pos))
+                        continue
+            if 'Invalid_Original_Words' in details:
+                if items[pos].txt in details['Invalid_Original_Words']:
+                    LOG(3,print_prefix + "skipped conj %s (%s) at pos %d because invalid original word %s" % (suffix,tense,pos,items[pos].txt))
+                    continue
+
+
+
             i = 0
             #v_str = inflection
             cont = True
@@ -457,30 +469,13 @@ def load_conjugations():
         else:
             cli = n
 
-        """
-
-        conj_list, conj_details, ending = get_conjugations_recursively(entries, n, 0)
-        conj_list = list(set(conj_list))  # get rid of possible duplicates
-
-        # sort by conjugation length so we can be greedy by default
-        # i.e. get the longest possible conjugation found in the phrase
-        conj_dict = {x:len(x) for x in conj_list}
-        sorted_conj = dict(sorted(conj_dict.items(), key=lambda x:x[1], reverse=True))
-
-        if 'adj' in n:
-            adj_conjugations[cli] = (ending, list(sorted_conj), conj_details)
-        else:
-            verb_conjugations[cli] = (ending, list(sorted_conj), conj_details)
-        """
-
-        # another way
         ending = entry['Tenses'][0]['Suffix']
         tense_details = dict()
         for tense_entry in entry['Tenses']:
             suffix = tense_entry['Suffix']
             tense = tense_entry['Tense']
             #details = [tense_entry['Formal'],tense_entry['Negative']]
-            details = [tense_entry['Formal'],tense_entry['Negative']]
+            #details = [tense_entry['Formal'],tense_entry['Negative']]
             next_type = None
             next_type_suffix = ''
             next_type_code = ''
@@ -499,6 +494,17 @@ def load_conjugations():
                 else:
                     next_type_suffix = suffix
             tense_details[(tense,suffix,next_type,next_type_suffix,next_type_code)] = tense_entry
+
+            # Add some Kansai-ben inflections programmaticaly because there are so many entries
+            if suffix[-3:] == 'ません':
+                suffix = suffix[:-3] + 'まへん'
+                tense_details[(tense,suffix,next_type,next_type_suffix,next_type_code)] = tense_entry
+            if 'ない' in suffix:
+                suffix = suffix.replace('ない','へん')
+                tense_details[(tense,suffix,next_type,next_type_suffix,next_type_code)] = tense_entry
+
+
+
         tense_length_dict = {(tense,suffix,next_type,next_type_suffix,next_type_code):len(suffix) for (tense,suffix,next_type,next_type_suffix,next_type_code) in tense_details}
         sorted_tenses = dict(sorted(tense_length_dict.items(), key=lambda x:x[1], reverse=True))
         sorted_tenses = list(sorted_tenses)

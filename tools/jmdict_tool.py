@@ -50,6 +50,7 @@ parser = argparse.ArgumentParser(
 
 #parser.add_parser('analyze', help='Do comprehension analysis per title')
 parser.add_argument('--exact', '-e', action='store_true', help='Require exact match')
+parser.add_argument('--tsv-file', '-tsv', nargs='?', default=None, help='Output to .tsv file')
 parser.add_argument('--part-of-speech', '-pos', nargs='?', type=str, default=None, help='Filter entries with this part of speech code')
 parser.add_argument('keyword', nargs='?', type=str, default='', help='search term')
 
@@ -144,4 +145,34 @@ for kanji_elements, readings, matched_word,seq in results:
 
 print("Total %d matches" % len(results))
 
+if args['tsv_file'] is not None:
+    print("Saving to %s" % args['tsv_file'])
+    f = open(args['tsv_file'],'w',encoding="utf-8")
+
+    for kanji_elements, readings, matched_word,seq in results:
+        cl_list_per_sense = get_class_list_by_seq(seq) # jmdict_class_list_per_sense[seq]
+        meanings_per_sense = get_sense_meanings_by_seq(seq) #) jmdict_meaning_per_sense[seq]
+
+        if len(kanji_elements)>0:
+            word = kanji_elements[0]
+            k_elem = word
+        else:
+            word = readings[0]
+            k_elem = ''
+        r_elem = readings[0]
+
+        for i, (cl_list, meanings) in enumerate(zip(cl_list_per_sense, meanings_per_sense)):
+            pos_list = []
+            for cl in cl_list:
+                if target_class is None or target_class == cl:
+                    pos_code = get_jmdict_pos_code(cl)
+                    pos_list.append(pos_code)
+
+            if len(pos_list)>0:
+                word_id = '%s/%d:%s' % (seq,i,word)
+                line = [word_id,k_elem,r_elem,','.join(pos_list),meanings[0]]
+                f.write('\t'.join(line) + '\n')
+
+
+    f.close()
 

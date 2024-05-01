@@ -248,6 +248,11 @@ def get_jmdict_pos_code(jmdict_class):
         return pos_code_by_class[jmdict_class]
     return jmdict_class
 
+def get_jmdict_class_by_pos_code(pos_code):
+    if pos_code in jmdict_parts_of_speech_codes:
+        return jmdict_class_list.index(jmdict_parts_of_speech_codes[pos_code])
+    raise Exception("No POS code %s" % pos_code)
+
 def jmdict_add_pos(pos_code,explanation):
     jmdict_parts_of_speech_codes[pos_code] = explanation
     jmdict_class_list.append(explanation)
@@ -359,6 +364,36 @@ def get_adjective_seqs_for_single_kanji(word):
     if word[0] in _single_kanji_adjectives:
         return _single_kanji_adjectives[word[0]]
     return []
+
+def jmdict_add_custom_word(seq,k_elem,r_elem,meaning,cl,freq):
+    global _kanji_elements_set_by_len, _kanji_element_seq
+    global _readings_set_by_len, _reading_seq
+    global _kanji_elements_by_seq, _readings_by_seq
+    global _meaning_per_sense
+    global _pri_tags
+    global _class_list_per_sense, _flat_class_list
+    global _elem_freq
+    l = len(k_elem)
+    if k_elem not in _kanji_element_seq[l]:
+        _kanji_element_seq[l][k_elem] = [seq]
+    else:
+        _kanji_element_seq[l][k_elem].append(seq)
+    _kanji_elements_set_by_len[len(k_elem)].update([k_elem])
+    l = len(r_elem)
+    if r_elem not in _reading_seq[l]:
+        _reading_seq[l][r_elem] = [seq]
+    else:
+        _reading_seq[l][r_elem].append(seq)
+    _readings_set_by_len[len(r_elem)].update([r_elem])
+    _meaning_per_sense[seq] = [[meaning]]
+    _pri_tags[seq] = []
+    _flat_class_list[seq] = [cl]
+    _class_list_per_sense[seq] = [[cl]]
+    _elem_freq[seq] = {k_elem:freq}
+    _elem_freq[seq] = {r_elem:freq}
+    _kanji_elements_by_seq[seq] = [k_elem]
+    _readings_by_seq[seq] = [r_elem]
+
 
 def load_jmdict(load_meanings=False, load_jmnedict=True):
     global _kanji_elements_set_by_len, _kanji_element_seq, _max_kanji_element_len

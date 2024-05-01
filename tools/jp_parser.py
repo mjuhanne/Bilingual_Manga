@@ -12,22 +12,11 @@ jmdict_noun_pos_list = []
 jmdict_verb_pos_list = []
 custom_word_id_score_adjustment = dict()
 
-def check_matching_condition(items,pos,conditions,word,original_word,num_scanned_items):
-    if conditions & COND_NON_BASE_FORM:
-        for i in range(num_scanned_items):
-            if not items[pos+i].is_base_form:
-                return COND_NON_BASE_FORM
-    if conditions & COND_NON_ORIGINAL_FORM:
-        if word != original_word:
-            return COND_NON_ORIGINAL_FORM
-    if conditions & COND_BEFORE_VERB:
-        if pos+num_scanned_items < len(items):
-            if verb_class in items[pos+num_scanned_items].classes:
-                return COND_BEFORE_VERB
-    if conditions & COND_END_OF_CLAUSE:
-        if items[pos+num_scanned_items-1].end_of_clause:
-            return COND_END_OF_CLAUSE
-    return COND_NONE
+def ADD_LOG_MESSAGE(pos,msg):
+    global messages
+    if msg not in messages[pos]:
+        messages[pos].append(msg)
+
 
 """
 This makes sure that only appropriate jmdict senses are assigned to 
@@ -50,18 +39,41 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
 
     score_modifiers = dict()
 
+    num_hiragana_items = 0
+    num_katakana_items = 0
+    for i in range(pos,pos+num_scanned_items):
+        if items[i].is_hiragana:
+            num_hiragana_items += 1
+        elif items[i].is_katakana:
+            num_katakana_items += 1
+    """
+    if num_hiragana_items > 0 and num_katakana_items > 0 and len(scanned_word) < 4:
+        #cll = get_flat_class_list_by_seq(seq)
+        #if jmdict_expression_class not in cll:
+        if items[pos+num_scanned_items-1].txt[-1] == 'る':
+            messages[pos].append("%s allowed katakana+る word %s" % (items[pos].txt,scanned_word))
+        else:
+            messages[pos].append("%s inhibited mixed hiragana/katakana word %s" % (items[pos].txt,scanned_word))
+            return [], score_modifiers
+    """
+
+
     # inhibit words with certain conditions
     if seq in seq_blacklist_with_conditions.keys():
-        cond = seq_blacklist_with_conditions[seq]
-        matched_cond = check_matching_condition(items,pos,cond,scanned_word,original_scanned_word,num_scanned_items)
+        cond_list = seq_blacklist_with_conditions[seq]
+        cond = cond_list[0]
+        if len(cond_list)>1:
+            cond_params = cond_list[1]
+        else:
+            cond_params = None
+        matched_cond = check_matching_condition(items,pos,cond,scanned_word,original_scanned_word,num_scanned_items,cond_params)
         if matched_cond != COND_NONE:
             if matched_cond in condition_text:
                 cond_txt = '(%s)' % condition_text[matched_cond]
             else:
                 cond_txt = ''
-            messages[pos].append("%s inhibited %s" % (items[pos].txt,cond_txt))
+            ADD_LOG_MESSAGE(pos,"%s inhibited %s" % (items[pos].txt,cond_txt))
             return [], score_modifiers
-                
 
     if scanned_word in hard_coded_seqs.keys():
         (unidic_class, wanted_seq) = hard_coded_seqs[scanned_word]
@@ -86,7 +98,7 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
             #  そうこう (adverb) ..
             # To allow matching these kinds of words we disregard the parsed classes
             # if the candidate word has a length of minimum of 5 characters 
-            messages[position].append("%s(%s) failed otherwise but matching %s(%s) just due to length" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_class_list[jmd_cl]))
+            ADD_LOG_MESSAGE(position,"%s(%s) failed otherwise but matching %s(%s) just due to length" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_class_list[jmd_cl]))
             return True
 
         if num_scanned_items >= 4:
@@ -106,33 +118,48 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
         # allow word with normal score if it's in the whitelist
         if seq in seq_whitelist:
             return True
+
+        #if len(scanned_word) >= 3:
+        #    if num_scanned_items>1 and pos==0 and aux_verb_class in items[0].classes:
+        #        # Unidic detected erroneously the first item class and now this prevents
+        #        # detecting those words that span multiple items. Let it pass
+        #        return True
+        if pos==0 and (aux_verb_class in items[0].classes or verb_class in items[0].classes) and jmd_cl == jmdict_interjection_class:
+            # Unidic detected erroneously the first item class and now this prevents
+            # detection
+            return True
         
+        if pos < 2:
+            base_mod = 0 #0.1
+        else:
+            base_mod = 0
+
         # let all medium sized words pass regardless of the class
         # but give them lower score. Words with kanji are given higher score
         if len(scanned_word) >= 4:
             if has_cjk(original_scanned_word):
-                score_modifiers[ALL_SENSES] = 0.7
+                score_modifiers[ALL_SENSES] = base_mod + 0.7
                 return True
-            elif (scanned_word == original_scanned_word) and gp_class not in items[pos].classes:
+            if (scanned_word == original_scanned_word) and gp_class not in items[pos].classes:
                 freq = get_frequency_by_seq_and_word(seq,scanned_word)
                 if freq < 99:
                     if seq not in high_frequency_seq_blacklist:
-                        score_modifiers[ALL_SENSES] = 0.7
+                        score_modifiers[ALL_SENSES] = base_mod + 0.7
                         return True
                     # we have to blacklist some high frequency words because they get mixed up with other surrounding words
                 else:
                     if seq in low_frequency_seq_whitelist:
                         # allow certain low frequency words
-                        score_modifiers[ALL_SENSES] = 0.7
+                        score_modifiers[ALL_SENSES] = base_mod + 0.7
                         return True
-            else:
-                score_modifiers[ALL_SENSES] = 0.4
-                return True
+            #else:
+            score_modifiers[ALL_SENSES] = base_mod + 0.4
+            return True
         if len(scanned_word) >= 3:
             if has_cjk(original_scanned_word):
-                score_modifiers[ALL_SENSES] = 0.5
+                score_modifiers[ALL_SENSES] = base_mod + 0.5
             else:
-                score_modifiers[ALL_SENSES] = 0.3
+                score_modifiers[ALL_SENSES] = base_mod + 0.3
             return True
 
         # let all small sized words pass regardless of the class if they have kanji
@@ -140,14 +167,14 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
         if len(scanned_word) >= 2 and has_cjk(original_scanned_word):
             if num_scanned_items==1 or gp_class not in items[pos+1].classes:
                 # skip few items such as 所が / 本の
-                score_modifiers[ALL_SENSES] = 0.6
+                score_modifiers[ALL_SENSES] = base_mod + 0.6
                 return True
         if len(scanned_word) == 1 and has_cjk(original_scanned_word):
-            score_modifiers[ALL_SENSES] = 0.4
+            score_modifiers[ALL_SENSES] = base_mod + 0.4
             return True
 
         return False
-            
+                
     sw_len = len(scanned_word)
 
     for i in range(num_scanned_items):
@@ -195,6 +222,9 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
                             # どう + して,  もし + も、、少し + ずつ
                             valid_senses[i].update([s_idx])
                             valid_senses[i+1].update([s_idx])
+                    #if word == '何':
+                    #    # 何 is part of many adverbs
+                    #    valid_senses[i].update([s_idx])
 
                 if jmd_cl == jmdict_pronoun_class:
                     if pronoun_class in unidic_classes:
@@ -233,13 +263,22 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
                         if num_scanned_items > 1:
                             # allow numeric class for noun if it's the first item and not alone
                             valid_senses[i].update([s_idx])
-                    if verb_class in unidic_classes and items[pos].is_masu:
+                    if verb_class in unidic_classes:
+                        if items[pos].is_masu:
                             # allow masu-stem verb as noun
                             # e.g.　作り
                             valid_senses[i].update([s_idx])
                             if sw_len == 1:
                                 score_modifiers[s_idx] = 0.5
                             elif sw_len == 2:
+                                score_modifiers[s_idx] = 0.8
+                        elif noun_class in next_word_classes:
+                            valid_senses[i].update([s_idx])
+                            if sw_len == 1:
+                                score_modifiers[s_idx] = 0.5
+                            elif sw_len == 2:
+                                score_modifiers[s_idx] = 0.7
+                            else:
                                 score_modifiers[s_idx] = 0.8
 
                     if rentaishi_class in unidic_classes and noun_class in next_word_classes:
@@ -295,27 +334,65 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
                         valid_senses[i].update([s_idx])
                         valid_senses[i+1].update([s_idx])
 
+                def get_binding_score_modifier(unidic_classes,bindings):
+                    score = 0
+                    for cl in unidic_classes:
+                        if cl in bindings:
+                            new_score = bindings[cl]
+                            if new_score > score:
+                                score = new_score
+                    return score
+
                 # more general allow rules based on jmdict <-> unidic class bindings
                 if s_idx not in valid_senses:
                     if jmd_cl in jmdict_noun_pos_list:
-                        if not (unidic_classes & allowed_noun_bindings):
-                            messages[pos+i].append("%s(%s) not in allowed noun bindings for %s(%s)" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_class_list[jmd_cl]))
+                        if not (unidic_classes & set(allowed_noun_bindings.keys())):
+                            ADD_LOG_MESSAGE(pos+i,"%s(%s) not in allowed noun bindings for %s(%s)" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_class_list[jmd_cl]))
                         else:
                             valid_senses[i].update([s_idx])
+                            #score_modifiers[s_idx] = get_binding_score_modifier(unidic_classes,allowed_noun_bindings)
                     if jmd_cl in jmdict_verb_pos_list:
-                        if not (unidic_classes & allowed_verb_bindings):
-                            messages[pos+i].append("%s(%s) not in allowed verb bindings for %s(%s)" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_class_list[jmd_cl]))
+                        if not (unidic_classes & set(allowed_verb_bindings.keys())):
+                            ADD_LOG_MESSAGE(pos+i,"%s(%s) not in allowed verb bindings for %s(%s)" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_class_list[jmd_cl]))
                         else:
                             valid_senses[i].update([s_idx])
+                            #score_modifiers[s_idx] = get_binding_score_modifier(unidic_classes,allowed_verb_bindings)
                     if jmd_cl in allowed_other_class_bindings:
-                        if not (unidic_classes & set(allowed_other_class_bindings[jmd_cl])):
-                            messages[pos+i].append("%s(%s) not allowed for %s(%s)" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_class_list[jmd_cl]))
+                        if not (unidic_classes & set(allowed_other_class_bindings[jmd_cl].keys())):
+                            ADD_LOG_MESSAGE(pos+i,"%s(%s) not allowed for %s(%s)" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_class_list[jmd_cl]))
                         else:
                             valid_senses[i].update([s_idx])
+                            #score_modifiers[s_idx] = get_binding_score_modifier(unidic_classes,allowed_other_class_bindings[jmd_cl])
+
+                    if s_idx not in valid_senses[i]:
+                        # allow words with certain conditions
+                        cond_list = None
+                        wid = "%s/%d:%s" % (seq,s_idx,scanned_word)
+                        if wid in word_id_whitelist_with_conditions.keys():
+                            cond_list = word_id_whitelist_with_conditions[wid]
+                        else:
+                            wid = "%s:%s" % (seq,scanned_word)
+                            if wid in word_id_whitelist_with_conditions.keys():
+                                cond_list = word_id_whitelist_with_conditions[wid]
+
+                        if cond_list is not None:
+                            cond = cond_list[0]
+                            if len(cond_list)>1:
+                                cond_params = cond_list[1]
+                            else:
+                                cond_params = None
+                            matched_cond = check_matching_condition(items,pos,cond,scanned_word,original_scanned_word,num_scanned_items,cond_params)
+                            if matched_cond != COND_NONE:
+                                if matched_cond in condition_text:
+                                    cond_txt = '(%s)' % condition_text[matched_cond]
+                                else:
+                                    cond_txt = ''
+                                ADD_LOG_MESSAGE(pos+i,"%s allowed %s" % (items[pos].txt,cond_txt))
+                                valid_senses[i].update([s_idx])
             
             if len(valid_senses[i])==0:
                 if items[pos+i].any_class:
-                    messages[i].append("%s(%s) failed otherwise but preliminary matching %s(%s) just due ANY_CLASS" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_class_list[jmd_cl]))
+                    ADD_LOG_MESSAGE(pos+i,"%s(%s) failed otherwise but preliminary matching %s(%s) just due ANY_CLASS" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_class_list[jmd_cl]))
                     valid_senses[i].update([s_idx])
                     if sw_len == 1:
                         score_modifiers[s_idx] = 0.5
@@ -329,7 +406,7 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
             if check_valid_sense_exceptions(word,pos+i,unidic_classes,jmd_cl):
                 return [ALL_SENSES], score_modifiers # no need to check other words
 
-            messages[pos+i].append("%s(%s) has no matching class for %s(%s)" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_class_list[jmd_cl]))
+            ADD_LOG_MESSAGE(pos+i,"%s(%s) has no matching class for %s(%s)" % (word, unidic_classes_to_string(unidic_classes), scanned_word, jmdict_class_list[jmd_cl]))
             # This lexical item matched none of the senses for this word so no need to check other items
             return [], score_modifiers
         
@@ -365,6 +442,10 @@ def add_matched_sense_reference(original_word, chunk, base_score, chunk_len, pos
         if sense == ALL_SENSES:
             word_id = str(seq) + ":" + chunk
             seq_sense = str(seq)
+            # TODO
+            #if ALL_SENSES in score_modifiers:
+            #    score_mod = score_modifiers[ALL_SENSES]
+            #else:
             if len(score_modifiers)>0:
                 score_mod = next(iter(score_modifiers.values()))
         else:
@@ -372,6 +453,7 @@ def add_matched_sense_reference(original_word, chunk, base_score, chunk_len, pos
             seq_sense = str(seq) + '/' + str(sense)
             if sense in score_modifiers:
                 score_mod = score_modifiers[sense]
+        seq_word = str(seq) + ':' + chunk
 
         max_previous_score = -1
         for prev_wid in scan_results['item_word_ids'][pos]:
@@ -398,10 +480,30 @@ def add_matched_sense_reference(original_word, chunk, base_score, chunk_len, pos
         # modify score based on hard-coded table
         if word_id in custom_word_id_score_adjustment:
             score += custom_word_id_score_adjustment[word_id]
+        elif seq_word in custom_word_id_score_adjustment:
+            score += custom_word_id_score_adjustment[seq_word]
         if word_id in word_id_score_adjustment:
             score += word_id_score_adjustment[word_id]
+        elif seq_word in word_id_score_adjustment:
+            score += word_id_score_adjustment[seq_word]
         elif chunk in word_score_adjustment:
             score += word_score_adjustment[chunk]
+
+        adj_settings = None
+        if word_id in word_id_score_adjustment_with_conditions:
+            adj_settings = word_id_score_adjustment_with_conditions[word_id]
+        elif seq_word in word_id_score_adjustment_with_conditions:
+            adj_settings = word_id_score_adjustment_with_conditions[seq_word]
+        if adj_settings is not None:
+            cond_score = adj_settings[0]
+            condition = adj_settings[1]
+            if len(adj_settings)>2:
+                cond_params = adj_settings[2]
+            else:
+                cond_params = None
+            matched_cond = check_matching_condition(items,pos,condition,chunk,original_word,chunk_len,cond_params)
+            if matched_cond == condition:
+                score += cond_score
 
         #if (seq_sense,len(chunk), chunk_len) not in existing_seq_senses:
         if score > max_previous_score:
@@ -483,7 +585,7 @@ def greedy_jmdict_scanning(original_form, variation, scores, items, scan_results
 # Scanning stops when non-appendable alternative form or non-Hiragana/Katakana/Kanji 
 # character is detected
 MAX_RECURSION_LEVELS = 5
-APPENDABLE_ALT_FORM_SCORE_MODIFIER = 0.7
+APPENDABLE_ALT_FORM_SCORE_MODIFIER = 0.70
 END_TYPE_ALT_FORM_SCORE_MODIFIER = 0.8
 #ORIGINAL_FORM_SCORE_MODIFIER = +5
 def create_phrase_permutations(original_words, base_scores, alt_scores, end_type_forms, appendable_forms, items, start=0, recursive_start=None, recursive_level=0):
@@ -512,7 +614,7 @@ def create_phrase_permutations(original_words, base_scores, alt_scores, end_type
                     #if alt_form == original_words[i]:
                     #    score += ORIGINAL_FORM_SCORE_MODIFIER
                     if alt_form != original_words[i]:
-                        score = int(score*APPENDABLE_ALT_FORM_SCORE_MODIFIER)
+                        score = score*APPENDABLE_ALT_FORM_SCORE_MODIFIER
                     if neighbour_alt_score_modifier == 1 or (i==len(base_scores)-1):
                         new_base_scores = base_scores[:i] + [score] + base_scores[i+1:]
                     else:
@@ -542,7 +644,7 @@ def create_phrase_permutations(original_words, base_scores, alt_scores, end_type
                 score = base_scores[i]
             #if alt_form == original_words[i]:
             #    score += ORIGINAL_FORM_SCORE_MODIFIER
-            score = int(score*END_TYPE_ALT_FORM_SCORE_MODIFIER)
+            score = score*END_TYPE_ALT_FORM_SCORE_MODIFIER
             scores.append(score_root + [score])
         i += 1
     
@@ -562,8 +664,9 @@ def create_phrase_permutations(original_words, base_scores, alt_scores, end_type
 
 
 def scan_jmdict_for_phrase(original_form, variation, scores, pos, items, scan_results, searched_kanji_word_set, searched_reading_set):
-
+    # scan by kanji elements
     greedy_jmdict_scanning(original_form, variation, scores, items, scan_results, searched_kanji_word_set, pos, 1, jmdict_kanji_elements, jmdict_kanji_element_seq, jmdict_max_kanji_element_len)
+    # scan by readings
     greedy_jmdict_scanning(original_form, variation, scores, items, scan_results, searched_reading_set, pos, 1, jmdict_readings, jmdict_reading_seq, jmdict_max_reading_len)
 
 def init_scan_results():
@@ -654,7 +757,7 @@ def parse_with_jmdict(unidic_items, scan_results):
         if get_verbose_level()>=1:
             LOG(1,"Permutations %d-%d" % (pos,next_pos-1))
             for perms,sc in zip(permutations,scores):
-                p_str = [("%s(%d)" % (p,s)).ljust(6) for p,s in zip(perms,sc)]
+                p_str = [("%s(%.1f)" % (p,s)).ljust(6) for p,s in zip(perms,sc)]
                 LOG(1, "  %s" % (''.join(p_str)))
             LOG(1,"***********")
 
@@ -689,7 +792,7 @@ def parse_with_jmdict(unidic_items, scan_results):
                 word_ids = scan_results['item_word_ids'][i-1]
                 pos_ref_index = i - 1
 
-        # log missing references
+        # log (missing) references
         if get_verbose_level() >= 1:
             if len(word_ids) == 0:
                 l_level = 1
@@ -1103,15 +1206,28 @@ def reassemble_block_scores(original_lines, unidic_items, item_word_scores):
 def load_manga_specific_adjustments(manga):
     global custom_word_id_score_adjustment
     custom_word_id_score_adjustment = dict()
-    try: 
+    if os.path.exists(manga_specific_settings_file):
         with open(manga_specific_settings_file,"r",encoding="utf-8") as f:
             data = f.read()
             j_data = json.loads(data)
             for key,settings in j_data.items():
                 if key.lower() in manga.lower() or manga == 'ALL':
-                    for word_id,score in settings['word_id_score_adjustment'].items():
-                        custom_word_id_score_adjustment[word_id] = score
-    except:
+                    if 'word_id_score_adjustment' in settings:
+                        for word_id,score in settings['word_id_score_adjustment'].items():
+                            custom_word_id_score_adjustment[word_id] = score
+                    if 'custom_words' in settings:
+                        seq = 10000000 + (get_stable_hash(key)%100000)*100
+                        for w_attr in settings['custom_words']:
+                            k_elem = w_attr[0]
+                            r_elem = w_attr[1]
+                            meaning = w_attr[2]
+                            pos_code = w_attr[3]
+                            freq = w_attr[4]
+                            cl = get_jmdict_class_by_pos_code(pos_code)
+                            jmdict_add_custom_word(seq,k_elem,r_elem,meaning,cl,freq)
+                            seq += 1
+
+    else:
         print("Manga specific settings file doesn't exist")
 
 

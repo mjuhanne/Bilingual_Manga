@@ -264,6 +264,12 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "だったり", 
+        "Tense" : "Alternative"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Suffix" : "ならば", 
         "Tense" : "Provisional"
       },
@@ -537,7 +543,9 @@
         "Formal" : false, 
         "Negative" : false, 
         "Suffix" : "な", 
-        "Tense" : "Prenominal"
+        "Tense" : "Prenominal",
+        "Conditions" : ["not_end_of_clause"],
+        "Invalid_Original_Words" : ["なー","なぁ"]
       },
       {
         "Formal" : false, 

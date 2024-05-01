@@ -15,13 +15,15 @@ learning_data = dict()
 counter_word_ids = dict()
 
 if len(sys.argv)>2:
-    input_file_name = sys.argv[1]
+    chapter_id = sys.argv[1]
     output_file_name = sys.argv[2]
 else:
     #raise Exception("Input and output files not given!")
     #input_file_name = "parsed_ocr/bafybeie5tsllsjaequc65c3enuusqili743xwyg4744v4zmcgqqhm5dqvu.json"
-    input_file_name = "parsed_ocr/bafybeifwhceclyxebiqd5gluokhm6tv4k7o7btt45ocqf2hsomne74ie4q.json"
+    chapter_id ="QmVQdJevsvmScYo3eEr2tRuXKynS7NWjagkjK5eSm9QiRt"
     output_file_name = "test.json"
+
+input_file_name = "parsed_ocr/" + chapter_id + ".json"
 
 # Page ref and block_id is used just for debugging
 if len(sys.argv)>3:
@@ -33,9 +35,18 @@ if len(sys.argv)>4:
 else:
     debug_block_id = None
 
+OCR_CORRECTIONS_FILE = base_dir + "json/ocr_corrections.json"
 
-#debug_page_ref = 'DEATH-NOTE04_143'
-#debug_block_id = 1
+if os.path.exists(OCR_CORRECTIONS_FILE):
+    f = open(OCR_CORRECTIONS_FILE, "r", encoding="utf-8")
+    f_data = f.read()
+    f.close()    
+    ocr_corrections = json.loads(f_data)
+else:
+    ocr_corrections = {'block_errata' : {}, 'word_id_errata': {}}
+
+#debug_page_ref = 'DEATH-NOTE05_135'
+#debug_block_id = 7
 
 # During every page change in MangaReader causes a new OCR file fetch via interactive_ocr.py.
 # Because we decorate it ith word stage data and history, we like to cache the 
@@ -47,8 +58,8 @@ if os.path.exists(metadata_cache_file):
     with open(metadata_cache_file,"r",encoding="utf-8") as f:
         metadata_cache = json.loads(f.read())
 
-def get_metadata(chapter_id):
-    if chapter_id not in metadata_cache['chapter_metadata']:
+def get_metadata(source_chapter_id):
+    if source_chapter_id not in metadata_cache['chapter_metadata']:
 
         read_manga_data()
         read_manga_metadata()
@@ -69,7 +80,7 @@ def get_metadata(chapter_id):
         with open(metadata_cache_file,"w",encoding="utf-8") as f:
             f.write(json.dumps(metadata_cache))
 
-    return metadata_cache['chapter_metadata'][chapter_id]
+    return metadata_cache['chapter_metadata'][source_chapter_id]
     
 def get_chapter_info(event_metadata):
     comment = ''
@@ -104,17 +115,16 @@ def load_counter_word_ids():
 
 def get_possible_counter_word_id(word_id):
     seq,_,word = get_word_id_components(word_id)
-    if is_numerical(word[0]):
-        if len(word)>1:
-            if is_numerical(word[1]):
-                if len(word)>2:
-                    root_word = word[2:]
-                else:
-                    return word_id
-            else:
-                root_word = word[1:]
-            if root_word in counter_word_ids:
-                return counter_word_ids[root_word]
+    i = 0
+    while i<len(word) and is_numerical(word[i]):
+        i += 1
+    if i > 0:
+        root_word = word[i:]
+        if root_word in counter_word_ids:
+            return counter_word_ids[root_word]
+    else:
+        if word[0] == '第':
+            return counter_word_ids['第']
     return word_id
 
 def get_word_id_stage_and_history(word_id):
@@ -174,6 +184,25 @@ def pretty_print_word_history(word_id,stage,history,last_history_from_user):
     for wid,history in user_wid_history.items():
         print("\tUSER %s %s" % (wid,TRACE_EVENT(history[-1])))
 
+def manually_update_word_id_refs(page_id, block_id, item_id, text, word_id_refs, word_id_list, current_block, verbose):
+    if chapter_id in ocr_corrections['word_id_errata']:
+        for change in ocr_corrections['word_id_errata'][chapter_id]:
+            if page_id == change['pr'] and block_id == change['bid'] and item_id == change['iid']:
+                if text == change['w']:
+                    wid = change['wid']
+                    if wid in word_id_list:
+                        widx = word_id_list.index(wid)
+                        if widx in word_id_refs:
+                            word_id_refs.pop(word_id_refs.index(widx))
+                        word_id_refs.insert(0,widx)
+
+                    if verbose:
+                        print("Updated %s word id to %s in block %s" % (text,wid,str(current_block)))
+                else:
+                    print("Mismatch in manual word id update!")
+                    print("Current block: ",current_block)
+                    print("Errata: ",change)
+
 def create_interactive_ocr(input_file, output_file):
 
     f = open(input_file, "r", encoding="utf-8")
@@ -206,18 +235,22 @@ def create_interactive_ocr(input_file, output_file):
             
             parsed_lines = block['jlines']
             i = 0
+            item_i = 0
             for line in parsed_lines:
 
                 new_line = ''
                 for item in line:
                     for j, (lex_item,word_id_refs) in enumerate(item.items()):
 
+                        manually_update_word_id_refs(page_id, block_id, item_i, lex_item, word_id_refs, pages['parsed_data']['word_id_list'], parsed_lines, debug_this_block)
+
                         word_id_index_list = ','.join([str(w) for w in word_id_refs])
 
-                        new_line +=  '<span wil="' + word_id_index_list + '">' + lex_item + '</span>'
+                        new_line +=  '<span wil="' + word_id_index_list + '" ii="' + str(item_i) + '">' + lex_item + '</span>'
 
                         if debug_this_block and j == 0 and len(word_id_refs)>0:
                             debug_refs.update([word_id_refs[0]])
+                        item_i += 1
 
                 block['lines'][i] = new_line
                 i += 1
@@ -229,7 +262,7 @@ def create_interactive_ocr(input_file, output_file):
     stage_history_cache = dict()
 
     for i, word_id_with_sense in enumerate(pages['parsed_data']['word_id_list']):
-        
+
         word_id = strip_sense_from_word_id(word_id_with_sense)
         if word_id in stage_history_cache:
             stage, history = stage_history_cache[word_id]

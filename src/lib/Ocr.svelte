@@ -27,7 +27,9 @@
   let page_ref = undefined;
 
   let selected_word_id_index_list;
-  let selected_block; // OCR block number in current page
+  let selected_block; // Selected OCR block number in current page
+  let selected_item_id; // OCR item in selected block
+  let selected_text; // Clicked item text
   let showModal;
   let hovered_block_id = -1;
   export let edit_mode = false;
@@ -54,10 +56,12 @@
   }
   $: console.log(hovered_block_id);
 
-  function clicked(word_id_index_list, block_id) {
+  function clicked(text, word_id_index_list, block_id, item_id) {
     selected_block = block_id;
+    selected_item_id = item_id;
+    selected_text = text;
     selected_word_id_index_list = word_id_index_list;
-    console.log("clicked:");
+    console.log(`clicked block ${block_id} item ${item_id} [${text}]:`);
     for (let idx of word_id_index_list) {
       console.log(word_id_list[idx]);
     }
@@ -125,7 +129,8 @@
           if (!showModal) { // prevent numerous click events
             setWordPopupToElementPosition(e.target);
             let block_id = parseInt(elem.parentElement.parentElement.getAttribute("block_id"));
-            clicked(word_id_index_list, block_id);
+            let item_id = parseInt(elem.getAttribute("ii"));
+            clicked(elem.innerText,word_id_index_list, block_id, item_id);
           }
         });
       }
@@ -159,8 +164,8 @@
   async function sendChangedOCRBlock(old_block,new_block,block_id) {
     let body = JSON.stringify({
       'func' : 'update_ocr_block', 
+      'cid' : cid,
       'ocr_data' : {
-        'cid' : cid,
         'pr' : page_ref,
         'b' : block_id,
         'old_block' : old_block,
@@ -199,6 +204,49 @@
     learningStageChanged(e.detail['word_id'], e.detail['stage'], selected_block);
   }
 
+  async function PriorityWordUpdatedManuallyFromPopUpDialog(e) {
+    let wid = e.detail['word_id'];
+    console.log(`Update ${selected_text} priority word to ${wid}`)
+    let ocr_block = ocrpage[selected_block]["og_lines"];
+
+    let body = JSON.stringify({
+      'func' : 'update_manually_priority_word', 
+      'cid' : cid,
+      'word_data' : {
+        'w' : selected_text,
+        'wid' : wid,
+        'block' : ocr_block,
+        'bid' : selected_block,
+        'iid' : selected_item_id,
+        'p' : page_jp,
+        'pr' : page_ref,
+        },
+    });
+    const response = await fetch( "/ocr", {
+        headers: {"Content-Type" : "application/json" },
+        method: 'POST',
+        body: body,
+    });
+    const result = deserialize(await response.text());
+
+    // Update current page to avoid total page refresh
+    let block_elements = ocr_root.querySelectorAll(".ocrtext");
+    for (let b_elem of block_elements) {
+      let block_id = parseInt(b_elem.getAttribute("block_id"));
+      if (block_id == selected_block) {
+        let word_elements = b_elem.querySelectorAll(".ocrtext1 span");
+        for (let elem of word_elements) {
+          let item_id = elem.getAttribute("ii");
+          if (item_id == selected_item_id) {
+            UpdateWordIdIndexList(elem, word_id_list.lastIndexOf(wid));
+          }
+        }
+      }
+    }
+    updateWordDecorations();
+  }
+  
+
   const OCRBlockUpdated = (e) => {
     let new_ocr_block = e.detail['ocr_block'];
     sendChangedOCRBlock(ocrpage[selected_block]["og_lines"], new_ocr_block, selected_block );
@@ -207,16 +255,29 @@
   }
 
   const getWordIdIndexList = (elem) => {
-    let wil_str = elem.getAttribute("wil").split(',');
-    if (wil_str[0] == "") {
+    let widx_list = elem.getAttribute("wil").split(',');
+    if (widx_list[0] == "") {
       return [];
     }
     let wil = [];
-    for (let wi of wil_str) {
+    for (let wi of widx_list) {
       wil.push(parseInt(wi))
     }
     return wil
   }
+
+  const UpdateWordIdIndexList = (elem, priority_widx) => {
+    let widx_list = elem.getAttribute("wil").split(',');
+    let wil = [priority_widx];
+    for (let wi of widx_list) {
+      if (wi != priority_widx) {
+        wil.push(parseInt(wi))
+      }
+    }
+    let wil_str = wil.join(',')
+    elem.setAttribute("wil",wil_str)
+  }
+
 
   const editHoveredBlock = () => {
     if (hovered_block_id != -1) {
@@ -422,7 +483,7 @@
 
 <div bind:this={ocr_root}>
 
-<WordPopup bind:word_id_index_list={selected_word_id_index_list} {word_id_list} {word_history} {word_learning_stages} bind:showModal on:learning_stage_changed={learningStageChangedFromPopUpDialog}/>
+<WordPopup bind:word_id_index_list={selected_word_id_index_list} {word_id_list} {word_history} {word_learning_stages} bind:showModal on:learning_stage_changed={learningStageChangedFromPopUpDialog} on:priority_word_updated_manually={PriorityWordUpdatedManuallyFromPopUpDialog}/>
 <Edit_OCR_Dialog bind:ocr_block={edited_ocr_block} bind:showModal={edit_mode} on:ocr_block_updated={OCRBlockUpdated}/>
 
 {#each tocr as tdi}

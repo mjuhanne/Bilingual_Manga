@@ -2,6 +2,7 @@ from helper import *
 from jp_parser_helper import *
 from jp_parser_print import pretty_print_lexical_item
 from conjugation import *
+from jmdict import search_sequences_by_word
 
 import fugashi
 parser = fugashi.Tagger('')
@@ -49,7 +50,7 @@ def parse_line_with_unidic(line, kanji_count):
             cl = unidic_class_list.index(class_name)
         except:
             raise Exception("Unknown class %d in word %s" % (class_name, w))
-
+        
         word = ''
         if is_all_numeric(w):
             # for some reason wide numbers and alphabets are parsed as nouns so
@@ -93,6 +94,11 @@ def parse_line_with_unidic(line, kanji_count):
                 item.appendable_alt_forms = [katakana_to_hiragana(w)]
             if pron_base != '':
                 item.pron_base = katakana_to_hiragana(pron_base)
+            if is_katakana_word(w):
+                item.is_katakana = True
+            elif is_hiragana_word(w):
+                item.is_hiragana = True
+
             #if lemma != '' and lemma != word:
             #    item.alt_forms.append(lemma)
             #    item.alt_scores[lemma] = 0.5
@@ -254,18 +260,18 @@ vowel_extension = {
     'ァ' : "ャヮヵ",
     'ア' : "カガサザタダナハバパマヤラワ",
     'ィ' : "ヶ",
-    'イ' : "キギセゼチヂテデニシジケゲヒビピミメリレ",
+    'イ' : "イキギセゼチヂテデニシジケゲヒビピミメリレ",
     'ゥ' : "ュョ",
-    'ウ' : "クグコゴソゾッツヅトドヌノスズフブプホボポムモユヨルロヲンヴ",
+    'ウ' : "ウクグコゴソゾッツヅトドヌノスズフブプホボポムモユヨルロヲンヴ",
     'ェ' : "",
-    'エ' : "ネヘベペ",
+    'エ' : "エネヘベペ",
     'ォ' : "",
-    'オ' : "",
+    'オ' : "オ",
 
-    'あ' : "かがさざただなはばぱまやわ",
-    'い' : "きぎせぜちてでにしじけげひびぴみめりれ",
-    'う' : "くぐこごそぞつとどぬのすずふぷぶほぼぽむもゆよょるろ",
-    'え' : "ねへべぺ",
+    'あ' : "あかがさざただなはばぱまやわ",
+    'い' : "いきぎせぜちてでにしじけげひびぴみめりれ",
+    'う' : "うくぐこごそぞつとどぬのすずふぷぶほぼぽむもゆよょるろ",
+    'え' : "えねへべぺ",
 }
 
 vowel_extension_by_kana = dict()
@@ -277,6 +283,54 @@ def get_vowel_extension(chr):
     if chr in vowel_extension_by_kana:
         return vowel_extension_by_kana[chr]
     return ''
+
+def check_matching_condition(items,pos,conditions,word,original_word,num_scanned_items,params=None):
+    matched_conditions = COND_NONE
+    if conditions & COND_NON_BASE_FORM:
+        for i in range(num_scanned_items):
+            if not items[pos+i].is_base_form:
+                matched_conditions |= COND_NON_BASE_FORM
+    if conditions & COND_NON_ORIGINAL_FORM:
+        if word != original_word:
+            matched_conditions |= COND_NON_ORIGINAL_FORM
+    if conditions & COND_BEFORE_CLASS:
+        if pos+num_scanned_items < len(items):
+            if params['cond_class'] in items[pos+num_scanned_items].classes:
+                matched_conditions |= COND_BEFORE_CLASS
+    if conditions & COND_END_OF_CLAUSE:
+        if items[pos+num_scanned_items-1].end_of_clause:
+            matched_conditions |= COND_END_OF_CLAUSE
+    if conditions & COND_BLOCK_START and pos == 0:
+        matched_conditions |= COND_BLOCK_START
+    if conditions & COND_AFTER_MASU:
+        if pos >0 and items[pos-1].is_masu:
+            matched_conditions |= COND_AFTER_MASU
+    if conditions & COND_AFTER_TE:
+        if pos >0 and items[pos-1].txt[-1] == 'て':
+            matched_conditions |= COND_AFTER_TE
+    if conditions & COND_BEFORE_TE:
+        if pos < len(items)-1 and items[pos+1].txt[-1] == 'て':
+            matched_conditions |= COND_BEFORE_TE
+    if conditions & COND_AFTER_CLASS:
+        if pos >0 and params['cond_class'] in items[pos-1].classes:
+            matched_conditions |= COND_AFTER_CLASS
+    if conditions & COND_BEFORE_ITEM:
+        if pos+num_scanned_items < len(items):
+            if params['item_txt'] == items[pos+1].txt:
+                if params['item_class'] in items[pos+1].classes:
+                    matched_conditions |= COND_BEFORE_ITEM
+    if conditions & COND_AFTER_ITEM:
+        if pos>0:
+            if params['item_txt'] == items[pos-1].txt:
+                if params['item_class'] in items[pos-1].classes:
+                    matched_conditions |= COND_AFTER_ITEM
+
+    if conditions & COND_NOT:
+        if matched_conditions == COND_NONE:
+            # none of the other conditions matched so inversely this is a match
+            matched_conditions = conditions
+
+    return matched_conditions
 
 def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
     changed = False
@@ -325,10 +379,15 @@ def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
     for ew in explicit_change_list:
         p_list = ew[0]
         p_classes = ew[1]
-        condition = ew[2]
+        conditions = ew[2]
+        params = ew[4]
+        flexible_matching = False
+        if 'flexible_matching' in params:
+            flexible_matching = params['flexible_matching']
+
         lp = len(p_list)
         if pos + lp <= lw:
-            if condition & COND_FLEXIBLE:
+            if flexible_matching:
                 # flexible matching mode allows elongation marks inside the pattern but scanning is slower
                 match, gaps = does_pattern_match(ew)
             else:
@@ -346,47 +405,10 @@ def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
                 task = ew[3]
                 params = ew[4]
                 allowed = True
-                if condition:
-                    if condition & COND_BLOCK_START and pos>0:
+                if conditions:
+                    matched_conds = check_matching_condition(items,pos,conditions,'','',lp,params)
+                    if matched_conds != conditions:
                         allowed = False
-                    if condition & COND_NOT_BEFORE_VERB and pos+lp<lw:
-                        if verb_class in items[pos+lp].classes:
-                            allowed = False
-                    if condition & COND_NOT_AFTER_NOUN and pos>0:
-                        if noun_class in items[pos-1].classes:
-                            allowed = False
-                    if condition & COND_NOT_AFTER_ADJ and pos>0:
-                        if adjective_class in items[pos-1].classes:
-                            allowed = False
-                    if condition & COND_AFTER_MASU:
-                        if pos == 0:
-                            allowed = False
-                        else:
-                            if not items[pos-1].is_masu:
-                                allowed = False
-                    if condition & COND_END_OF_CLAUSE:
-                        if not items[pos].end_of_clause:
-                            allowed = False
-                    if condition & COND_AFTER_TE:
-                        if pos == 0:
-                            allowed = False
-                        else:
-                            if items[pos-1].txt[-1] != 'て':
-                                allowed = False
-                    if condition & COND_AFTER_AUX_VERB:
-                        if pos == 0:
-                            allowed = False
-                        else:
-                            if aux_verb_class not in items[pos-1].classes:
-                                allowed = False
-
-                    if condition & COND_BEFORE_ITEM:
-                        if pos+lp == lw:
-                            allowed = False
-                        if params['item_txt'] != items[pos+1].txt:
-                            allowed = False
-                        if params['item_class'] not in items[pos+1].classes:
-                            allowed = False
 
                 if allowed:
                     if get_verbose_level()>=1:
@@ -641,6 +663,11 @@ def add_emphatetic_and_elongated_alternative_forms(pos,items):
                 items[pos].alt_scores[alt_form] = int(items[pos].base_score*0.8)
 
 
+    if items[pos].txt == '・':
+        items[pos].alt_forms.append('')
+        items[pos].appendable_alt_forms.append('')
+        items[pos].alt_scores[''] = 0.01
+
     if len(items[pos].txt)>1:
         if items[pos].txt[-1] == 'っ' or items[pos].txt[-1] == 'ッ':
             # Possibly dialect. Check alternative form without the emphasis
@@ -675,6 +702,34 @@ def add_emphatetic_and_elongated_alternative_forms(pos,items):
             if pos != len(items) -1:
                 items[pos].neighbour_alt_score_modifier[alt_form] = 0.9
 
+
+        # Add alternative forms for colloquial vowel extension
+        # e.g. えれー -> えらい, ねー -> ない
+        def get_norm_form_for_colloquial_vowel_extension(ch):
+            colloquial_vowel_extension = {
+                'れ' : 'らい',
+                #'て' : 'たい',
+            }
+            if ch in colloquial_vowel_extension:
+                return colloquial_vowel_extension[ch]
+            return ''
+
+        normal_form = ''
+        if i>0:
+            normal_form = get_norm_form_for_colloquial_vowel_extension(items[pos].txt[i-1])
+            normal_form_pos = pos
+            alt_form = items[pos].txt[:i] + normal_form
+        else:
+            if pos>0:
+                normal_form = get_norm_form_for_colloquial_vowel_extension(items[pos-1].txt[-1])
+                alt_form = items[pos-1].txt[:-1] + normal_form
+                normal_form_pos = pos-1
+        if normal_form != '':
+            items[normal_form_pos].alt_forms.append(alt_form)
+            items[normal_form_pos].appendable_alt_forms.append(alt_form)
+            #if verb_class not in items[normal_form_pos].classes and adjectival_noun_class not in items[normal_form_pos].classes:
+            # Unidict most likely didn't detect the class properly
+            items[normal_form_pos].any_class = True 
 
 def particle_post_processing(pos, items):
     if not handle_explicit_form_and_class_changes(pos,items, explicit_word_changes):
@@ -723,6 +778,14 @@ def particle_post_processing(pos, items):
         if suffix_class in cll and pos == 0:
             # wrong classification
             items[pos].any_class = True
+        if gp_class in cll and items[pos].txt == 'の':
+            if pos > 0 and pos < len(items)-1:
+                if noun_class in items[pos-1].classes and (verb_class in items[pos+1].classes or adjective_class in items[pos+1].classes):
+                    # add alternative for の -> が
+                    # e.g. 気の付く　-> 気が付く
+                    items[pos].alt_forms.append('が')
+                    items[pos].appendable_alt_forms.append('が')
+                    items[pos].alt_scores['が'] = 0.1
 
         #if suffix_class in cll:
         #    return check_suffix(pos,items)
@@ -758,6 +821,10 @@ def particle_post_processing(pos, items):
                     # e.g. 非常に
                     items[pos-1].classes.append(adverb_class)
                     #items[pos].flags |= BIND_TO_PREVIOUS_ITEM_IF_LEFT_UNTETHERED
+            if items[pos].txt == 'し':
+                if items[pos].ortho == 'き':
+                    # let's drop this nonsense
+                    items[pos].ortho = ''
 
 # merge or replace those particles that are marked
 def merge_or_replace_items(items):
@@ -825,6 +892,9 @@ def merge_or_replace_items(items):
             processed_items[pos-1].appendable_alt_forms = new_appendable_alt_forms
             processed_items[pos-1].txt = new_txt
             processed_items[pos-1].base_score += items[i].base_score
+            if items[i].any_class:
+                # propagate the ANY_CLASS to root item
+                processed_items[pos-1].any_class = True
 
             if get_verbose_level()>=2:
                 LOG(2,"resulting..")
@@ -875,8 +945,82 @@ def inhibit_seqs(items):
                             LOG(2,"%d:%s matched inhibit pattern %s" % (i,item.txt,str(pattern)),color=bcolors.WARNING )
                             item.inhibit_seq_list += seq_list
 
+
+def stutter_detection(items):
+    ignored_stutter_chars = ['ハ','は']
+    y_hiragana = ['ゃ','ゅ','ょ']
+
+    # TODO
+    ignored_stutter_words = ['だだっこ','おおおとこ','とっとと']
+    # ['で、', 'でっけー', '男．．．']
+    # ["ええっ？", "映画を", "観てた！？"]
+    # ["あーっと、", "ボールは", "あさっての", "方向へ！！"]
+    # ["だだって", "しょうがないじゃないか"
+
+    # stutter detection
+    i = 0
+    stop = False
+    if len(items) > 1 and len(items[0].txt)>0:
+        stutter_char = items[0].txt[0]
+        j = 1
+        if len(items[0].txt)>1 and items[0].txt[1] in y_hiragana:
+            stutter_y_char =  items[0].txt[1]
+            j += 1
+        else:
+            stutter_y_char = None
+
+        stutter_char_count = 0
+        if not is_cjk(stutter_char):
+            while not stop:
+                while i < len(items) and j >= len(items[i].txt):
+                    j = 0
+                    i += 1
+                    
+                if i < len(items):
+                    if items[i].txt[j] in mid_sentence_punctuation_marks:
+                        j += 1
+                        stutter_char_count += 1
+                    elif items[i].txt[j] in elongation_marks:
+                        j += 1
+                        stutter_char_count += 1
+                    elif items[i].txt[j] == stutter_char and (stutter_y_char is None or (j<(len(items[i].txt)-1) and items[i].txt[j+1] == stutter_y_char)):
+                        j += 1
+                        stutter_char_count += 1
+                        if stutter_y_char is not None:
+                            j += 1
+                            stutter_char_count += 1
+                    elif punctuation_mark_class in items[i].classes:
+                        j = 0
+                        stutter_char_count += len(items[i].txt)
+                        i += 1
+                    else:
+                        verified_stutter = False
+                        if i > 0 and stutter_char_count > 1:
+                            if j > 0 and stutter_char not in ignored_stutter_chars: # and stutter_char == items[i].txt[j-1]:
+                                verified_stutter = True
+                            else:
+                                if is_cjk(items[i].txt[j]):
+                                    seqs = search_sequences_by_word(items[i].txt)
+                                    for seq in seqs:
+                                        readings = get_readings_by_seq(seq)
+                                        for reading in readings:
+                                            if reading[0] == stutter_char:
+                                                verified_stutter = True
+
+                            if verified_stutter:
+                                for k in range(0,i):
+                                    LOG(1,"Flagging %d:%s to NO-SCAN because of stutter" % (k,items[k].txt))
+                                    items[k].classes = [stutter_class]
+                                    items[k].flags |= NO_SCANNING
+                        stop = True
+                else:
+                    stop = True
+
+
 def post_process_unidic_particles(items):
     omit_flags = MERGE_ITEM | REPLACE_ITEM | REMOVE_ITEM
+
+    stutter_detection(items)
 
     # move emphasis mark on verbs from base to the next conjugative element
     for i in range(len(items)-1):
@@ -899,7 +1043,7 @@ def post_process_unidic_particles(items):
                         items[i].non_ending_alt_forms.append(items[i].txt)
 
     # add variants for possible OCR misread
-    misread_list = {
+    misread_characters = {
         'つ' : 'っ',
         'ぱ' : 'ば',
         'ば' : 'ぱ',
@@ -922,14 +1066,23 @@ def post_process_unidic_particles(items):
         'ボ' : 'ポ',
         'ポ' : 'ボ',
     }
+    misread_kanjis = {
+        'ロ' : '口',  # katakana ro -> guchi
+    }
     for i in range(len(items)):
-        for misread_letter,correct_letter in misread_list.items():
+        for misread_letter,correct_letter in misread_characters.items():
             if misread_letter in items[i].txt:
                 alt = items[i].txt.replace(misread_letter,correct_letter)
                 if alt not in items[i].alt_forms:
                     items[i].alt_forms.append(alt)
                     items[i].appendable_alt_forms.append(alt)
                     items[i].alt_scores[alt] = 0.4
+        for misread_kanji, correct_kanji in misread_kanjis.items():
+            if items[i].txt == misread_kanji:
+                items[i].alt_forms.append(correct_kanji)
+                items[i].appendable_alt_forms.append(correct_kanji)
+                items[i].alt_scores[correct_kanji] = 0.8
+
 
     # identify end-of-clause items
     for i in range(len(items)):

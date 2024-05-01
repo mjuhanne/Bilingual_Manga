@@ -182,9 +182,18 @@ def process_chapter(f_p, fo_p, chapter_data):
                             new_jl_i += 1
                             sub_i = 0
                     else:
-                        print('\n' + str([next(iter(p.keys())) for p in new_jl]))
-                        print(str([next(iter(p.keys())) for p in prev_jl]))
-                        raise Exception("mismatch: %s vs %s" % (new_p,prev_p))
+                        new_keys = [next(iter(p.keys())) for p in new_jl]
+                        prev_keys = [next(iter(p.keys())) for p in prev_jl]
+                        print("\n***** Different key alignment *****")
+                        print( str(new_keys))
+                        print(str(prev_keys))
+                        if ''.join(new_keys) != ''.join(prev_keys):
+                            raise Exception("mismatch: %s vs %s" % (new_p,prev_p))
+                        mismatch = True
+                        mismatch_elems.append((new_p,new_wid,prev_p,prev_wid))
+                        mismatched_new_elems.append((new_p,new_wid))
+                        # skip the rest of the block
+                        new_jl_i = len(new_jl)
 
                     if not does_word_id_match(new_wid,prev_wid) or (item_must_match and new_p != prev_p):
                         mismatch = True
@@ -337,7 +346,7 @@ open_log_file("ocr-log.txt")
 set_verbose_level(0)
 t = time.time()
 
-#args['keyword'] = 'hina'
+#args['keyword'] = 'note'
 #args['chapter'] = 6
 #args['read'] = True
 

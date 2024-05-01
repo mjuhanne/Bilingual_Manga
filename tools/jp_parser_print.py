@@ -2,6 +2,7 @@ from helper import base_dir, bcolors
 from jmdict import get_jmdict_pos_code
 from jp_parser_structs import *
 from jmdict import *
+from parser_logging import *
 
 word_flag_to_str = {
     NO_SCANNING : "NO_SCAN",
@@ -71,9 +72,29 @@ def print_scanning_results(jlines, scores, results, ud_items):
             if len(word_id_refs) == 0:
                 print("\t ** NO WORDS FOUND ** ")
             else:
+                homophone_counter = dict()
+                displayed_homophones = dict()
                 word_ids = [ results['word_id_list'][w_id_idx] for w_id_idx in word_id_refs]
                 for (word_id,score) in zip(word_ids,scores):
                     (seq,senses,word) = expand_word_id(word_id)
+                    # Tally up the homophones to avoid showing too many in the list
+                    if word not in homophone_counter:
+                        homophone_counter[word] = 1
+                    else:
+                        homophone_counter[word] += 1
+                    displayed_homophones[word] = 0
+
+                for (word_id,score) in zip(word_ids,scores):
+                    (seq,senses,word) = expand_word_id(word_id)
+
+                    # omit printing too many homophones.  
+                    if get_verbose_level() < 4:
+                        displayed_homophones[word] += 1
+                        if displayed_homophones[word] > 3:
+                            if displayed_homophones[word] == 4:
+                                print(bcolors.WARNING,"\t\t\t.. and %d more %s entries" % (homophone_counter[word] - 3, word),bcolors.ENDC)
+                            continue
+
                     w_freq = get_frequency_by_seq_and_word(seq,word)
                     reading = get_readings_by_seq(seq)[0]
                     r_freq = get_frequency_by_seq_and_word(seq,reading)

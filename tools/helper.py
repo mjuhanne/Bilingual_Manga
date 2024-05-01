@@ -1,12 +1,13 @@
 import json
 import os
+import hashlib
 
 # Other tools depend on the right format of the parsed OCR and summary files..
 CURRENT_PARSED_OCR_VERSION = 4
-CURRENT_OCR_SUMMARY_VERSION = 4
+CURRENT_OCR_SUMMARY_VERSION = 5
 CURRENT_METADATA_CACHE_VERSION = 2
 # .. whereas older language parser works but may not have parsed all the words as efficiently
-CURRENT_LANUGAGE_PARSER_VERSION = 6
+CURRENT_LANUGAGE_PARSER_VERSION = 7
 
 AVERAGE_PAGES_PER_VOLUME = 180
 
@@ -364,3 +365,8 @@ def get_word_id_components(word_id):
 def strip_sense_from_word_id(word_id):
     seq,word = get_seq_and_word_from_word_id(word_id)
     return str(seq) + ':' + word
+
+# Modified stable hash function implementation from https://death.andgravity.com/stable-hashing
+def get_stable_hash(thing):
+    byte_digest = hashlib.md5(json.dumps(thing).encode('utf-8')).digest()
+    return int.from_bytes(byte_digest)

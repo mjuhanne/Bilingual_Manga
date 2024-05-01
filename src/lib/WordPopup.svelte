@@ -14,6 +14,7 @@ let seq_list = [];
 let ready_seq_list = [];
 let detected_senses_by_seq = {};
 let selected_seq = -1;
+let show_update_priority_word_button = true;
 
 export let word_id_index_list;
 export let word_id_list;
@@ -51,8 +52,10 @@ $: {
             if (selected_seq == -1) {
                 selected_seq = seq;
             }
-            learning_stage_by_seq[seq] = word_learning_stages[widx];
-            if (!(seq in word_by_seq)) {
+            // Keep only the first seq entry occurrence (to avoid confusion when
+            // multiple hiragana readings are detected (e.g. そうね / そうねえ))
+            if (!(seq in learning_stage_by_seq)) {
+                learning_stage_by_seq[seq] = word_learning_stages[widx];
                 word_by_seq[seq] = word;
             }
         }
@@ -96,8 +99,20 @@ async function fetchWordInfo(seq_list) {
     word_info_by_seq = result.word_info;
     first_meaning=word_info_by_seq[selected_seq]['meanings'][0]
     ready_seq_list = seq_list;
-    console.log(JSON.stringify(result))
+    //console.log(JSON.stringify(result))
 };
+
+async function set_priority_word_manually() {
+    let wid = selected_seq + ':' + word_by_seq[selected_seq];
+    let widx = word_id_list.indexOf(wid);
+    // Move the index of new seq to the beginning of word id index list
+    word_id_index_list.splice(word_id_index_list.indexOf(widx),1)
+    word_id_index_list.unshift(widx)
+    dispatch('priority_word_updated_manually', { 
+        'word_id': wid,
+    });
+    word_id_index_list = word_id_index_list; // Force update
+}
 
 </script>
 
@@ -113,6 +128,9 @@ async function fetchWordInfo(seq_list) {
         <div class="enclosure">
             <div>
             <LearningStageButtons bind:selected_stage={learning_stage_by_seq[selected_seq]} on:clicked={learningStageChanged}/>
+            {#if show_update_priority_word_button}
+            <button class="update_priority_word_button" on:click={() => set_priority_word_manually()}>Manually set correct meaning </button>
+            {/if}
             </div>
             <div class="details">
                     {#each ready_seq_list as seq}
@@ -176,6 +194,17 @@ async function fetchWordInfo(seq_list) {
         width: 100%;
         padding: 3px;
     }
+    .update_priority_word_button {
+        background-color: #55f;
+        color: #fff;
+        font-size: 0.4rem;
+        padding-bottom: 3px;
+        border-radius: 5px;
+        border:0;
+    }
+    .update_priority_word_button:hover {
+        background-color: #77f;
+    }
 
     .selected_seq {
         background-color: #999;
@@ -221,34 +250,5 @@ async function fetchWordInfo(seq_list) {
         text-align: left;
         padding-left: 8px;
     }
-    /*
-	dialog::backdrop {
-		background: rgba(0, 0, 0, 0.2);
-	}
-	dialog > div {
-		padding: 0.1em;
-	}
-	dialog[open] {
-		animation: zoom 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-	}
-	@keyframes zoom {
-		from {
-			transform: scale(0.95);
-		}
-		to {
-			transform: scale(1);
-		}
-	}
-	dialog[open]::backdrop {
-		animation: fade 0.2s ease-out;
-	}
-	@keyframes fade {
-		from {
-			opacity: 0;
-		}
-		to {
-			opacity: 1;
-		}
-	}
-    */
+
 </style>

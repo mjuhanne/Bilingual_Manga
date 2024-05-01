@@ -4,6 +4,8 @@ from jp_parser import *
 from jp_parser_tool import print_scanning_results
 from parser_logging import *
 
+# TODO-list
+
 #その子を寂しがらせることもない
 # 誇り高い人
 # きっとなっちゃんがいつかその子達に
@@ -273,6 +275,135 @@ from parser_logging import *
 # ["仁谷神父、", "おぼえて", "らっしゃい", "ますか？"]  irassharu
 # ["冗談は", "慎んで", "くたさい．．．"  kudasai
 
+# ["フリじゃ", "すまさ", "ねーぞ。"] (doesn't go through all conjugations)
+# 変わった(verb) has no matching class for 変わった(noun or verb acting prenominally)
+
+# ["他人はみんな", "幸せそうに見えて、", "楽しそうで", "いいよなって．．．"]  shiawase-sou / tanoshi-sou
+# ["旅行なんて", "めったにしない", "家だけど．．．"] metta-ni
+# ["こんなに", "こんなに", "心配させて．．．"]  konna-ni
+# ["たしかに。"] tashika-ni
+#  ["「か細く", "泣いている", "ようにも", "きこえる」"] you-ni
+#  ["人部会ではしゃいたりヒビったり"] hashai-tari / bibi-ttari
+#  ["先", "お飲み物", "どうし", "ましょー。"]  dou shima-shou
+#  "ひとりでに", "どっか", "行っちゃうく", "だよ♡"]  dokka  / icchauku (?)
+#  "オレにとっちゃ", "命より大事な", "宝だよ．．．"  ni-toccha -> ni-totte-ha
+# ["警察を", "からかっちゃ", "いけませんなー．．．"]
+#["歌っちゃ", "いけないのよ、", "そんな歌．．．"]
+#  ["言っとくけど", "俺、", "あけまして", "おめでとうって", "言っちゃ", "いけないんだ。"]
+#  ["えー", "俺は十字路で", "悪魔に会い", "ましてぇ．．．"] aimashite
+# ["よ．．．よし", "言っちゃえ"]  iccha-e
+
+# 散らかしっばなしで ..ppanashi
+# ["あっぶねー、", "ブラック買う", "とこだった。"]  abunai
+# ["それより、", "この事は", "ワシ以外には", "いっとらん", "じゃろうな．．．"] ittoran = itte-oranai
+# ["む、向こうで", "落ち着いたら、", "連絡すると", "いっとったぞ！！"] ittotta = itte-otta(oku)?
+# "善人ぶってんじゃ", "ないわよ！！"  buru (to assume to air of..)
+# ["大丈夫ですよ、", "誰も聞いちゃ", "いやせんぜ．．．"]  iyasu
+# ["ウン．．．", "ボクもそー思ったから", "誰も出入りしてないって", "いったんだけど．．．"]  ittan
+# ["こんな", "ふざけた事件は", "二度と起こさせや", "せんよ！！"]  sase-masen(yasen)
+# ["そうそう", "勇者を", "生きかえ", "らせなきゃ", "クリア", "できないん", "ですよ．．．"] ikikaerasenakya
+# ["量子ちゃん？", "なんだい", "こんなに", "おそく．．．？"]  nan dai
+# ["く、くそ", "開かねーい"]  hirokanai
+#  ["まー", "いーから", "いーから．．．"]  ii kara *2
+# ["人間は誰しも", "疑いぶこうて", "嫉妬ぶかい", "生き物や．．．"]  jitto-bukai(fukai)
+# ["もともと顔立ちが", "女っぽかったし、"]  onna-ppokatta 
+# ["ちゃんと", "あたしのこと", "見てくれて", "るんだー"] mite kureteru
+# ["なに雰囲気", "出しとるんや", "お二人さん～"] dashitoru (te-iru)
+# あんなに(adjectival noun) not allowed for あんな(pre-noun adjectival (rentaishi))
+# ["ケンヂ", "立てー"] tateru
+# ['あ～～あ', '不良は', 'つれーや']  tsuree = tsurai
+# 第三班は高速道路の向こう側を  "know" dai-san
+# ['まてェ']  matte
+# ['ちょっと', '待ってくれェ'] kure
+# 'そのまま', 'あなたも', '銃を捨てて']  sonomama
+
+# ["まあ、とにかく", "早く元の体に", "戻らにゃ", "ならんのー．．．"] -nya = -nakereba
+
+# ["おい", "しいー"]   oishii (parsing mismatch -> score optimization)
+# ['落ち着けよ', '俺達だってやば', 'いんだぜ']
+
+# ["あったかい", "コタツで", "つめた～い", "かき氷は", "至福だぞ。"] tsumetai
+# ["ごめーーん、っ．．．", "まった？"]  gomen
+# ["さてはテメェ", "何かやってん", "な？"] yaru
+# ["見つかんない", "よーに、", "トランクの中に", "あった、毛布に", "くるまって", "ね！"] mitsukannai
+# その(その、そんな、そんな、あの、どんな。。) not in allowed noun bindings for そのまま(noun (common) (futsuumeishi))
+# ["お前のカオを", "３日も見なくて", "すむと思うと", "せーせー", "するな"]  seisei
+# ["丸太", "週末雨だぞ", "カサ持ってっとけ。"] mottettoke
+# ["どーりで絵に", "詳しいわけだ！！"]  douri-de
+#  'カプセルって言う', 'もんだからかっぱら', 'ったんだけどさ．．．' kapparau
+# ["奥さん．．．", "この書斎の", "合鍵は、", "いくつか", "あるんでしょ？"] ikutsu-ka
+# ['はっ発表では', '一応そう．．．']   try STUTTER detection
+# ['だからァ', 'かくまって', 'やるって', 'いってんのォ']  to iu
+# まーたまた  matamata
+# あんな(adjectival noun) not allowed for あんな(pre-noun adjectival (rentaishi))
+# ['ハッ']  ハッ(prefix) not allowed for はっ(interjection (kandoushi))
+# ['よっい', 'しょっと'] yoissho
+# ['何者かが侵入', 'した模様です']  nanimonoka
+# ["曲は", "他の女子みたく", "怖がったり", "しないんだな。"] kowa-gattari
+# ["そうかい！", "浦島君「東大", "うかったのかい！？", "すごいじゃないか"]  soukai
+# ["はッはっはっ", "昨日プロポーズを", "受けなかったのは", "ひょっとして", "はずかしがってた", "からかな？"] hasukashigatteru
+# ["そうはいかん", "斬鉄閃！！"] sou ha ikan
+# ["実際", "そうなんだから", "しょうがねえ", "だろ" shou ga nai
+# ['捜す手間が', 'はぶけたぜ']  habuketa
+# ["サラは瀬田の所", "行ってるから", "今夜は戸じまりに", "気をつけてな"] 所行
+# ["オッチョ、", "おごってやる金", "持ってる？"] 金持
+# ["木屋でコピー", "とっといたのは", "正解だったな．．．"] tottoita totte-oita
+#  ["いいとこ", "みせて", "やっか！！"] yakka
+# ["先", "お飲み物", "どうし", "ましょー。"] shimashou
+# ["わかるって", "言ったの、"] itta
+# ['このようなエポキシ系の', '強力な接着剤を', '地層断面に吹き', 'つけ．．．'] fukitsuke
+# キャタピラ、片方動かねェ  ugokanai
+# 中央の壁のくぼみは聖なる印だ  sei naru
+# ポン引きをしちゃあ   shicha
+# 立派なもんだろう   mono, not gate
+# 女心を理解しとらん  shitoran -> shite oran != shitoru
+# 満ちあふれとる  afuretoru
+# たたずんでらした姿です  tatazumu
+# ['喉も渇いたし', '流河に頼みたい事も', 'あるから'] kawaita
+
+
+##########
+
+# ["論文が追いこみだって、", "毎晩コンビュータと", "にらめっこ．．．"]  oikomi
+#  ["ねぇ中見。"]   nee at the beginning
+# ["こーゆーの", "曲家では", "よくあるの。"] kou iu 
+# ["わからねー．．．", "すべて謎だらけだ．．．"] wakaranai
+# ['息子さんの', '都合のつく時に', '捜査協力を', '願っても', 'よろしいで', 'しょうか？'] tsugoo ga tsuku
+# ["あ．．あのねえ", "カナちゃん"] ano ne
+# ["私が一緒に", "ついてって", "あげるからね？"]   isshou ni tsuite
+
+# adjective+verb conjugation
+# ['その子を', '寂しがらせる', 'こともない'] sabishi-garaseru
+# "恥ずかしがってる" hazukashigatteru
+# ['今ほどニコ達のこと', 'かわいがれてなかった', '気がする'] kawaigaru 
+#  ["今", "いかれた若者達", "の間で流行して", "るってヤツです", "よ．．．"] ikareru (not iku, after te-)
+
+# wrong class detected by unidict at the beginning of sentence
+# ['風も', 'すごい音だよ。', 'だね。']  suffix
+# ["でけえ！！"] 
+# ["やばい", "なー"]
+
+# どした
+# ['ねこ', 'こらー']
+# ['先', 'お飲み物', 'どうし', 'ましょー。']  dou shimashou
+#  ['へんな', '名前～！！！'] henna
+# 彼女の所へ行くつもりなんですか   tokoroe
+# もっての他  motte no hoka
+# ['そんな所見たら', 'その子殺しちゃうよ'] sonoko
+# ['早くそういう日が', '来るといいですね'] to ii desu
+# 今は外に出るどころか  hoka ni != soto ni
+# ['安全には', '万全を期し', 'ます！'  banzen wo kisu
+# ['ホッ．．．', 'なんとか正体', 'バレずにすんだ', 'みてーだな．．．']  mitai
+# ['じゃーどーやって', 'お父さんの事．．．'] dou yatte
+# ["ボウや．．．", "トイレはもう", "いいのかい？"] boyua
+# ['ホラ', '急いで！', 'ちゃんとズボンと靴下', 'はかせといてあげたわよ！！'] haku 吐く
+# ["ま、","松井さん．．．"]   stutter
+
+
+
+
+
+
 tests = [
 {'c':'honorific in front of adjective (medetai)','line':'おめでとう','jlines':[[{'お': [4, 2, 5, 1, 0]}, {'めでとう': [4, 2, 5, 3]}]], 'wilist':['2268350:お', '2826528:お', '1647360:おめでたい', '1608630:めでたい', '1270700:おめでとう', '2077340:おめでとう']},
 
@@ -396,24 +527,8 @@ def do_tests():
 
 
 def test_jmdict():
-    line = 'こんだけ降ってたら'
-    line = '踏み切り通ってく'
-    line = 'サンドイッチは作ってある'
-    line = '行ったり来たりしてるぞ'
-    line = '人相がけわしくなっていって'
-    line = '行きたがらないの'
-    line = 'ここの扉鍵が壊れてて、完全に閉めると'
-    line = '本読んだり参考書みたり。'
-    line = 'カサ持ってっとけ'
-    line = 'ございましたら'
-    line = 'でもデータだけうつしちゃおう'
-    line = '戻らないとかいっといて'
-    line = 'シカトされ","てただけ'
-    line = 'すごー'
-    line = 'いったそうです'
-    line = 'もうちょっとガンバってみるよ'
-    line = 'ひど〜〜い'
-    line = '気にいってる'
+    line = '夜神月は自分から監禁'
+
     kanji_count = dict()
 
     scan_results = init_scan_results()
@@ -427,12 +542,11 @@ def test_jmdict():
         ud_items, scan_results
     )
     jlines = reassemble_block([line], ud_items, scan_results['item_word_id_refs'])
-    jlines_str = str(jlines)
-    #print("{'c':'%s','line':'%s','jlines':%s, 'wilist':%s}" % (c, line,str(jlines),str(scan_results['word_id_list'])))
           
     pass
 
 init_parser(load_meanings=True)
+load_manga_specific_adjustments('ALL')
 
 set_verbose_level(2)
 

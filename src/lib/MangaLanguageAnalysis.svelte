@@ -32,8 +32,6 @@ const toggleWordsPerVolume = () => {
     draw_graphs();
 }
 
-Chart.defaults.color = '#fff';
-
 const table_fields = [
     ['JLPT word content (%)','jlpt_word_content_pct'],
     ['Words per page','w_per_p'],
@@ -123,6 +121,7 @@ const draw = (canvas, data, title) => {
         delete(chart_instances[canvas]);
     }
 
+    Chart.defaults.color = '#fff';
     let inst = new Chart(ctx, {
         type: 'bar',
         data: data,

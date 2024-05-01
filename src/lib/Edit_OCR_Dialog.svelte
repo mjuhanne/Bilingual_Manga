@@ -24,12 +24,12 @@ function modalOpened() {
 
 
 <Modal bind:showModal buttons={['Save','Close']} on:buttonClicked={saveStatus} on:modalOpened={modalOpened}>
-	<h3 slot="header">
-		Set OCR
-	</h3>
+	<h4 slot="header">
+		Update OCR block
+	</h4>
     
     <div class="enclosure">
-        <textarea bind:value={ocr_block_lines} />
+        <textarea rows="8" columns="20" bind:value={ocr_block_lines} />
     </div>
     
 </Modal>
