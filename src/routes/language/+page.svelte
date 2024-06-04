@@ -411,6 +411,12 @@ function colorizeStage(stage) {
                     </button>
                     {status_msg}
                 </div>
+                <div class="timestamp">
+                    User data updated<br>{new Date(meta['0'].user_data_timestamp).toLocaleString()}
+                </div>
+                <div class="timestamp">
+                        Lang analysis updated<br>{new Date(meta['0'].custom_lang_summary_timestamp).toLocaleString()}
+                </div>
             </div>
         </div>
 
@@ -543,6 +549,10 @@ th {
     background-color: #444;
     text-align: left;
     padding: 10px;
+}
+
+.timestamp {
+    margin: 5px;
 }
 
 .knowledge-section {

@@ -1,0 +1,341 @@
+2803050/1:やんぴ		やんぴ	ctr	nth person to quit a game
+2432320/0:スケ		スケ	ctr	square millimetre (of the thickness of a cable)
+2220325/0:ヶ		ヶ	ctr	counter for the ichi-ni-san counting system (usu. directly preceding the item being counted)
+2220325/1:ヶ		ヶ	ctr	counter for articles
+2098280/0:時限目	時限目	じげんめ	ctr	nth period (e.g. nth class in school day)
+2087270/0:ヶ国語	ヶ国語	かこくご	ctr	counter for languages
+1981160/0:営業日	営業日	えいぎょうび	ctr	business day
+2859171/0:校時	校時	こうじ	ctr	counter for periods in a school day
+2855520/0:カ年	カ年	かねん	ctr	counter for years
+2855028/1:揃え	揃え	そろえ	ctr	counter for sets
+2847138/0:番個	番個	ばんこ	ctr	-nth game (of 12 rounds)
+2842624/0:代目	代目	だいめ	ctr	nth generation
+2837035/0:層倍	層倍	そうばい	ctr	times
+2739170/0:個目	個目	こめ	ctr	the nth (thing)
+2710970/0:名様	名様	めいさま	ctr	counter for people (usu. seating, reservations and such)
+2386360/0:分間	分間	ふんかん	ctr	minutes (period of)
+2381780/1:倍速	倍速	ばいそく	ctr	-times speed
+2268180/0:限目	限目	げんめ	ctr	nth period (e.g. nth class in school day)
+2086750/0:カ国	カ国	かこく	ctr	counter for countries
+2081610/2:立て	立て	たて	ctr	counter for consecutive losses
+2059920/0:枚組	枚組	まいぐみ	ctr	counter for collections or assemblies of flat objects (e.g. CDs, DVDs, etc.)
+2800530/5:廻り	廻り	まわり	ctr	round
+2800530/6:廻り	廻り	まわり	ctr	size
+2800530/7:廻り	廻り	まわり	ctr	12-year period
+1606950/1:割り引き	割り引き	わりびき	ctr	tenths discounted
+1590250/1:箇所	箇所	かしょ	ctr	counter for places, parts, passages, etc.
+1515340/1:包み	包み	つつみ	ctr	counter for wrapped objects
+1482410/0:番目	番目	ばんめ	ctr	the nth ...
+1433610/1:通話	通話	つうわ	ctr	counter for telephone calls of a set duration
+1432920/7:通り	通り	とおり	ctr	counter for sets of things
+1432920/8:通り	通り	とおり	ctr	counter for methods, ways, kinds, etc.
+1384840/4:切れ	切れ	きれ	ctr	counter for scraps, pieces, etc.
+1328890/1:種類	種類	しゅるい	ctr	counter for kinds, species, etc.
+1222490/0:気筒	気筒	きとう	ctr	cylinder
+1194480/0:ヶ月	ヶ月	かげつ	ctr	counter for months
+1194480:か月	か月	かげつ	ctr	counter for months
+2844196/1:緡	緡	さし	ctr	string of coins (usu. 100 mon)
+2843452/0:貼	貼	ちょう	ctr	counter for doses of medicine, etc.
+2843408/0:朶	朶	だ	ctr	branch (of flowers)
+2836694/0:傑	傑	けつ	ctr	the top (e.g. top ten)
+2731030/0:択	択	たく	ctr	counter for choices, options, etc.
+2714770/0:輛	輛	りょう	ctr	counter for carriages (e.g. in a train)
+2703290/3:符	符	ふ	ctr	fu
+2658340/0:巡	巡	じゅん	ctr	counter for tours, cycles, rounds, circuits, etc.
+2648880/1:駄	駄	だ	ctr	load
+2594080/2:Ｊ	Ｊ	ジェー	ctr	joule
+2594080/4:Ｊ	Ｊ	ジェー	ctr	tatami mat (as a measure of room size, either 1.82 sqm or 1.54 sqm)
+2593990/2:勝	勝	しょう	ctr	counter for wins
+2516940/0:騎	騎	き	ctr	counter for horsemen
+2859250/0:包	包	ほう	ctr	counter for packaged goods (esp. powdered medicine)
+2429460/1:菓	菓	か	ctr	counter for fruit
+2426440/1:縮	縮	しゅく	ctr	counter for suits of armour
+2406720/2:壮	壮	そう	ctr	counter for times of moxibustion
+2833260/0:翻	翻	ファン	ctr	han
+2259610/1:校	校	こう	ctr	proof (of a book, document, etc.)
+2258110/1:帖	帖	じょう	ctr	counter for units of paper and nori (48 pages of Mino paper; 20 pages of hanshi; 10 sheets of nori)
+2258110/2:帖	帖	じょう	ctr	counter for folding books, folding screens, shields, etc.
+2258110/3:帖	帖	じょう	ctr	counter for pairs (of curtains)
+2258110/4:帖	帖	じょう	ctr	counter for tatami mats
+2249290/0:荘	荘	チャン	ctr	counter for games of mahjong
+2247920/1:張	張	ちょう	ctr	counter for objects with stretched strings (i.e. bows, kotos), curtains, papers, etc.
+2236150/0:拍	拍	はく	ctr	beat
+2236150/1:拍	拍	はく	ctr	mora
+2208060/0:遍	遍	へん	ctr	number of times
+2187130/3:果	果	か	ctr	counter for pieces of fruit
+2172070/1:帙	帙	ちつ	ctr	counter for book covers
+2100260/1:顆	顆	か	ctr	counter for grains and small spheres
+2093400/0:速	速	そく	ctr	gear
+2080750/1:乗	乗	じょう	ctr	counter for vehicles
+2080720/1:両	両	りょう	ctr	counter for carriages (e.g. in a train)
+2080720/6:両	両	りょう	ctr	counter for suits of clothing, sets of armor, etc.
+2077160/0:艘	艘	そう	ctr	counter for (small) boats
+2038290/0:隻	隻	せき	ctr	counter for ships
+2038290/1:隻	隻	せき	ctr	counter for half of a pair (e.g. half of a folding screen)
+2038290/2:隻	隻	せき	ctr	counter for items carried in a bundle (e.g. fish, birds, arrows)
+1956480/2:食	食	し	ctr	meal
+1956010/2:貫	貫	かん	ctr	counter for pieces of sushi
+1919590/0:級	級	きゅう	ctr	(school) grade
+1919590/2:級	級	きゅう	ctr	kyu (junior rank in martial arts, go, shogi, etc.)
+1919550/0:泊	泊	はく	ctr	counter for nights of a stay
+1901390/1:敗	敗	はい	ctr	counter for losses
+1897060/1:投	投	とう	ctr	counter for throws (of a javelin, bowling ball, etc.)
+1897060/2:投	投	とう	ctr	counter for casts (of a line)
+1853450/7:〆	〆	しめ	ctr	counter for bundles (of wood, cotton, etc.)
+1853450/8:〆	〆	しめ	ctr	counter for reams of 2000 sheets of Japanese writing paper
+2600310/0:刷	刷	さつ	ctr	printing
+2205770/0:世	世	せい	ctr	counter for generations
+2021500/2:目	目	もく	ctr	counter for go pieces
+1602800/2:船	船	ふね	ctr	counter for boat-shaped containers (e.g. of sashimi)
+2100460/0:話	話	わ	ctr	counter for stories, episodes of TV series, etc.
+2248340/1:喉	喉	こう	ctr	counter for fish
+1597470/1:着	着	ちゃく	ctr	counter for items or suits of clothing
+1597470/2:着	着	ちゃく	ctr	nth place (in a race)
+1597470/3:着	着	ちゃく	ctr	counter for moves
+1994890/0:首	首	しゅ	ctr	counter for songs and poems
+2664230/1:景	景	けい	ctr	counter for scenes (in a play)
+2082260/1:領	領	りょう	ctr	counter for suits of clothing, sets of armor, etc.
+1585650/6:箱	箱	はこ	ctr	counter for boxes (or boxed objects)
+1584695/7:面	面	めん	ctr	counter for broad, flat objects, levels or stages, e.g. in a video game
+2833465/0:萬	萬	マン	ctr	counter for character tiles
+2648780/2:品	品	ひん	ctr	counter for items (of food, etc.)
+1583390/1:俵	俵	ひょう	ctr	counter for sacks (of rice, potatoes, coal, etc.)
+1583370/0:匹	匹	き	ctr	counter for small animals
+1583370/1:匹	匹	き	ctr	counter for rolls of cloth (two han in size)
+1583370/2:匹	匹	き	ctr	counter for horses
+1582305/0:等	等	とう	ctr	class
+2519570/1:灯	灯	とう	ctr	counter for electric lights
+2827787/0:価	価	か	ctr	valence
+2858914/0:辛	辛	から	ctr	counter for spiciness of food (e.g. curry)
+1580550/3:信	信	しん	ctr	counter for received messages
+1577620/6:冠	冠	かむり	ctr	counter for titles
+1564410/0:刎	刎	はね	ctr	counter for helmets, etc.
+1563260/1:佩	佩	はい	ctr	counter for swords
+1562840/1:碗	碗	わん	ctr	counter for bowls of food or drink
+1562780/1:椀	椀	わん	ctr	counter for bowls of food or drink
+1559230/5:連	連	れん	ctr	things strung in a line, e.g. pearls, dried fish, spans of a bridge, etc.
+1559230/6:連	連	れん	ctr	falcon
+2844155/0:簾	簾	れん	ctr	bamboo screen
+1558330/3:列	列	れつ	ctr	counter for rows
+1557450/2:礼	礼	れい	ctr	bow (i.e. bending of the body)
+1555700/0:輪	輪	りん	ctr	counter for wheels and flowers
+1552890/1:粒	粒	りゅう	ctr	counter for small round objects including grains, seeds, pills, drops
+2844102/0:流	流	りゅう	ctr	counter for flags, banners, etc.
+1551160/7:律	律	りつ	ctr	step (in traditional Eastern music, corresponding to a Western semitone)
+1547530/2:翼	翼	つばさ	ctr	counter for birds or bird wings
+2256490/0:葉	葉	よう	ctr	counter for leaves, pieces of paper, etc.
+2256490/1:葉	葉	よう	ctr	counter for boats
+2827999/0:夜	夜	や	ctr	counter for nights
+1634040/0:問	問	もん	ctr	counter for questions
+2153790/0:名	名	めい	ctr	counter for people (usu. seating, reservations and such)
+2258680/1:味	味	み	ctr	counter for food, drink, medicine, etc.
+1524750/1:幕	幕	まく	ctr	act (in a play)
+1524610/0:枚	枚	まい	ctr	counter for thin, flat objects (e.g. sheets of paper, plates, coins)
+1524610/1:枚	枚	まい	ctr	counter for portions of gyōza or soba
+1524610/2:枚	枚	まい	ctr	counter for ranks
+1524610/3:枚	枚	まい	ctr	counter for wrestlers of a particular rank
+1524610/4:枚	枚	まい	ctr	counter for fields or rice paddies
+1524610/5:枚	枚	まい	ctr	counter for palanquin bearers
+2452360/0:片	片	ひら	ctr	counter for thin, flat things (petals, leaves, etc.)
+2452350/0:片	片	へん	ctr	counter for scraps, fragments, petals, etc.
+1514300/1:歩	歩	ほ	ctr	counter for steps
+1514050/1:舗	舗	ほ	ctr	counter for foldable things such as maps, etc.
+1511870/1:編	編	へん	ctr	volume (of a text)
+1511870/2:編	編	へん	ctr	completed literary work
+1501110/9:腹	腹	はら	ctr	counter for hard roe
+1501110/10:腹	腹	はら	ctr	counter for containers with bulging middles (pots, vases, etc.)
+1500940/1:服	服	ふく	ctr	counter for doses of medicine, gulps of tea, drags of a cigarette, etc.
+2671700/1:幅	幅	ふく	ctr	counter for scrolls
+1499290/4:部	部	ぶ	ctr	counter for copies of a newspaper, magazine, book, etc.
+2671670/0:布	布	の	ctr	unit of measurement for cloth breadth (30-38 cm)
+1489320/0:票	票	ひょう	ctr	vote
+1487770/3:筆	筆	ふで	ctr	(land) lot
+2139850/1:肱	肱	かいな	ctr	counter used to measure the thickness of round objects
+2247790/1:尾	尾	び	ctr	counter for fish, shrimp, etc.
+1482110/2:晩	晩	ばん	ctr	counter for nights
+1481480/2:版	版	はん	ctr	counter for editions of a publication
+1633690/0:段	段	だん	ctr	step
+1633690/1:段	段	だん	ctr	shelf
+1633690/3:段	段	だん	ctr	dan (degree of advanced proficiency in martial arts, go, shogi, etc.)
+1633690/5:段	段	だん	ctr	column (of print)
+1633690/6:段	段	だん	ctr	act (in kabuki, joruri, etc.)
+1633690/11:段	段	だん	ctr	counter for breaks in written language or speech
+1477120/2:発	発	はつ	ctr	counter for engines (on an aircraft)
+1477120/3:発	発	はつ	ctr	counter for gunshots, bursts of gas, etc.
+1477120/4:発	発	はつ	ctr	counter for ejaculations or sexual intercourse
+1473230/1:倍	倍	ばい	ctr	times (as much)
+1473230/2:倍	倍	ばい	ctr	1-nth
+1472640/0:牌	牌	パイ	ctr	tile
+2838543/0:杯	杯	はた	ctr	counter for cupfuls, bowlfuls, spoonfuls, etc.
+2019640/1:杯	杯	はい	ctr	counter for cupfuls, bowlfuls, spoonfuls, etc.
+2019640/2:杯	杯	はい	ctr	counter for boats
+2019640/3:杯	杯	はい	ctr	counter for octopuses and squid
+2836795/0:浪	浪	ろう	ctr	person who has spent X years after graduating high school attempting to get admitted to (a specific) university
+2844141/0:波	波	は	ctr	counter for waves (of a repeated occurrence)
+2084840/1:年	年	ねん	ctr	counter for years (e.g. of an era), grades (e.g. school)
+2248360/0:入	入	しお	ctr	counter for soakings (of fabric in a dye)
+2856786/1:日	日	ち	ctr	counter for days
+2083110/1:日	日	か	ctr	counter for days
+2083100/2:日	日	にち	ctr	counter for days
+1450690/0:頭	頭	とう	ctr	counter for large animals (e.g. head of cattle)
+2833467/0:筒	筒	ピン	ctr	counter for dot tiles
+1448350/2:棟	棟	むね	ctr	counter for buildings, apartments, etc.
+1448340/1:棟	棟	とう	ctr	counter for buildings, apartments, etc.
+1445160/1:度	度	ど	ctr	counter for occurrences
+1445150/0:度	度	たんび	ctr	time (three times, each time, etc.)
+1621470/1:都	都	と	ctr	counter for cities and towns
+2658320/0:則	則	そく	ctr	counter for rules
+2831955/0:滴	滴	てき	ctr	counter for drops of liquid
+1432840/1:通	通	つう	ctr	counter for messages, letters, notes, documents, etc.
+1426480/2:柱	柱	はしら	ctr	counter for buddhas, gods, nobles, etc.
+2742890/0:男	男	なん	ctr	son
+1415580/1:卓	卓	しょく	ctr	counter for tables, desks, etc.
+1415470/2:題	題	だい	ctr	counter for questions (on a test)
+1412560/3:台	台	だい	ctr	counter for machines and vehicles
+1982860/5:代	代	だい	ctr	counter for decades of ages, eras, etc.
+1982860/6:代	代	だい	ctr	counter for generations (of inheritors to a throne, etc.)
+1982860/7:代	代	だい	ctr	proxy application company
+2707020/0:袋	袋	たい	ctr	counter for things inside a bag
+1409810/2:対	対	つい	ctr	counter for items that come in pairs
+1409810/3:対	対	つい	ctr	counter for sets (of clothes, small furniture, utensils, etc.)
+2097910/0:躯	躯	く	ctr	counter for Buddhist images (statues and paintings)
+1409150/4:体	体	たい	ctr	counter for humanoid forms (e.g. dolls, statues, corpses, etc.)
+1406270/2:尊	尊	そん	ctr	counter for buddhas
+2083950/0:脚	脚	きゃく	ctr	counter for chairs or seats
+2412230/0:足	足	そく	ctr	counter for pairs of socks, shoes, etc.
+1607320/0:把	把	わ	ctr	counter for bundles
+2521420/1:束	束	そく	ctr	counter for large bundles (e.g. 10 sheafs of rice, 200 sheets of calligraphy paper, 20 whistling arrows, 100 fish)
+2521420/2:束	束	そく	ctr	handbreadth (unit for measuring the length of arrows)
+1404450/0:束	束	たば	ctr	bundle
+1519300/1:総	総	ふさ	ctr	bunch (of grapes, bananas, etc.)
+1519300/2:総	総	ふさ	ctr	segment (of a tangerine, etc.)
+1399540/3:層	層	そう	ctr	counter for stories (of a building)
+1398670/0:双	双	そう	ctr	pair
+1397450/1:組	組	くみ	ctr	group (of people)
+1397450/4:組	組	くみ	ctr	set (of items)
+1396490/2:膳	膳	ぜん	ctr	counter for bowlfuls of rice
+1396490/3:膳	膳	ぜん	ctr	counter for pairs of chopsticks
+1391400/0:煎	煎	せん	ctr	infusing (tea)
+1385780/4:折	折	おり	ctr	counter for folded items
+1385780/5:折	折	おり	ctr	counter for items (esp. food) packed in an oribako
+1383800/6:切	切	きり	ctr	counter for slices (esp. thick slices)
+2843288/0:石	石	せき	ctr	counter for jewels in a watch
+2843288/1:石	石	せき	ctr	counter for transistors, diodes, etc. in an electronic product
+1379650/0:盛	盛	もり	ctr	serving (of food)
+2149890/0:人	人	にん	ctr	counter for people
+1366210/7:針	針	ち	ctr	counter for stitches
+1361130/0:風	風	ふり	ctr	swing
+1361130/7:風	風	ふり	ctr	counter for swords, blades, etc.
+2097830/0:色	色	しょく	ctr	counter for colours
+1356740/0:畳	畳	じょう	ctr	tatami mat (esp. as a measure of room size, either 1.82 sqm or 1.54 sqm)
+2085520/0:床	床	しょう	ctr	counter for beds
+2273780/0:所	所	しょ	ctr	counter for places
+2650170/0:宿	宿	しゅく	ctr	lodging
+2433210/0:錘	錘	すい	ctr	counter for spindles
+1335810/1:襲	襲	かさね	ctr	counter for things that are stacked, piled up (or layered, etc.)
+1331020/0:周	周	しゅう	ctr	counter for laps or circuits
+2735690/2:種	種	くさ	ctr	counter for varieties
+1327190/12:手	手	て	ctr	move (in go, shogi, etc.)
+2108240/3:重	重	じゅう	ctr	-fold
+1335730/0:重	重	え	ctr	-fold
+2243700/0:尺	尺	た	ctr	distance between outstretched thumb and middle finger (approx. 18 cm)
+2773260/1:車	車	しゃ	ctr	(train) car
+2015400/3:社	社	しゃ	ctr	counter for companies, shrines, etc.
+1579580/2:次	次	じ	ctr	order
+2267560/0:寺	寺	じ	ctr	counter for temples
+1312610/0:誌	誌	し	ctr	magazine
+2787310/0:紙	紙	し	ctr	newspaper
+2101130/3:氏	氏	し	ctr	counter for people
+2080710/0:枝	枝	し	ctr	counter for long, thin things (i.e. swords)
+1302680/0:山	山	やま	ctr	mountain
+1302680/1:山	山	やま	ctr	mine (e.g. coal mine)
+1302680/2:山	山	やま	ctr	heap
+1299680/1:皿	皿	さら	ctr	serving
+1298520/0:冊	冊	さつ	ctr	counter for books
+2833466/0:索	索	ソー	ctr	counter for bamboo tiles
+2220370/0:歳	歳	とせ	ctr	counter for years (following a number in the hito-futa-mi counting system)
+1294940/0:歳	歳	さい	ctr	... years old
+1291770/7:座	座	ざ	ctr	counter for theatres, deities, Buddhist images, tall mountains, and satokagura songs
+1633480/1:鎖	鎖	じょう	ctr	tablet
+2423450/5:差	差	さし	ctr	counter for traditional dance songs
+2844070/0:腰	腰	よう	ctr	counter for swords, hakama, obi, etc. worn around the waist
+2844070/1:腰	腰	よう	ctr	counter for quivers of arrows
+1956260/7:合	合	ごう	ctr	counter for covered containers
+1956260/8:合	合	ごう	ctr	counter for matches, battles, etc.
+2414730/0:梱	梱	こり	ctr	wrapped package
+2270390/3:行	行	こう	ctr	counter for banks
+2270390/4:行	行	こう	ctr	counter for groups or parties of people
+2271620/1:口	口	く	ctr	counter for people or implements
+1275640/11:口	口	くち	ctr	counter for mouthfuls, shares (of money), stove burners, and swords
+1270910/0:語	語	ご	ctr	word
+2842952/0:伍	伍	ご	ctr	company
+1584800/3:門	門	かど	ctr	counter for cannons
+1659920/0:戸	戸	こ	ctr	counter for houses, households, apartments, etc.
+2220330/0:個	個	ち	ctr	counter for the hito-futa-mi counting system (forming hitotsu, futatsu, mitsu, and misoji, yasoji, etc.)
+2220320/0:個	個	か	ctr	counter for the ichi-ni-san counting system (usu. directly preceding the item being counted)
+1264740/0:個	個	こ	ctr	counter for articles
+1264740/1:個	個	こ	ctr	counter for military units
+1264740/2:個	個	こ	ctr	individual
+2182840/2:基	基	き	ctr	counter for installed or mounted objects (e.g. stone lanterns, gravestones, satellites)
+1522150/4:本	本	ほん	ctr	counter for long, cylindrical things
+2219520/0:宇	宇	う	ctr	counter for buildings, roofs, tents, etc.
+2078590/0:軒	軒	けん	ctr	counter for buildings (esp. houses)
+1255940/0:件	件	けん	ctr	matter
+1255940/1:件	件	けん	ctr	counter for (received) emails, text messages, voicemail messages, etc.
+1255940/2:件	件	けん	ctr	counter for accounts (on a website, email service, etc.)
+1254490/3:穴	穴	けつ	ctr	hole
+1244950/2:具	具	ぐ	ctr	counter for sets of armor, utensils, furniture, etc.
+1242600/7:金	金	きん	ctr	karat (measure of purity of gold)
+2078550/0:条	条	じょう	ctr	article (in a document)
+2078550/1:条	条	じょう	ctr	counter for lines, stripes, streaks, rays, etc.
+1241750/17:筋	筋	すじ	ctr	counter for long thin things
+1241750/19:筋	筋	すじ	ctr	(Edo period) counter for hundreds of mon (obsolete unit of currency)
+1241380/2:斤	斤	きん	ctr	loaf (of bread)
+2179300/0:弾	弾	だん	ctr	counter for parts, stages, installments, etc. (of a story, series, project, campaign, etc.)
+2179300/1:弾	弾	だん	ctr	counter for bullets
+1239560/3:局	局	きょく	ctr	game (of go, shogi, etc.)
+1226630/2:客	客	きゃく	ctr	counter for containers used to entertain guests
+1240530/14:球	球	たま	ctr	okonomiyaki
+1229880/2:球	球	きゅう	ctr	counter for pitches
+2037700/3:機	機	き	ctr	counter for aircraft
+2037700/4:機	機	き	ctr	counter for (remaining) lives
+2145410/1:間	間	けん	ctr	counter used to number the gaps between pillars
+1214540/0:缶	缶	かん	ctr	can
+2424170/0:竿	竿	かん	ctr	counter for poles, rods, etc.
+1214060/5:竿	竿	さお	ctr	counter for flags (on poles)
+1955950/0:巻	巻	かん	ctr	volume (of book)
+1955950/1:巻	巻	かん	ctr	scroll (of books or paintings)
+2645430/1:株	株	しゅ	ctr	counter for trees
+1208920/0:株	株	かぶ	ctr	stock
+1208920/2:株	株	かぶ	ctr	(clump of) roots
+1208920/3:株	株	かぶ	ctr	strain (of bacteria, etc.)
+1203020/3:階	階	かい	ctr	counter for storeys and floors of a building
+1199330/0:回	回	かい	ctr	counter for occurrences
+1197050/0:画	画	かく	ctr	stroke (of a kanji, etc.)
+1195710/2:課	課	か	ctr	counter for lessons and chapters (of a book)
+2423290/0:荷	荷	か	ctr	counter for loads (that can be carried on one's shoulders)
+1175140/2:駅	駅	えき	ctr	counter for railway stations and bus stations
+1607310/0:羽	羽	わ	ctr	counter for birds or rabbits
+1260670/9:因	因	もと	ctr	counter for plants or trees
+1260670/10:因	因	もと	ctr	counter for falcons (in falconry)
+1427240/0:丁	丁	ちょう	ctr	counter for leaves in a book (esp. one with traditional Japanese-style binding)
+1427240/1:丁	丁	ちょう	ctr	counter for blocks of tofu
+1165000/0:丁	丁	ちょう	ctr	counter for long and narrow things such as guns, scissors, spades, hoes, inksticks, palanquins, candles, jinrikishas, shamisen, oars
+2068010/0:位	位	い	ctr	rank
+2068010/1:位	位	い	ctr	decimal place
+2068010/2:位	位	い	ctr	counter for ghosts
+1120410/0:頁	頁	ページ	ctr	page
+2820490/0:打	打	だ	ctr	hitting a ball (with a bat, golf club, etc.)
+1441390/7:点	点	てん	ctr	counter for points, marks, goals, etc.
+1441390/8:点	点	てん	ctr	counter for goods, items, articles of clothing, works of art, etc.
+2020680:時	時	じ	suf	hour
+1502840:分	分	ふん	noun	minute
+1315920:時間	時間	じかん	noun	period
+1255430:月	月	つき	noun	month
+1584460:万	万	まん	num	10000
+1415260:第	第	だい	pref	prefix for forming ordinal numbers
+1333500:週間	週間	しゅうかん	noun	week
+2022640:番	番	ばん	noun	number (in a series)
+1606800:割	割	わり	noun	one tenth
+1175570:円	円	えん	noun	yen
+2120810:度目	度目	どめ	suf	n-th time
