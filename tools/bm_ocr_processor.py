@@ -64,7 +64,7 @@ def is_title_read(id):
     for cid in chapter_ids:
         if is_chapter_read(cid):
             return True
-
+        
 def process_chapter(f_p, fo_p, chapter_data):
 
     k_c = 0
@@ -107,7 +107,7 @@ def process_chapter(f_p, fo_p, chapter_data):
 
                 ud_items = \
                     post_process_unidic_particles(ud_items)
-
+                
                 parse_with_jmdict(
                     ud_items, results,
                 )
@@ -138,6 +138,7 @@ def process_chapter(f_p, fo_p, chapter_data):
     unique_words_list = []
     unique_words_frequency = []
     unique_words_classes = []
+    wid_to_unique_wid_dict = dict()
     for word_id, word_freq in \
         zip(results['priority_word_id_list'], results['priority_word_count']):
         #zip(results['word_id_list'], results['word_count']):
@@ -151,12 +152,24 @@ def process_chapter(f_p, fo_p, chapter_data):
             idx = len(unique_words_list) - 1
             unique_words_frequency.append(word_freq)
             unique_words_classes.append( get_flat_class_list_by_seq(seq) )
+        wid_to_unique_wid_dict[word_id] = idx
 
     num_unique_words = len(unique_words_list)
+
+    # convert the references in sentence list to match unique word list
+    adjusted_sentence_list = []
+    for sentence in results['sentence_list']:
+        new_sentence = []
+        for ref in sentence:
+            wid = results['word_id_list'][ref]
+            new_ref = wid_to_unique_wid_dict[wid]
+            new_sentence.append(new_ref)
+        adjusted_sentence_list.append(new_sentence)
 
     chapter_data['num_characters'] = c_c
     chapter_data['num_words'] = w_c
     chapter_data['num_kanjis'] = k_c
+    chapter_data['num_sentences'] = len(adjusted_sentence_list)
     chapter_data['num_skipped_blocks'] = skipped_c
     chapter_data['num_unique_words'] = num_unique_words
     chapter_data['num_unique_kanjis'] = len(sorted_kanji_count)
@@ -165,6 +178,7 @@ def process_chapter(f_p, fo_p, chapter_data):
     chapter_data['word_id_list'] = unique_words_list
     chapter_data['word_class_list'] = unique_words_classes
     chapter_data['word_count_per_class'] = results['word_count_per_unidict_class']
+    chapter_data['sentence_list'] = adjusted_sentence_list
     chapter_data['parser_version'] = CURRENT_LANUGAGE_PARSER_VERSION
 
     return c_c, w_c, k_c, skipped_c
@@ -248,12 +262,12 @@ def process_chapters(args):
                 if not args['force']:
                     if is_file_up_to_date(target_freq_filename, CURRENT_OCR_SUMMARY_VERSION, CURRENT_LANUGAGE_PARSER_VERSION) and \
                         is_file_up_to_date(parsed_ocr_filename, CURRENT_PARSED_OCR_VERSION, CURRENT_LANUGAGE_PARSER_VERSION):
-                            print("[%d/%d] Skipping %s [chapter %d]" % (i, i_c, chapter_data['title'],chapter_data['chapter']))
+                            #print("[%d/%d] Skipping %s [chapter %d]" % (i, i_c, chapter_data['title'],chapter_data['chapter']))
                             continue
 
                 #try:
-                print("[%d/%d] Scanning %s [%d] " 
-                    % (i, i_c, chapter_data['title'], chapter_data['chapter']),end='')
+                print("[%d/%d] Scanning %s [%d : %s] " 
+                    % (i, i_c, chapter_data['title'], chapter_data['chapter'], chapter_id),end='')
 
                 c_c, w_c, k_c, skipped_c = process_chapter(input_ocr_file, parsed_ocr_filename, chapter_data)
                 #except Exception as e:
@@ -280,7 +294,9 @@ def process_chapters(args):
 def process_titles(args):
     global processed_title_count
 
-    for title_id, title_name in get_title_names().items():
+    title_names = get_title_names()
+    l_title_names = len(title_names)
+    for i, (title_id, title_name) in enumerate(title_names.items()):
 
         if args['keyword'] is not None:
             if args['keyword'].lower() not in title_name.lower():
@@ -301,12 +317,14 @@ def process_titles(args):
         title_data['num_unique_words'] = 0
         title_data['num_unique_kanjis'] = 0
         title_data['kanji_frequency'] = dict()
+        title_data['num_sentences'] = 0
 
         total_word_count_per_class = [0] * len(unidic_class_list)
 
         word_id_list = []
         word_freq = []
         word_classes = []
+        sentence_list = []
 
         title_filename = title_analysis_dir + title_id + ".json"
 
@@ -315,7 +333,7 @@ def process_titles(args):
         if is_file_up_to_date(title_filename, CURRENT_OCR_SUMMARY_VERSION, CURRENT_LANUGAGE_PARSER_VERSION):
             print("Skipping %s [%s] with %d chapters" % (title_name, title_id, len(vs)))
         else:
-            print("%s [%s] with %d chapters" % (title_name, title_id, len(vs)))
+            print("%d/%d %s [%s] with %d chapters" % (i,l_title_names,title_name, title_id, len(vs)))
 
             for chapter_id in vs:
                 chapter_filename = chapter_analysis_dir + chapter_id + ".json"
@@ -329,6 +347,7 @@ def process_titles(args):
                     title_data['num_characters'] += chapter_data['num_characters']
                     title_data['num_words'] += chapter_data['num_words']
                     title_data['num_kanjis'] += chapter_data['num_kanjis']
+                    title_data['num_sentences'] += chapter_data['num_sentences']
                     title_data['num_pages'] += chapter_data['num_pages']
 
                     for i in range(len(unidic_class_list)):
@@ -346,17 +365,29 @@ def process_titles(args):
                             word_freq.append(freq)
                             word_classes.append(classes)
 
+                    # for each sentence convert word id reference from 
+                    # local (chapter) to global (title) reference
+                    for sentence in chapter_data['sentence_list']:
+                        new_sentence = []
+                        for wref in sentence:
+                            word_id = chd['word_id_list'][wref]
+                            idx = word_id_list.index(word_id)
+                            new_sentence.append(idx)
+                        sentence_list.append(new_sentence)
+
                     for w, freq in chapter_data['kanji_frequency'].items():
                         if w in title_data['kanji_frequency']:
                             title_data['kanji_frequency'][w] += freq
                         else:
                             title_data['kanji_frequency'][w] = freq
+
                 else:
                     print("Warning! Missing %s chapter %d" % (title_name, chapter))
 
             title_data['word_frequency'] = word_freq
             title_data['word_id_list'] = word_id_list
             title_data['word_class_list'] = word_classes
+            title_data['sentence_list'] = sentence_list
             title_data['word_count_per_class'] = total_word_count_per_class
 
             title_data['num_chapters'] = len(vs)

@@ -12,6 +12,7 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument('text', nargs='?', type=str, default=None, help='Text to be parsed')
 parser.add_argument('--verbose-level', '-v', type=int, default=3, help='Verbose level')
+parser.add_argument('--verbose-conjugation-level', '-vc', type=int, default=1, help='Verbose level for conjugations')
 
 args = vars(parser.parse_args())
 
@@ -91,5 +92,6 @@ if __name__ == "__main__":
 
     open_log_file("parserlog.txt")
     set_verbose_level(args['verbose_level'])
+    set_verbose_level(args['verbose_conjugation_level'],'conjugation')
     parse(lines)
     close_log_file()

@@ -40,7 +40,7 @@ comprehension_modifier = [0, 0.1, 0.5, 1, 2]
 learning_data = dict()
 manually_set_word_learning_stages = dict()
 
-trace_item = None
+trace_items = None
 
 # This contains manual word/kanji events (such as
 # learning of JLPT/custom word or manual change of word/kanji learning stage ('pre-known' to 'known' etc)
@@ -122,7 +122,7 @@ def create_manual_event(item_type, item, stage, timestamp, metadata ):
         lifetime_freq[item_type][item] = 0
         learning_freq[item_type][item] = 0
 
-    if trace_item is not None:
+    if trace_items is not None:
         print(' + ' + item_str + ' Created new manual event: ' + TRACE_EVENT(event))
 
 # If a word hasn't been seen after remembering_period then downgrade
@@ -154,7 +154,7 @@ def handle_forgotten_event(item_type, item, next_timestamp):
             }
             days_lapsed = int(remembering_period/(24*60*60))
             if current_stage == STAGE_KNOWN:
-                if trace_item is not None:
+                if trace_items is not None:
                     print(" ! Forgot %s %s after %d days" % (item_type,item,days_lapsed))
                 forgotten_event['m']['comment'] = 'Forgot after %d days' % days_lapsed
             else:
@@ -165,7 +165,7 @@ def handle_forgotten_event(item_type, item, next_timestamp):
                 forgotten_event['s'] = STAGE_LEARNING
                 forgotten_event['m']['comment'] = 'Downgraded PRE-KNOWN to LEARNING after %d days' % days_lapsed
                 learning_freq[item_type][item] = threshold - 1
-                if trace_item is not None:
+                if trace_items is not None:
                     print(" ! Downgraded %s %s back to LEARNING" % (item_type,item))
                 
             event_history[item_type][item].append(forgotten_event)
@@ -202,7 +202,7 @@ def insert_manual_events( item_type, item, next_event_timestamp=None ):
                             remembering_periods[item_type][item] *= (1+learning_settings['remembering_period_prolong_pct']/100)
 
                         event_history[item_type][item].append(manual_event)
-                        if trace_item is not None:
+                        if trace_items is not None:
                             print(' + ' + item + ' New manual event: ' + TRACE_EVENT(manual_event))
 
                     manual_event_pointer[item_type][item] += 1
@@ -229,7 +229,7 @@ def update_item_stage(item_type, item, stage, timestamp, metadata ):
     if item not in event_history[item_type]:
         # this is the first occurence for this word/kanji
         event_history[item_type][item] = [new_event]
-        if trace_item is not None:
+        if trace_items is not None:
             print(' * ' + item_str + ' First event: ' + TRACE_EVENT(new_event))
     else:
         last_event = event_history[item_type][item][-1]
@@ -238,7 +238,7 @@ def update_item_stage(item_type, item, stage, timestamp, metadata ):
         skip = False
         if current_stage == STAGE_IGNORED:
             skip = True
-            if trace_item is not None:
+            if trace_items is not None:
                 print(' - ' + item_str + ' Passing through during ignored stage')
 
         elif last_event['m']['src'] == SOURCE_USER and \
@@ -248,7 +248,7 @@ def update_item_stage(item_type, item, stage, timestamp, metadata ):
                 # (but its timestamp would have been slightly in the past compared 
                 # to the completion timestamp of this chapter).
                 skip = True
-                if trace_item is not None:
+                if trace_items is not None:
                     print(' - ' + item_str + ' Skipped following implicit event ' + TRACE_EVENT(new_event) + "because user")
 
         if not skip:
@@ -267,10 +267,10 @@ def update_item_stage(item_type, item, stage, timestamp, metadata ):
                 if (stage < current_stage):
                     # do not lower the learning stage by just reading
                     new_event['s'] = current_stage
-                    if trace_item is not None:
+                    if trace_items is not None:
                         print(' ^ ' + item_str + ' Refreshing known stage: ' + TRACE_EVENT(new_event))
                 else:
-                    if trace_item is not None:
+                    if trace_items is not None:
                         print(' + ' + item_str + ' New event: ' + TRACE_EVENT(new_event))
 
                 if RETAIN_FULL_WORD_HISTORY:
@@ -283,7 +283,7 @@ def update_item_stage(item_type, item, stage, timestamp, metadata ):
                         # overwrite the last entry
                         event_history[item_type][item][-1] = new_event
             else:
-                if trace_item is not None:
+                if trace_items is not None:
                     print(' - ' + item_str + ' Passing through during forgotten stage')
 
 
@@ -333,7 +333,7 @@ def read_lang_list(filename, source, item_type, stage=None, timestamp=None):
                 if 'seq_word_dict' in j:
                     for word_id, data in j['seq_word_dict'].items():
                         seq, word = get_seq_and_word_from_word_id(word_id)
-                        if trace_item is None or trace_item == word:
+                        if trace_items is None or word in trace_items:
                             if 's' not in data:
                                 raise Exception("Error in %s" % filename)
                             if 't' not in data:
@@ -381,7 +381,7 @@ def read_lang_list(filename, source, item_type, stage=None, timestamp=None):
                     else:
                         trace_item_check = item
 
-                    if trace_item is None or trace_item == trace_item_check:
+                    if trace_items is None or trace_item_check in trace_items:
                         create_manual_event(item_type, item, stage, timestamp, {'src':source} )
                         if timestamp == 0:
                             unforgettable_items[item_type].add(item)
@@ -394,9 +394,19 @@ def read_lang_list(filename, source, item_type, stage=None, timestamp=None):
 # This will replay the automatic and manual learning events 
 # and update the statistics for known/learning/forgotten words and kanjis
 def update(args):
-    global trace_item
+    global trace_items
     if args['trace'] is not None:
         trace_item = args['trace']
+        print("Trace item: %s" % trace_item)
+        trace_items = set([trace_item])
+
+        counter_word_id = get_possible_counter_word_id_from_word(trace_item)
+
+        if counter_word_id is not None:
+            seq, counter_word = get_seq_and_word_from_word_id(counter_word_id)
+            trace_items.update([counter_word])
+            print("Trace item (counter): %s" % counter_word)
+
 
     global learning_data, event_history, manual_events
 
@@ -414,24 +424,27 @@ def update(args):
     current_timestamp = int(time.time())
 
     jlpt_timestamp = learning_settings['learned_jlpt_timestamp']
-    learning_data['num_unique_jlpt_words'] = 0
+    learning_data['num_unique_known_jlpt_base_words'] = 0
     for level, seq_words_by_level in jlpt_word_jmdict_refs.items():
         for seq, word_dict in seq_words_by_level.items():
-            words = word_dict['kanji'] + word_dict['kana']
-            if trace_item is None or trace_item in words:
-                if level >= learning_settings['jlpt_word_level']:
-                    for word in words:
-                        seq_word = '%d:%s' % (seq,word)
-                        create_manual_event('words',seq_word, STAGE_KNOWN, jlpt_timestamp, {'src':SOURCE_JLPT, 'comment':'JLPT level %d' % level})
-                        learning_data['num_unique_jlpt_words'] += 1
-                        if jlpt_timestamp == 0:
-                            unforgettable_items['words'].add(seq_word)
-    learning_data['num_unique_jlpt_kanjis'] = 0
+            words = set(word_dict['kanji'] + word_dict['kana'])
+            if trace_items is None:
+                add_words = words
+            else:
+                add_words = words.intersection(trace_items)
+            if level >= learning_settings['jlpt_word_level']:
+                for word in add_words:
+                    seq_word = '%d:%s' % (seq,word)
+                    create_manual_event('words',seq_word, STAGE_KNOWN, jlpt_timestamp, {'src':SOURCE_JLPT, 'comment':'JLPT level %d' % level})
+                    learning_data['num_unique_known_jlpt_base_words'] += 1
+                    if jlpt_timestamp == 0:
+                        unforgettable_items['words'].add(seq_word)
+    learning_data['num_unique_known_jlpt_base_kanjis'] = 0
     for k, level in jlpt_kanjis.items():
-        if trace_item is None or trace_item == k:
+        if trace_items is None or k in trace_items:
             if level >= learning_settings['jlpt_kanji_level']:
                 create_manual_event('kanjis', k, STAGE_KNOWN, jlpt_timestamp, {'src':SOURCE_JLPT, 'comment':'JLPT level %d' % level})
-                learning_data['num_unique_jlpt_kanjis'] += 1
+                learning_data['num_unique_known_jlpt_base_kanjis'] += 1
                 if jlpt_timestamp == 0:
                     unforgettable_items['kanjis'].add(k)
 
@@ -453,11 +466,19 @@ def update(args):
     learning_data['num_unique_known_words_lr'] = get_num_manually_set_items('words',STAGE_KNOWN, SOURCE_LANGUAGE_REACTOR)
     learning_data['num_unique_learning_words_lr'] = get_num_manually_set_items('words',STAGE_LEARNING, SOURCE_LANGUAGE_REACTOR)
 
+    # mid-stage calculation in order get # of new learned words by reading
+    num_unique_known_words_preread = get_num_manually_set_items('words',STAGE_KNOWN)
+    num_unique_known_kanjis_preread = get_num_manually_set_items('kanjis',STAGE_KNOWN)
+    num_unique_pre_known_words_preread = get_num_manually_set_items('words',STAGE_PRE_KNOWN)
+    num_unique_pre_known_kanjis_preread = get_num_manually_set_items('kanjis',STAGE_PRE_KNOWN)
+    num_unique_learning_words_preread = get_num_manually_set_items('words',STAGE_LEARNING)
+    num_unique_learning_kanjis_preread = get_num_manually_set_items('kanjis',STAGE_LEARNING)
+
     ## load manually set words and their learning stages
     for word_id, history in user_set_words.items():
         sw = word_id.split(':')
         word = sw[1]
-        if trace_item is None or trace_item == word:
+        if trace_items is None or word in trace_items:
             for entry in history:
                 entry['m']['src'] = SOURCE_USER
 
@@ -473,22 +494,14 @@ def update(args):
 
                 create_manual_event('words', word_id, entry['s'], entry['t'], entry['m'])
     
-    if trace_item is not None:
-        if get_num_manually_set_items('words',item=trace_item) == 0:
-            if get_num_manually_set_items('kanjis',item=trace_item) == 0:
-                print(" !! %s does NOT exist in manual events!" % trace_item)
+    if trace_items is not None:
+        for trace_item in trace_items:
+            if get_num_manually_set_items('words',item=trace_item) == 0:
+                if get_num_manually_set_items('kanjis',item=trace_item) == 0:
+                    print(" !! %s does NOT exist in manual events!" % trace_item)
 
     learning_data['num_unique_known_words_user'] = get_num_manually_set_items('words',STAGE_KNOWN, SOURCE_USER)
     learning_data['num_unique_learning_words_user'] = get_num_manually_set_items('words',STAGE_LEARNING, SOURCE_USER)
-
-    # mid-stage calculation in order get # of new learned words by reading
-    num_unique_known_words_preread = get_num_manually_set_items('words',STAGE_KNOWN)
-    num_unique_known_kanjis_preread = get_num_manually_set_items('kanjis',STAGE_KNOWN)
-    num_unique_pre_known_words_preread = get_num_manually_set_items('words',STAGE_PRE_KNOWN)
-    num_unique_pre_known_kanjis_preread = get_num_manually_set_items('kanjis',STAGE_PRE_KNOWN)
-    num_unique_learning_words_preread = get_num_manually_set_items('words',STAGE_LEARNING)
-    num_unique_learning_kanjis_preread = get_num_manually_set_items('kanjis',STAGE_LEARNING)
-
 
     if not learning_settings['automatic_learning_enabled']:
         # automatic learning was disabled so we just copy the manually set statuses
@@ -546,12 +559,12 @@ def update(args):
                     zip(chapter_data['word_id_list'], chapter_data['word_frequency'], chapter_data['word_class_list']):
                     sw = word_id.split(':')
                     word = sw[1]
-                    if trace_item is None or trace_item == word:
+                    if trace_items is None or word in trace_items:
                         adjusted_freq = adjust_and_cap_frequency(freq, comprehension)
                         update_item_stage_by_frequency_and_class('words',word_id,freq,adjusted_freq,classes, timestamp,word_metadata)
 
                 for k, freq in chapter_data['kanji_frequency'].items():
-                    if trace_item is None or trace_item == k:
+                    if trace_items is None or k in trace_items:
                         adjusted_freq = adjust_and_cap_frequency(freq, comprehension)
                         update_item_stage_by_frequency_and_class('kanjis',k,freq,adjusted_freq,[], timestamp,word_metadata)
 
@@ -570,10 +583,11 @@ def update(args):
             for item in event_history[item_type].keys():
                 handle_forgotten_event(item_type, item, current_timestamp)
 
-        # finally check if kanji form is known. In that case the user obviously
-        # knows the reading as well
         for word_id,history in event_history['words'].items():
             stage = history[-1]['s']
+
+            # Check if kanji form is known. In that case the user obviously
+            # knows the reading as well
             if stage != STAGE_KNOWN:
                 seq, word = get_seq_and_word_from_word_id(word_id)
                 readings = get_readings_by_seq(seq)
@@ -595,10 +609,34 @@ def update(args):
                                 }
                                 event_history['words'][word_id].append(event)
                                 stage = stage_ke
-                                if trace_item is not None:
+                                if trace_items is not None:
                                     print(' + ' + item + ' ' + comment + ':' + TRACE_EVENT(event))
 
 
+            if stage != STAGE_KNOWN:
+                # Finally check if the user knows the counter word (e.g. 度)
+                # In this case e.g. 三度 is known
+                counter_word_id = get_possible_counter_word_id(word_id)
+
+                if word_id != counter_word_id:
+                    seq, counter_word = get_seq_and_word_from_word_id(counter_word_id)
+                    counter_word_id = str(seq) + ':' + counter_word
+                    if counter_word_id in event_history['words']:
+                        stage_counter = event_history['words'][counter_word_id][-1]['s']
+                        if ((stage_counter > stage) or (stage == STAGE_FORGOTTEN)) and (stage_counter != STAGE_FORGOTTEN):
+                            comment = 'Set to %s because of %s' % (learning_stage_labels[stage_counter],counter_word)
+                            event = {
+                                't' : current_timestamp,
+                                's' : stage_counter,
+                                'm' : {
+                                    'src':SOURCE_ENGINE,
+                                    'comment':comment,
+                                },
+                            }
+                            event_history['words'][word_id].append(event)
+                            stage = stage_counter
+                            if trace_items is not None:
+                                print(' + ' + item + ' ' + comment + ':' + TRACE_EVENT(event))
 
     # extract the current learning stage for faster lookup. Also save the history for browsing
     item_types = ['words','kanjis']
@@ -646,7 +684,7 @@ def update(args):
 
     learning_data['chapter_ids'] = index_of_chapter_ids
 
-    if trace_item is None:
+    if trace_items is None:
         o_f = open(learning_data_filename,"w",encoding="utf-8")
         json_data = json.dumps(learning_data, ensure_ascii=False)
         o_f.write(json_data)
@@ -664,6 +702,7 @@ def update(args):
 read_manga_data()
 read_manga_metadata()
 load_jmdict()
+load_counter_word_ids()
 
 user_set_words = get_user_set_words()
 user_settings = read_user_settings()
@@ -687,7 +726,7 @@ parser_update.add_argument('--trace', type=str, default=None, help='trace change
 args = vars(parser.parse_args())
 cmd = args.pop('command')
 
-#update({'trace':'まずい'})
+#update({'trace':'２度目'})
 #update({'trace':None})
 
 if cmd is not None:

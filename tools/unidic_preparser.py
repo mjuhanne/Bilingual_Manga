@@ -89,6 +89,13 @@ def parse_line_with_unidic(line, kanji_count):
                 # for some reason 使っ / だっ verbs have 連用形 flag even though it's not.
                 if w[-1] != 'っ':
                     item.is_masu = True
+
+            if cl == suffix_class and details[1] == '動詞的':
+                # If the suffix works as a verb 
+                # (as めいた in 要求めいた or -がってる in 怖がってる),
+                # add the verb class in order to enable the conjugation 
+                item.classes.append(verb_class)
+
             if has_word_katakana(w):
                 item.alt_forms = [katakana_to_hiragana(w)]
                 item.appendable_alt_forms = [katakana_to_hiragana(w)]
@@ -128,9 +135,11 @@ def add_alternative_form_from_lemma(item):
         #seqs = search_sequences_by_word(lemma)
 
         # just add the lemma as an alternative
-        if lemma not in item.alt_forms:
+        if lemma not in item.alt_forms and lemma != item.txt:
+            LOG(2, "%s: Added alt form from lemma %s" % (item.txt,lemma))
             item.alt_forms.append(lemma)
             item.appendable_alt_forms.append(lemma)
+            item.alt_scores[lemma] = 0.4
 
 def check_adjectival_nouns(pos,items): 
 
@@ -286,6 +295,9 @@ def get_vowel_extension(chr):
 
 def check_matching_condition(items,pos,conditions,word,original_word,num_scanned_items,params=None):
     matched_conditions = COND_NONE
+    flexible = conditions & COND_FLEXIBLE
+
+    # TODO: add flexible matching with rest of the conditions
     if conditions & COND_NON_BASE_FORM:
         for i in range(num_scanned_items):
             if not items[pos+i].is_base_form:
@@ -315,20 +327,37 @@ def check_matching_condition(items,pos,conditions,word,original_word,num_scanned
         if pos >0 and params['cond_class'] in items[pos-1].classes:
             matched_conditions |= COND_AFTER_CLASS
     if conditions & COND_BEFORE_ITEM:
-        if pos+num_scanned_items < len(items):
-            if params['item_txt'] == items[pos+1].txt:
-                if params['item_class'] in items[pos+1].classes:
-                    matched_conditions |= COND_BEFORE_ITEM
+        if not flexible:
+            if pos+num_scanned_items < len(items):
+                if params['item_txt'] == items[pos+num_scanned_items].txt:
+                    if params['item_class'] in items[pos+num_scanned_items].classes or params['item_class']==any_class:
+                        matched_conditions |= COND_BEFORE_ITEM
+        else:
+            stop = False
+            i = pos+num_scanned_items
+            while (i < len(items)) and not stop:
+                if items[i].txt in elongation_marks:
+                    i += 1
+                else:
+                    if params['item_txt'] == items[i].txt:
+                        if params['item_class'] in items[i].classes or params['item_class']==any_class:
+                            matched_conditions |= COND_BEFORE_ITEM
+                    stop = True
+
     if conditions & COND_AFTER_ITEM:
         if pos>0:
             if params['item_txt'] == items[pos-1].txt:
-                if params['item_class'] in items[pos-1].classes:
+                if params['item_class'] in items[pos-1].classes or params['item_class']==any_class:
                     matched_conditions |= COND_AFTER_ITEM
 
     if conditions & COND_NOT:
         if matched_conditions == COND_NONE:
             # none of the other conditions matched so inversely this is a match
             matched_conditions = conditions
+
+    if flexible:
+        # just add this here to allow easier comparison
+        matched_conditions |= COND_FLEXIBLE
 
     return matched_conditions
 
@@ -598,6 +627,14 @@ def add_alternative_forms_and_classes(pos,items):
         if cl not in items[pos].classes:
             items[pos].classes.append(cl)
 
+def get_previous_main_classes(items,pos):
+    while pos > 0:
+        if gp_class not in items[pos-1].classes:
+            if aux_verb_class not in items[pos-1].classes or verb_class in items[pos-1].classes:
+                return items[pos-1].classes
+        pos -= 1
+    return []
+
 
 def add_emphatetic_and_elongated_alternative_forms(pos,items):
 
@@ -638,6 +675,14 @@ def add_emphatetic_and_elongated_alternative_forms(pos,items):
                                         items[pos+1].classes.append(cl)
                                 if cl not in items[pos].classes:
                                     items[pos].classes.append(cl)
+
+                    prev_cll = get_previous_main_classes(items,pos)
+                    if verb_class in prev_cll:
+                        # allow conjugation for this and the next item
+                        # because Unidict most likely didn't detect the class correctly
+                        items[pos].explicitly_allow_conjugation = True
+                        if pos < len(items) - 1:
+                            items[pos+1].explicitly_allow_conjugation = True
 
     for small_vowel in small_vowels:
         if small_vowel in items[pos].txt:
@@ -687,8 +732,10 @@ def add_emphatetic_and_elongated_alternative_forms(pos,items):
         if i>0:
             rep = get_vowel_extension(items[pos].txt[i-1])
         elif pos > 0:
-            # TODO: finetune
-            #rep = get_vowel_extension(items[pos-1].txt[-1])
+            # TODO: finetune. At least prevent alt-only single item scan match
+            #if pos > 0:
+            #    rep = get_vowel_extension(items[pos-1].txt[-1])
+            #else:
             rep = ''
         else:
             rep = ''
@@ -708,7 +755,7 @@ def add_emphatetic_and_elongated_alternative_forms(pos,items):
         def get_norm_form_for_colloquial_vowel_extension(ch):
             colloquial_vowel_extension = {
                 'れ' : 'らい',
-                #'て' : 'たい',
+                'て' : 'たい',
             }
             if ch in colloquial_vowel_extension:
                 return colloquial_vowel_extension[ch]
@@ -718,7 +765,7 @@ def add_emphatetic_and_elongated_alternative_forms(pos,items):
         if i>0:
             normal_form = get_norm_form_for_colloquial_vowel_extension(items[pos].txt[i-1])
             normal_form_pos = pos
-            alt_form = items[pos].txt[:i] + normal_form
+            alt_form = items[pos].txt[:i-1] + normal_form
         else:
             if pos>0:
                 normal_form = get_norm_form_for_colloquial_vowel_extension(items[pos-1].txt[-1])
@@ -727,9 +774,29 @@ def add_emphatetic_and_elongated_alternative_forms(pos,items):
         if normal_form != '':
             items[normal_form_pos].alt_forms.append(alt_form)
             items[normal_form_pos].appendable_alt_forms.append(alt_form)
-            #if verb_class not in items[normal_form_pos].classes and adjectival_noun_class not in items[normal_form_pos].classes:
-            # Unidict most likely didn't detect the class properly
-            items[normal_form_pos].any_class = True 
+            items[normal_form_pos].alt_scores[alt_form] = 0.7*items[normal_form_pos].base_score
+            prev_main_classes = get_previous_main_classes(items,normal_form_pos)
+            # Colloquial vowel extension is mainly with verbs and adjectives
+            """
+            if verb_class not in prev_main_classes and verb_class not in items[normal_form_pos].classes:
+                items[normal_form_pos].classes.append(verb_class)
+            if adjectival_noun_class not in prev_main_classes and adjectival_noun_class not in items[normal_form_pos].classes:
+                items[normal_form_pos].classes.append(adjectival_noun_class)
+            """
+            #items[normal_form_pos].alt_form_flags[alt_form] = ANY_CLASS
+            #items[normal_form_pos].any_class = True 
+
+def convert_to_adjective_from_singlekanji(items,pos):
+    seqs = get_adjective_seqs_for_single_kanji(items[pos].txt)
+    for seq in seqs:
+        kanji_elements = get_kanji_elements_by_seq(seq)
+        for k_elem in kanji_elements:
+            if items[pos].txt in k_elem:
+                if k_elem not in items[pos].alt_orthos:
+                    items[pos].alt_orthos.append(k_elem)
+    if len(seqs)>0:
+        items[pos].classes.append(adjective_class)
+
 
 def particle_post_processing(pos, items):
     if not handle_explicit_form_and_class_changes(pos,items, explicit_word_changes):
@@ -749,15 +816,11 @@ def particle_post_processing(pos, items):
             check_verbs(pos,items)
         if prefix_class in cll and pos < len(items) - 1 and is_hiragana(items[pos+1].txt[0]):
             # erroneously assigned as prefix, most likely an adjective
-            seqs = get_adjective_seqs_for_single_kanji(items[pos].txt)
-            for seq in seqs:
-                kanji_elements = get_kanji_elements_by_seq(seq)
-                for k_elem in kanji_elements:
-                    if items[pos].txt in k_elem:
-                        if k_elem not in items[pos].alt_orthos:
-                            items[pos].alt_orthos.append(k_elem)
-            if len(seqs)>0:
-                items[pos].classes.append(adjective_class)
+            convert_to_adjective_from_singlekanji(items,pos)
+        # TODO: adjust check_adjectives for this to work
+        #if noun_class in items[pos].classes and pos < len(items) - 1 and items[pos+1].txt == 'しき':
+        #    # erroneously assigned as noun, most likely an adjective
+        #    convert_to_adjective_from_singlekanji(items,pos)
         if adjective_class in cll and not verb_class in cll:
             return check_adjectives(pos,items)
         if adjectival_noun_class in cll:
@@ -777,6 +840,8 @@ def particle_post_processing(pos, items):
                     items[pos+1].any_class = True
         if suffix_class in cll and pos == 0:
             # wrong classification
+            # most likely noun, but allow other classes as well
+            items[pos].classes.append(noun_class)
             items[pos].any_class = True
         if gp_class in cll and items[pos].txt == 'の':
             if pos > 0 and pos < len(items)-1:
@@ -825,6 +890,7 @@ def particle_post_processing(pos, items):
                 if items[pos].ortho == 'き':
                     # let's drop this nonsense
                     items[pos].ortho = ''
+            
 
 # merge or replace those particles that are marked
 def merge_or_replace_items(items):
@@ -865,6 +931,8 @@ def merge_or_replace_items(items):
                 for prev_alt_form in prev_appendable_alt_forms:
                     new_alt = prev_alt_form + alt_form
                     if new_alt != new_txt and new_alt not in new_alts:
+
+                        # combine alt form score
                         if prev_alt_form in processed_items[pos-1].alt_scores:
                             score = processed_items[pos-1].alt_scores[prev_alt_form]
                         else:
@@ -874,6 +942,16 @@ def merge_or_replace_items(items):
                         else:
                             score += items[i].base_score
                         processed_items[pos-1].alt_scores[new_alt] = score
+
+                        # combine alt form flags
+                        flag = 0
+                        if prev_alt_form in processed_items[pos-1].alt_form_flags:
+                            flag = processed_items[pos-1].alt_form_flags[prev_alt_form]
+                        if alt_form in items[i].alt_form_flags:
+                            flag |= items[i].alt_form_flags[alt_form]
+                        if flag != 0:
+                            processed_items[pos-1].alt_form_flags[new_alt] = flag
+
                         new_alts.append(new_alt)
 
             new_appendable_alt_forms = []
@@ -892,8 +970,9 @@ def merge_or_replace_items(items):
             processed_items[pos-1].appendable_alt_forms = new_appendable_alt_forms
             processed_items[pos-1].txt = new_txt
             processed_items[pos-1].base_score += items[i].base_score
+
             if items[i].any_class:
-                # propagate the ANY_CLASS to root item
+                # propagate the ANY_CLASS flag to root item
                 processed_items[pos-1].any_class = True
 
             if get_verbose_level()>=2:
@@ -956,18 +1035,27 @@ def stutter_detection(items):
     # ["ええっ？", "映画を", "観てた！？"]
     # ["あーっと、", "ボールは", "あさっての", "方向へ！！"]
     # ["だだって", "しょうがないじゃないか"
+    # ['そ', 'そうね', '手先だけは', '器用かも']
+    # ["ななな", "なんだよ。"]
 
     # stutter detection
     i = 0
     stop = False
     if len(items) > 1 and len(items[0].txt)>0:
         stutter_char = items[0].txt[0]
+        stutter_y_char = None
         j = 1
-        if len(items[0].txt)>1 and items[0].txt[1] in y_hiragana:
-            stutter_y_char =  items[0].txt[1]
-            j += 1
+        if len(items[0].txt)>1:
+            if items[0].txt[1] in y_hiragana:
+                stutter_y_char =  items[0].txt[1]
+                j += 1
         else:
-            stutter_y_char = None
+            i += 1
+            j = 0
+            if len(items[i].txt)>0:
+                if items[i].txt[j] in y_hiragana:
+                    stutter_y_char =  items[i].txt[j]
+                    j += 1
 
         stutter_char_count = 0
         if not is_cjk(stutter_char):
@@ -995,17 +1083,23 @@ def stutter_detection(items):
                         i += 1
                     else:
                         verified_stutter = False
-                        if i > 0 and stutter_char_count > 1:
+                        if i > 0: # and stutter_char_count > 1:
                             if j > 0 and stutter_char not in ignored_stutter_chars: # and stutter_char == items[i].txt[j-1]:
-                                verified_stutter = True
+                                if stutter_char_count > 1:
+                                    verified_stutter = True
                             else:
                                 if is_cjk(items[i].txt[j]):
-                                    seqs = search_sequences_by_word(items[i].txt)
-                                    for seq in seqs:
-                                        readings = get_readings_by_seq(seq)
-                                        for reading in readings:
-                                            if reading[0] == stutter_char:
-                                                verified_stutter = True
+                                    if stutter_char == 'お' and i==1 and j==0:
+                                        # ignore honorific お as stutter when it is attached directly to the kanji
+                                        pass
+                                    else:
+                                        seqs = search_sequences_by_word(items[i].txt)
+                                        for seq in seqs:
+                                            readings = get_readings_by_seq(seq)
+                                            for reading in readings:
+                                                if reading[0] == stutter_char:
+                                                    if  (stutter_y_char is None or ((len(reading)>1) and (stutter_y_char == reading[1]))):
+                                                        verified_stutter = True
 
                             if verified_stutter:
                                 for k in range(0,i):
@@ -1068,6 +1162,7 @@ def post_process_unidic_particles(items):
     }
     misread_kanjis = {
         'ロ' : '口',  # katakana ro -> guchi
+        'タ' : '夕', # katakana ta -> yuu (evening)
     }
     for i in range(len(items)):
         for misread_letter,correct_letter in misread_characters.items():
@@ -1129,6 +1224,17 @@ def post_process_unidic_particles(items):
         if any(item.flags & REPROCESS for item in items):
             # do another round
             cont = True
+
+    for item in items:        
+        if verb_class in item.classes:# or aux_verb_class in item.classes:
+            # add alt form for ぬ -> ない
+            # e.g. 知れぬ -> 知れない
+            if len(item.txt)>0 and item.txt[-1] == 'ぬ':
+                if item.ortho != '' and item.ortho[-1] != 'ぬ':
+                    alt = item.txt[:-1] + 'ない'
+                    item.alt_forms.append(alt)
+                    item.appendable_alt_forms.append(alt)
+
 
     inhibit_seqs(items)
 

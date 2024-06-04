@@ -117,7 +117,7 @@ with open(manga_metadata_file,"r",encoding="utf-8") as f:
         title_name = t['entit']
         title_years[title_id] = t['Release']
         title_names[title_id] = title_name
-        title_name_to_id[title_name] = title_id
+        title_name_to_id[title_name.lower()] = title_id
 
 
 with open(manga_data_file,"r",encoding="utf-8") as f:
@@ -130,12 +130,13 @@ with open(manga_data_file,"r",encoding="utf-8") as f:
 
 
 def get_title_id(item):
+    item = item.lower()
     if item in title_name_to_id.keys():
         return title_name_to_id[item]
     if item in title_names.keys():
         # the item is in fact the title id
         return item
-    raise Exception("unknown manga title/id %d" % item)
+    raise Exception("unknown manga title/id %s" % str(item))
 
 
 def show(args):

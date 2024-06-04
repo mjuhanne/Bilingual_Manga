@@ -12,7 +12,6 @@ from bm_learning_engine_helper import *
 metadata_cache_file = base_dir + "json/metadata_cache.json"
 learning_data_filename = base_dir + 'lang/user/learning_data.json'
 learning_data = dict()
-counter_word_ids = dict()
 
 if len(sys.argv)>2:
     chapter_id = sys.argv[1]
@@ -20,7 +19,7 @@ if len(sys.argv)>2:
 else:
     #raise Exception("Input and output files not given!")
     #input_file_name = "parsed_ocr/bafybeie5tsllsjaequc65c3enuusqili743xwyg4744v4zmcgqqhm5dqvu.json"
-    chapter_id ="QmVQdJevsvmScYo3eEr2tRuXKynS7NWjagkjK5eSm9QiRt"
+    chapter_id ="bafybeiepscsbazdxxpiaerafmskwz4xzu4wknh2h76q64m423ochfjmmaq"
     output_file_name = "test.json"
 
 input_file_name = "parsed_ocr/" + chapter_id + ".json"
@@ -99,34 +98,6 @@ def get_chapter_info(event_metadata):
     return comment
 
 
-def load_counter_word_ids():
-    global counter_word_ids
-    with open(counter_word_id_file,"r",encoding="utf-8") as f:
-        data = f.read()
-        lines = data.split('\n')
-        for line in lines:
-            d = line.split('\t')
-            if len(d)>1:
-                word_id = d[0]
-                k_elem = d[1]
-                counter_word_ids[k_elem] = word_id
-    #print("Counter word id file doesn't exist")
-
-
-def get_possible_counter_word_id(word_id):
-    seq,_,word = get_word_id_components(word_id)
-    i = 0
-    while i<len(word) and is_numerical(word[i]):
-        i += 1
-    if i > 0:
-        root_word = word[i:]
-        if root_word in counter_word_ids:
-            return counter_word_ids[root_word]
-    else:
-        if word[0] == '第':
-            return counter_word_ids['第']
-    return word_id
-
 def get_word_id_stage_and_history(word_id):
     stage = STAGE_UNKNOWN
     history = []
@@ -172,9 +143,9 @@ def get_user_set_words_by_seq(target_seq):
             wid_history[wid] = history
     return wid_history
 
-def pretty_print_word_history(word_id,stage,history,last_history_from_user):
+def pretty_print_word_history(ref,word_id,stage,history,last_history_from_user):
 
-    print("%s [%s]" % (word_id, learning_stage_labels[stage].upper()))
+    print("%d : %s [%s]" % (ref, word_id, learning_stage_labels[stage].upper()))
     if last_history_from_user:
         print("\t(last from user)")
     for h in history:
@@ -250,6 +221,9 @@ def create_interactive_ocr(input_file, output_file):
 
                         if debug_this_block and j == 0 and len(word_id_refs)>0:
                             debug_refs.update([word_id_refs[0]])
+                            print("Debugging ",lex_item)
+                            for ref in word_id_refs:
+                                print("\t%d:%s" %(ref,pages['parsed_data']['word_id_list'][ref]))
                         item_i += 1
 
                 block['lines'][i] = new_line
@@ -271,7 +245,7 @@ def create_interactive_ocr(input_file, output_file):
             stage, history, last_history_from_user = get_word_id_stage_and_history(word_id)
 
             if i in debug_refs:
-                pretty_print_word_history(word_id,stage,history,last_history_from_user)
+                pretty_print_word_history(i,word_id,stage,history,last_history_from_user)
 
             root_word_id = get_possible_counter_word_id(word_id)
 
@@ -280,7 +254,7 @@ def create_interactive_ocr(input_file, output_file):
 
                 root_stage, root_history, root_last_history_from_user = get_word_id_stage_and_history(root_word_id)
                 if i in debug_refs:
-                    pretty_print_word_history(root_word_id,root_stage,root_history,root_last_history_from_user)
+                    pretty_print_word_history(i,root_word_id,root_stage,root_history,root_last_history_from_user)
 
                 overwrite = False
                 if root_stage > stage:

@@ -550,6 +550,18 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "げ", 
+        "Tense" : "Seems"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "げな", 
+        "Tense" : "Seems+Prenominal"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Suffix" : "だ", 
         "Tense" : "Non-past"
       },
@@ -1316,6 +1328,18 @@
       {
         "Formal" : false, 
         "Negative" : false, 
+        "Suffix" : "げ", 
+        "Tense" : "Seems"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
+        "Suffix" : "げな", 
+        "Tense" : "Seems+Prenominal"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : false, 
         "Suffix" : "し", 
         "Tense" : "Non-past"
       },
@@ -1745,7 +1769,8 @@
         "Formal" : false, 
         "Negative" : false, 
         "Suffix" : "そう", 
-        "Tense" : "Seems"
+        "Tense" : "Seems",
+        "Conditions" : ["not_after_te"]
       },
       {
         "Formal" : false, 

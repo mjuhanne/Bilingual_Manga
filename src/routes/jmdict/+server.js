@@ -97,6 +97,8 @@ function get_word_info(seq_list) {
 
         selected_info[seq]['seq_order'] = seq_frequency['sorted_freq_list'].indexOf(seq_int);
         selected_info[seq]['seq_count'] = seq_frequency['seq_count'][seq];
+        selected_info[seq]['priority_seq_order'] = seq_frequency['sorted_priority_freq_list'].indexOf(seq_int);
+        selected_info[seq]['priority_seq_count'] = seq_frequency['priority_seq_count'][seq];
         console.log(seq + ": "+JSON.stringify(selected_info[seq]));
     }
     return selected_info;

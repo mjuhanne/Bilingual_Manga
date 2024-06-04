@@ -157,7 +157,7 @@ async function getSuggestedPreread(manga_id) {
             error_message : "Language analysis settings not yet configured!",
         }    
     }
-    console.log(`getSuggestedPreread ${manga_id} timestamp ${db['user_data']['timestamp']}`);
+    console.log(`getSuggestedPreread ${manga_id} user data timestamp ${db['user_data']['timestamp']}`);
     let preread_dir = 'lang/suggested_preread/';
     if (!fs.existsSync(preread_dir)) {
         fs.mkdirSync(preread_dir, { recursive: true });
@@ -177,6 +177,7 @@ async function getSuggestedPreread(manga_id) {
         if (json_data.timestamp < db['user_data']['timestamp']) {
             console.log("Recalculating suggested preread")
         } else {
+            console.log("Suggested preread already up to date")
             stale = false;
         }
     }

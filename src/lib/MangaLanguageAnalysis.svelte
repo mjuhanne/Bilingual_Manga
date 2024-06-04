@@ -189,7 +189,12 @@ const colorizeDifference = (a,b) => {
                 <th>Next unread volume(chapter)</th>
             </tr>
             <tr>
-                <th>Comprehension %</th>
+                <th>Comprehensible input %</th>
+                <td>{meta.comprehensible_input_pct}</td>
+                <td>{meta.comprehensible_input_pct_next_ch}</td>
+            </tr>
+            <tr>
+                <th>Known words %</th>
                 <td>{current_set.pct_known_words}</td>
                 <td>{current_set.pct_known_words_next_ch}</td>
             </tr>

@@ -15,7 +15,9 @@ let common_sort_options = {
     'Total words': { s:'total_statistics', field: 'num_words',     is_value:true, subheading_template:'_ words', rev:true },
     'Words/page': { s:'total_statistics', field: 'w_per_p',       is_value:true, subheading_template:'_ words/page', rev:true },
     'Kanji/word': { s:'total_statistics', field: 'k_per_w_pct',  is_value:true, subheading_template:'Kanjis/word _ %', rev:true },
-    'Comprehension': { s:'total_statistics', field: 'pct_known_words',  is_value:true, subheading_template:'Comprehension _ %', rev:true },
+    'Comp input pct': { s:'', field: 'comprehensible_input_pct',  is_value:true, subheading_template:'CI _ %', rev:true },
+    'Comp input next ch pct': { s:'', field: 'comprehensible_input_pct_next_ch',  is_value:true, subheading_template:'CI _ %', rev:true },
+    'Known w %': { s:'total_statistics', field: 'pct_known_words',  is_value:true, subheading_template:'Known w _ %', rev:true },
     'Next chp comp': { s:'total_statistics', field: 'pct_known_words_next_ch',  is_value:true, subheading_template:'Next chapter comp _ %', rev:true },
     'Next chp unkn words': { s:'unique_statistics', field: 'num_unknown_words_next_ch',  is_value:true, subheading_template:'_ unk w in next chp', rev:true },
     'JLPT improvement': { s:'', field: 'jlpt_improvement_pts',  is_value:true, subheading_template:'_ pts', rev:true },
@@ -46,37 +48,41 @@ let sort_options = {
     ...suggested_preread_sort_options,
 }
 
-export const sortManga = (x, sort_criteria, sort_reverse) => {
+const getSortValue = (x, key, sort_criteria) => {
+    let sort_value = undefined;
+    if(sort_criteria=='Newly added'){
+        sort_value = x[key];
+    } else {
+        let sc = sort_options[sort_criteria];
+        if (sc.s != '') {
+            // sort value is in sub-dictionary
+            if (sc.s in x[key]) {
+                if (sc.field in x[key][sc.s]) {
+                    sort_value = x[key][sc.s][ sc.field ];
+                }
+            }
+        } else {
+            if (sc.field in x[key]) {
+                sort_value = x[key][ sc.field ];
+            }
+        }
+        if (sort_value === undefined) {
+            if ( sort_options[sort_criteria].is_value) {
+                sort_value = -1;
+            } else {
+                sort_value = '-';
+            }
+        }
+    }
+    return sort_value;
+}
+
+export const sortManga = (x, sort_criteria, sort_reverse, extra_label) => {
     let sorted_manga_list = [];
 
     // Create items array with a sort value corresponding to selected sort criteria
     var manga_by_criteria = Object.keys(x).map(function(key) {
-        let sort_value = undefined;
-        if(sort_criteria=='Newly added'){
-            sort_value = x[key];
-        } else {
-            let sc = sort_options[sort_criteria];
-            if (sc.s != '') {
-                // sort value is in sub-dictionary
-                if (sc.s in x[key]) {
-                    if (sc.field in x[key][sc.s]) {
-                        sort_value = x[key][sc.s][ sc.field ];
-                    }
-                }
-            } else {
-                if (sc.field in x[key]) {
-                    sort_value = x[key][ sc.field ];
-                }
-            }
-            if (sort_value === undefined) {
-                if ( sort_options[sort_criteria].is_value) {
-                    sort_value = -1;
-                } else {
-                    sort_value = '-';
-                }
-            }
-        }
-        return [key, sort_value ];   
+        return [key, getSortValue(x,key,sort_criteria)];
     });
  
     let reverse = sort_reverse ^ sort_options[sort_criteria].rev;
@@ -116,6 +122,17 @@ export const sortManga = (x, sort_criteria, sort_reverse) => {
         sorted_manga_list[i]['sort_value'] = String(sort_value);
         sorted_manga_list[i]['subheading'] = 
             sort_options[sort_criteria].subheading_template.replace('_', String(sort_value));
+
+        if (extra_label != 'None') {
+            let label_value = getSortValue(x,idx,extra_label);
+            if ((label_value == -1) || (sort_value == '-')) {
+                label_value = "NA";
+            }
+            sorted_manga_list[i]['subheading2'] = 
+                sort_options[extra_label].subheading_template.replace('_', String(label_value));
+        } else {
+            sorted_manga_list[i]['subheading2'] = '';
+        }
     }
     return sorted_manga_list;
 };

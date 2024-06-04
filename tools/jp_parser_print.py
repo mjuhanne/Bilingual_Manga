@@ -9,6 +9,9 @@ word_flag_to_str = {
     START_OF_SCAN_DISABLED : "DIS_START",
     #MERGE_PARTICLE : ''
     DISABLE_ORTHO : "DIS_ORTHO",
+    SCAN_WITH_LEMMA : 'SCAN_W_LEMMA',
+    BIND_TO_PREVIOUS_ITEM_IF_LEFT_UNTETHERED : "BIND_UNTET",
+    ANY_CLASS : "ANY_CLASS",
 }
 def flags_to_str(word_flag):
     return ' '.join([word_flag_to_str[key] for key in word_flag_to_str.keys() if word_flag & key])
@@ -36,12 +39,6 @@ def pretty_print_lexical_item(item):
     if verb_class in cll and item.details is not None:
         unidic_verb_conj = item.details[5]
 
-    appendable_alt_forms = [alt_form + '+' for alt_form in item.appendable_alt_forms]
-    non_ending_alt_forms = [alt_form + '_' for alt_form in item.non_ending_alt_forms]
-    other_alt_forms = [alt_form for alt_form in item.alt_forms if alt_form not in item.appendable_alt_forms and alt_form not in item.non_ending_alt_forms]
-    alt_forms = appendable_alt_forms + non_ending_alt_forms + other_alt_forms
-    alt_forms_str = '/'.join(alt_forms)
-
     if item.color is not None:
         col_start = item.color
         col_end = bcolors.ENDC
@@ -49,10 +46,23 @@ def pretty_print_lexical_item(item):
         col_start = ''
         col_end = ''
 
-    print("%s %s%s %s %s%s %s %s %s %s %s" % ( 
-        flags_to_str(item.flags).ljust(10), col_start, item.txt.ljust(6,'　'), ortho.ljust(6,'　'), alt_forms_str.ljust(6,'　'), col_end,
+    print("%s %s%s %s (%s)  %s%s %s %s %s %s" % ( 
+        flags_to_str(item.flags).ljust(10), col_start, item.txt.ljust(6,'　'), ortho.ljust(6,'　'), str(item.base_score).rjust(2), col_end,
         cl_str, cl_meaning_str, flags, unidic_verb_conj, conjugation)
     )
+    for alt_form in item.alt_forms:
+        score = item.base_score
+        if alt_form in item.alt_scores:
+            score = item.alt_scores[alt_form]
+        if alt_form in item.alt_form_flags:
+            flags_str = flags_to_str(item.alt_form_flags[alt_form])
+        else:
+            flags_str = ''
+        if alt_form in item.appendable_alt_forms:
+            alt_form += '+'
+        if alt_form in item.non_ending_alt_forms:
+            alt_form += '_'
+        print("\t\t   ALT: %s  (%d) %s" % (alt_form.ljust(6,'　'),score,flags_str))
 
 def print_scanning_results(jlines, scores, results, ud_items):
     item_idx = 0

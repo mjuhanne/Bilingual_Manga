@@ -3,11 +3,11 @@ import os
 import hashlib
 
 # Other tools depend on the right format of the parsed OCR and summary files..
-CURRENT_PARSED_OCR_VERSION = 4
+CURRENT_PARSED_OCR_VERSION = 7
 CURRENT_OCR_SUMMARY_VERSION = 5
 CURRENT_METADATA_CACHE_VERSION = 2
 # .. whereas older language parser works but may not have parsed all the words as efficiently
-CURRENT_LANUGAGE_PARSER_VERSION = 7
+CURRENT_LANUGAGE_PARSER_VERSION = 8
 
 AVERAGE_PAGES_PER_VOLUME = 180
 
@@ -90,7 +90,7 @@ _manga_data = dict()
 
 full_width_alpha_characters = "ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ％"
 full_width_numeric_characters = "０１２３４５６７８９"
-numerics = list('一二三四五六七八九十百億') + list(full_width_numeric_characters)
+numerics = list('一二三四五六七八九十百万億') + list(full_width_numeric_characters)
 
 class bcolors:
     HEADER = '\033[95m'
@@ -160,8 +160,14 @@ def read_manga_data():
         _manga_data = json.loads(data)
         for m in _manga_data:
             title_id = m['_id']['$oid']
-            chapter_ids = m['jp_data']['ch_jph']
-            chapter_ids = [cid.split('/')[0] for cid in chapter_ids]
+
+            _chapter_ids = m['jp_data']['ch_jph']
+            _chapter_ids = [cid.split('/')[0] for cid in _chapter_ids]
+            chapter_ids = []
+            for cid in _chapter_ids:
+                if cid not in chapter_ids:
+                    chapter_ids.append(cid)
+
             pages = m['jp_data']['ch_jp']
             _title_chapters[title_id] = chapter_ids
             chapter_names = m['jp_data']['ch_najp']

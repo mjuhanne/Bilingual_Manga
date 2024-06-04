@@ -3,6 +3,7 @@ from helper import *
 
 _user_settings = dict()
 _learning_settings = dict()
+_counter_word_ids = dict()
 
 def read_user_settings():
     global _user_settings, _learning_settings
@@ -44,3 +45,41 @@ def get_stage_by_frequency_and_class(item_type, freq, class_list):
         elif freq >= _learning_settings['learning_kanji_threshold']:
             return STAGE_LEARNING
     return STAGE_UNFAMILIAR
+
+def load_counter_word_ids():
+    global _counter_word_ids
+    if os.path.exists(counter_word_id_file):
+        with open(counter_word_id_file,"r",encoding="utf-8") as f:
+            data = f.read()
+            lines = data.split('\n')
+            for line in lines:
+                d = line.split('\t')
+                if len(d)>1:
+                    word_id = d[0]
+                    word_id = strip_sense_from_word_id(word_id)
+                    k_elem = d[1]
+                    _counter_word_ids[k_elem] = word_id
+    else:
+        print("Counter word id file doesn't exist")
+
+
+def get_possible_counter_word_id_from_word(word):
+    i = 0
+    while i<len(word) and is_numerical(word[i]):
+        i += 1
+    if i > 0:
+        root_word = word[i:]
+        if root_word in _counter_word_ids:
+            return _counter_word_ids[root_word]
+    else:
+        if word[0] == '第':
+            return _counter_word_ids['第']
+    return None
+
+def get_possible_counter_word_id(word_id):
+    seq,_,word = get_word_id_components(word_id)
+    wid = get_possible_counter_word_id_from_word(word)
+    if wid is None:
+        return word_id
+    return wid
+

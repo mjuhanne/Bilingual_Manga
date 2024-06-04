@@ -247,11 +247,11 @@ function colorizeStage(stage) {
                 <table class="knowledge-table" class:settings_changed={jlpt_settings_changed}>
                     <tr>
                         <th>Unique known words</th>
-                        <td>{known_word_stats.num_unique_jlpt_words}</td>
+                        <td>{known_word_stats.num_unique_known_jlpt_base_words}</td>
                     </tr>
                     <tr>
                         <th>Unique known kanjis</th>
-                        <td>{known_word_stats.num_unique_jlpt_kanjis}</td>
+                        <td>{known_word_stats.num_unique_known_jlpt_base_kanjis}</td>
                     </tr>
                 </table>
             </div>

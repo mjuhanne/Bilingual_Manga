@@ -16,7 +16,8 @@
             ["樹多","きだ","Kida","n",1],
             ["夜神","やがみ","Yagami","n",1],
             ["模木","もぎ","Mogi","n",1],
-            ["南空","みそら","Misora","n",1]
+            ["南空","みそら","Misora","n",1],
+            ["デスノート","デスノート","Death Note","n",1]
         ]
     },
     "Master Keaton" : {
@@ -41,6 +42,17 @@
         "word_id_score_adjustment" : {
             "5086156:モトコ" : 600
         }
+    },
+    "Machida" : {
+        "word_id_score_adjustment" : {
+            "5525607:町田" : 100,
+            "5522776:猪原" : 100
+        }
+    },
+    "Chi no Wadachi" : {
+        "word_id_score_adjustment" : {
+            "5528575:長部" : 100
+        }
     }
-
+    
 }

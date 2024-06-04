@@ -14,9 +14,10 @@ processed_chapter_count = 0
 processed_title_count = 0
 
 seq_count = dict()
+priority_seq_count = dict()
 
 def process_chapter(fo_p):
-    global seq_count
+    global seq_count, priority_seq_count
 
     if not os.path.exists(fo_p):
         return
@@ -31,12 +32,13 @@ def process_chapter(fo_p):
         blocks = pages[key]
         for block in blocks:
             seqs = set()
+            priority_seqs = set()
             for jl in block['jlines']:
                 for part in jl:
                     refs = next(iter(part.values()))
                     p = next(iter(part.keys()))
 
-                    for ref in refs:
+                    for i,ref in enumerate(refs):
                         wid = pages['parsed_data']['word_id_list'][ref]
                         seq, word = get_seq_and_word_from_word_id(wid)
 
@@ -44,11 +46,19 @@ def process_chapter(fo_p):
                         if freq < 99 or has_cjk(word) or len(word)>2:
                             seqs.update([seq])
 
+                        if i == 0:
+                            priority_seqs.update([seq])
+
             for seq in seqs:
                 if seq not in seq_count:
                     seq_count[seq] = 1
                 else:
                     seq_count[seq] += 1
+            for seq in priority_seqs:
+                if seq not in priority_seq_count:
+                    priority_seq_count[seq] = 1
+                else:
+                    priority_seq_count[seq] += 1
         
 
         pass
@@ -85,7 +95,10 @@ def process_chapters():
 
         sorted_seqs = dict(sorted(seq_count.items(), key=lambda x:x[1], reverse=True))
         sorted_seqs = list(sorted_seqs.keys())  
-        d = {'seq_count':seq_count,'sorted_freq_list':sorted_seqs}
+
+        sorted_priority_seqs = dict(sorted(priority_seq_count.items(), key=lambda x:x[1], reverse=True))
+        sorted_priority_seqs = list(sorted_priority_seqs.keys())  
+        d = {'priority_seq_count':priority_seq_count,'seq_count':seq_count,'sorted_priority_freq_list':sorted_priority_seqs,'sorted_freq_list':sorted_seqs}
         o_f = open("lang/seq_count.json","w",encoding="utf-8")
         json_data = json.dumps(d,  ensure_ascii = False)
         o_f.write(json_data)

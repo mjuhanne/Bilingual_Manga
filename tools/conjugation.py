@@ -8,6 +8,8 @@ adj_conjugations = []
 conjugations_dict = dict()
 
 def is_item_allowed_for_conjugation(item):
+    if item.explicitly_allow_conjugation:
+        return True
     if verb_class in item.classes or aux_verb_class in item.classes:
         return True
     if gp_class in item.classes or adjectival_noun_class in item.classes:
@@ -60,11 +62,15 @@ def attempt_conjugation(pos, items, inflection, conj_class, rec_level=0):
             if 'Conditions' in details:
                 if 'not_end_of_clause' in details['Conditions']:
                     if items[pos].end_of_clause:
-                        LOG(3,print_prefix + "skipped conj %s (%s) at pos %d because EOC" % (suffix,tense,pos))
+                        LOG(3,print_prefix + "skipped conj %s (%s) at pos %d because EOC" % (suffix,tense,pos),type='conjugation')
+                        continue
+                if 'not_after_te' in details['Conditions']:
+                    if pos > 0 and len(items[pos-1].txt)>0 and items[pos-1].txt[-1] == 'て':
+                        LOG(3,print_prefix + "skipped conj %s (%s) at pos %d because after TE" % (suffix,tense,pos),type='conjugation')
                         continue
             if 'Invalid_Original_Words' in details:
                 if items[pos].txt in details['Invalid_Original_Words']:
-                    LOG(3,print_prefix + "skipped conj %s (%s) at pos %d because invalid original word %s" % (suffix,tense,pos,items[pos].txt))
+                    LOG(3,print_prefix + "skipped conj %s (%s) at pos %d because invalid original word %s" % (suffix,tense,pos,items[pos].txt),type='conjugation')
                     continue
 
 
@@ -85,7 +91,7 @@ def attempt_conjugation(pos, items, inflection, conj_class, rec_level=0):
                             else:
                                 next_inflection = infl_cand[len(next_type_suffix):]
                                 stem = next_type_suffix
-                            LOG(2,print_prefix + "Conjugate %s with %s (%s) %s " % (infl_cand,tense,next_type_suffix,get_jmdict_pos_code(next_type)))
+                            LOG(2,print_prefix + "Conjugate %s with %s (%s) %s " % (infl_cand,tense,next_type_suffix,get_jmdict_pos_code(next_type)),type='conjugation')
                             attempted_next_types.add(next_type)
                             sub_conj_item_count, sub_conj_len, sub_conjs = attempt_conjugation(pos+i,items,next_inflection,next_type, rec_level+1)
                             conj_len = len(stem) + sub_conj_len
@@ -98,7 +104,7 @@ def attempt_conjugation(pos, items, inflection, conj_class, rec_level=0):
                                     max_conj_item_count = i + sub_conj_item_count
                                     max_conj_len = conj_len
                                     max_conj_list = [(next_type,next_type_suffix,tense)] + sub_conjs
-                                    LOG(1,print_prefix + "match (%d)" % conj_len + str(max_conj_list))
+                                    LOG(1,print_prefix + "match (%d)" % conj_len + str(max_conj_list),type='conjugation')
                                     pass
                             """
                             elif infl_cand == next_type_suffix:
@@ -115,7 +121,7 @@ def attempt_conjugation(pos, items, inflection, conj_class, rec_level=0):
                             max_conj_item_count = i
                             max_conj_len = len(infl_cand)
                             max_conj_list = [('',suffix,tense)]
-                            LOG(1,print_prefix + "match (%d) " % max_conj_len + str(max_conj_list))
+                            LOG(1,print_prefix + "match (%d) " % max_conj_len + str(max_conj_list),type='conjugation')
                             #print(max_conj_list)
 
                 found = False
@@ -146,30 +152,30 @@ def attempt_conjugation(pos, items, inflection, conj_class, rec_level=0):
                             for candidate in preliminary_candidates:
                                 if candidate in suffix and suffix.index(candidate)==0:
                                     # there is full match or we can continue building up the suffix
-                                    LOG(3,print_prefix + "item %d:%s preliminary match with %s (%s)" % (pos,candidate,suffix,tense))
+                                    LOG(3,print_prefix + "item %d:%s preliminary match with %s (%s)" % (pos,candidate,suffix,tense),type='conjugation')
                                     inflection_candidates.append(candidate)
                                 elif next_type is not None and next_type not in attempted_next_types:
 
                                     # TODO: is suffix here ot nexT_type_suffix ??
                                     if candidate in next_type_suffix and suffix.index(candidate)==0:
-                                        LOG(3,print_prefix + "item %d:%s preliminary match with next type suffix %s (%s)" % (pos,candidate,next_type_suffix,tense))
+                                        LOG(3,print_prefix + "item %d:%s preliminary match with next type suffix %s (%s)" % (pos,candidate,next_type_suffix,tense),type='conjugation')
                                         inflection_candidates.append(candidate)
                                     elif next_type_suffix == '':
-                                        LOG(3,print_prefix + "item %d:%s matches empty next type suffix (%s)" % (pos,candidate,tense))
+                                        LOG(3,print_prefix + "item %d:%s matches empty next type suffix (%s)" % (pos,candidate,tense),type='conjugation')
                                         inflection_candidates.append(candidate)
                                     elif next_type_suffix in candidate and candidate.index(next_type_suffix)==0:
                                         # there is a full match for the next type suffix OR
                                         # it was too long, but we push the surplus to the next recursion
-                                        LOG(3,print_prefix + "item %d:%s overly matches next type suffix %s (%s)" % (pos,candidate,next_type_suffix,tense))
+                                        LOG(3,print_prefix + "item %d:%s overly matches next type suffix %s (%s)" % (pos,candidate,next_type_suffix,tense),type='conjugation')
                                         inflection_candidates.append(candidate)
                             i += 1
                             if len(inflection_candidates)>0:
                                 found = True
 
                             if not found:
-                                LOG(2,print_prefix + "items %d:%s no match for %s/%s (%s)" % (pos,str(preliminary_candidates),suffix,next_type_suffix,tense))
+                                LOG(2,print_prefix + "items %d:%s no match for %s/%s (%s)" % (pos,str(preliminary_candidates),suffix,next_type_suffix,tense),type='conjugation')
                     else:
-                        LOG(3,print_prefix + "item %d:%s not allowed for conjugation" % (pos+i,item.txt))
+                        LOG(3,print_prefix + "item %d:%s not allowed for conjugation" % (pos+i,item.txt),type='conjugation')
                         pass
 
                 #if (len(inflection_candidates) == 0) or ((next_type is None or next_type in attempted_next_types) and len(v_str)>len(suffix)):

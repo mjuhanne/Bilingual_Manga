@@ -113,7 +113,7 @@ def process_chapter(f_p, fo_p, chapter_data):
 
                 if args['parse'] or args['jmdparse'] or args['item']:
 
-                    kc, ud_items = \
+                    kc, ud_items, _ = \
                         parse_block_with_unidic(lines, kanji_count)
 
                     ud_items = \
@@ -190,12 +190,6 @@ def check_chapters(args):
             process_chapter(input_ocr_file, parsed_ocr_filename, chapter_data)
 
 
-init_parser(load_meanings=True)
-
-read_manga_metadata()
-read_manga_data()
-
-
 parser = argparse.ArgumentParser(
     prog="search OCR files for text or lexical elements",
     description="",
@@ -220,6 +214,13 @@ if args['class'] is not None:
     if selected_class is None:
         print("No such class found!")
         exit(1)
+
+init_parser(load_meanings=True)
+
+read_manga_metadata()
+read_manga_data()
+
+
 
 #args['keyword'] = 'んなくちゃ'
 #args['title'] = 'hina'

@@ -31,6 +31,8 @@ let wide_dialog = false;
 $: {
     if (dialog && showModal) {
         detected_senses_by_seq = {}
+        learning_stage_by_seq = {}
+        word_by_seq = {}
         seq_list = [];
         for (let widx of word_id_index_list) {
             let word_id = word_id_list[widx];
@@ -141,8 +143,11 @@ async function set_priority_word_manually() {
                         </tr>
                         {/if}
                         <tr style="background:{learning_stage_colors[learning_stage_by_seq[seq]]}">
-                            <td>{word_info_by_seq[seq]['readings']}</td>
-                            <td>{seq} (#{word_info_by_seq[seq]['seq_order']}:{word_info_by_seq[seq]['seq_count']})</td>
+                            <td>{word_info_by_seq[seq]['readings']}</td><td>{seq}</td>
+                        </tr>
+                        <tr style="background:{learning_stage_colors[learning_stage_by_seq[seq]]}">
+                            <td>PRI #{word_info_by_seq[seq]['priority_seq_order']}:{word_info_by_seq[seq]['priority_seq_count']}</td>
+                            <td>ALL #{word_info_by_seq[seq]['seq_order']}:{word_info_by_seq[seq]['seq_count']}</td>
                         </tr>
                         {#if word_info_by_seq[seq]['priority_tags'].length>0}
                             <tr style="background:{learning_stage_colors[learning_stage_by_seq[seq]]}">

@@ -268,7 +268,7 @@ def get_jmdict_reading_set():
     return _readings_set_by_len, _reading_seq, _max_reading_len
 
 def is_jmnedict(seq):
-    return seq >= 5000000
+    return seq >= 5000000 and seq <= 10000000
 
 def search_sequences_by_word(word, only_jmdict=True):
     if len(word)>_max_kanji_element_len or len(word)>_max_reading_len:
@@ -312,6 +312,8 @@ def get_combined_seq_frequency(seq):
     return min(_kanji_element_freq[seq],_reading_freq[seq])
 
 def get_frequency_by_seq_and_word(seq,word):
+    if seq not in _elem_freq:
+        return 100
     if word in _elem_freq[seq]:
         return _elem_freq[seq][word]
     if is_katakana_word(word):
@@ -338,7 +340,9 @@ def get_kanji_elements_by_seq(seq):
     return _kanji_elements_by_seq[seq]
 
 def get_readings_by_seq(seq):
-    return _readings_by_seq[seq]
+    if seq in _readings_by_seq:
+        return _readings_by_seq[seq]
+    return []
 
 def get_common_priority_tags(seq):
     raise Exception("TODO")
@@ -389,8 +393,7 @@ def jmdict_add_custom_word(seq,k_elem,r_elem,meaning,cl,freq):
     _pri_tags[seq] = []
     _flat_class_list[seq] = [cl]
     _class_list_per_sense[seq] = [[cl]]
-    _elem_freq[seq] = {k_elem:freq}
-    _elem_freq[seq] = {r_elem:freq}
+    _elem_freq[seq] = {k_elem:freq, r_elem:freq}
     _kanji_elements_by_seq[seq] = [k_elem]
     _readings_by_seq[seq] = [r_elem]
 
