@@ -1,0 +1,3 @@
+[submodule "lang/jlpt-vocab"]
+	path = lang/jlpt-vocab
+	url = https://github.com/mjuhanne/yomichan-jlpt-vocab

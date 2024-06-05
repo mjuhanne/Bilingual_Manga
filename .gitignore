@@ -1,0 +1,17 @@
+/node_modules/
+/.svelte-kit/
+/ipfs
+/manga_cover
+/ocr
+/parsed_ocr
+/wp-content
+/json/admin.*
+.vscode/
+.DS_Store
+/lang/*
+!jlpt_*
+!Conju*
+!counter_word_ids*
+!ratings.json
+/tools/__pycache__/
+/json/

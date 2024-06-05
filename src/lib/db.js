@@ -1,5 +1,6 @@
 import fetch from 'node-fetch'
 import { AugmentMetadataWithUserData, AugmentMetadataWithCustomLanguageSummary, checkUserData } from '$lib/UserDataTools.js'
+console.log("Loading data files..")
 const response = await fetch('http://localhost:3300/json/admin.manga_metadata.json')
 if (!response.ok) {
     throw new Error("admin.manga_metadata.json not found! Please install the metadata files and restart the server")
@@ -24,11 +25,11 @@ if (response_cl.ok) {
 }
 
 let user_set_words = {}
-const response_usw = await fetch('http://localhost:3300/json/user_set_words.json')
+const response_usw = await fetch('http://localhost:3300/json/user_set_word_ids.json')
 if (response_usw.ok) {
     user_set_words = await response_usw.json();
 } else {
-    console.log("User set words file not yet created")
+    console.log("User set word ids file not yet created")
 }
 
 let user_data;
@@ -40,6 +41,8 @@ if (response_ud.ok) {
     user_data = {}
 }
 checkUserData(user_data);
+
+console.log("Loading data files complete!")
 
 const AugmentMetadataWithRatings = (db) => {
     let manga_titles = db['manga_metadata']['0'].manga_titles;

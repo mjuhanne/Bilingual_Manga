@@ -44,6 +44,7 @@
 	let ocrbor="no_border";
 	let ocroff=false;
 	let ocron=false;
+	let edit_mode=false;
 	
 	$:j=0;
 	$: langds=lang==="JP"?"ENG":"JP";
@@ -360,17 +361,19 @@
 
 
 	const handleKeydown=(e)=>{		
-		let key = e.key;
-		if(key=="ArrowRight")
-		{
-			incdec(true);
-		}
-		else if(key=="ArrowLeft")
-		{
-			incdec(false);
-		} else if(key=='l') {
-			change();
-		}
+		if (!edit_mode) {
+			let key = e.key;
+			if(key=="ArrowRight")
+			{
+				incdec(true);
+			}
+			else if(key=="ArrowLeft")
+			{
+				incdec(false);
+			} else if(key=='l') {
+				change();
+			}
+			}
 		}
 
 const sli1=()=>{
@@ -422,28 +425,28 @@ for(let ixxx=0;ixxx<=prel;ixxx++)
 	<div id="twoxholder" style="display:flex;justify-content:center;margin:auto;max-height:100vh;max-width:95vw;">
 	<span>
 	<img id="ch-i1" src="/loader.svg" alt="ch-i1" style="margin-left:auto;max-width:47vw;" on:load={img_wid1} on:error={img_wid}/>
-	<Ocr {id} {cid} bind:page_jp={jpp[0]} ocr1={ocr} src={src_o1} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
+	<Ocr {id} {cid} bind:edit_mode={edit_mode} bind:page_jp={jpp[0]} ocr1={ocr} src={src_o1} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
 	</span>
 	<span>
 	<img id="ch-i" src="/loader.svg" alt="ch-i" style="margin-right:auto;max-width:47vw;" on:load={img_wid1} on:error={img_wid}/>
-	<Ocr {id} {cid} bind:page_jp={jpp[0]} ocr1={ocr} src={src_o} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
+	<Ocr {id} {cid} bind:edit_mode={edit_mode} bind:page_jp={jpp[0]} ocr1={ocr} src={src_o} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
 	</span>
 	</div>
 	{:else}
 	<div id="twoxholder" style="display:flex;justify-content:center;margin:auto;max-height:100vh;max-width:95vw;">
 		<span>
 		<img id="ch-i" src="/loader.svg" alt="ch-i" style="margin-right:auto;max-width:47vw;" on:load={img_wid1} on:error={img_wid}/>
-		<Ocr {id} {cid} bind:page_jp={jpp[0]} ocr1={ocr} src={src_o} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
+		<Ocr {id} {cid} bind:edit_mode={edit_mode} bind:page_jp={jpp[0]} ocr1={ocr} src={src_o} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
 		</span>
 		<span>
 		<img id="ch-i1" src="/loader.svg" alt="ch-i1" style="margin-left:auto;max-width:47vw;" on:load={img_wid1} on:error={img_wid}/>
-		<Ocr {id} {cid} bind:page_jp={jpp[0]} ocr1={ocr} src={src_o1} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
+		<Ocr {id} {cid} bind:edit_mode={edit_mode} bind:page_jp={jpp[0]} ocr1={ocr} src={src_o1} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
 		</span>
 		</div>
 	{/if}	
 	{:else}
 	<img id="ch-i" src="/loader.svg" alt="ch-i" style="margin:auto;" on:load={img_wid1} on:error={img_wid}/>
-	<Ocr {id} {cid} ocr1={ocr} bind:page_jp={jpp[0]} src={src_o} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
+	<Ocr {id} {cid} bind:edit_mode={edit_mode}  ocr1={ocr} bind:page_jp={jpp[0]} src={src_o} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
 	{/if}
 
 </div>

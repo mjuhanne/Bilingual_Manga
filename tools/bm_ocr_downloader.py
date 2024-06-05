@@ -19,14 +19,17 @@ def download(title_name,vol,volume_id):
     data = f.read()
     f.close()
     if '<head><title>404 Not Found</title></head>' in data:
-        print("404 error in downloaded file: %s volume %d [%s].." % (title_name, vol, volume_id))
+        print("*** 404 error in downloaded file: %s volume %d [%s].." % (title_name, vol, volume_id))
         return False
     try:
         volume_data = json.loads(data)
+        if len(volume_data.keys()) == 0:
+            print("*** Empty JSON in downloaded file: %s volume %d [%s].." % (title_name, vol, volume_id))
+            return False
         ocr_p = ocr_dir + volume_id + '.json'
 
     except:
-        print("Corrupt JSON in downloaded file: %s volume %d [%s].. Re-downloading.." % (title_name, vol, volume_id))
+        print("*** Corrupt JSON in downloaded file: %s volume %d [%s].." % (title_name, vol, volume_id))
         return False
     subprocess.run(['mv','temp',ocr_p])
     return True
@@ -59,9 +62,12 @@ def download_titles(keyword):
                 else:
                     try:
                         volume_data = json.loads(d)
-                        continue
+                        if len(volume_data.keys()) == 0:
+                            print("*** Empty JSON in existing file: %s volume %d [%s].. Re-downloading.." % (title_name, chapter, chapter_id))
+                        else:                        
+                            continue
                     except:
-                        print("Corrupt JSON in existing file: %s volume %d [%s].. Re-downloading.." % (title_name, chapter, chapter_id))
+                        print("*** Corrupt JSON in existing file: %s volume %d [%s].. Re-downloading.." % (title_name, chapter, chapter_id))
             
             print("Downloading %s [%d/%d]" % (title_name,chapter,len(chapters)))
             if not download(title_name, chapter, chapter_id):

@@ -4,6 +4,7 @@
   import { deserialize } from '$app/forms';
   import WordPopup from '$lib/WordPopup.svelte';
   import { learning_stage_colors, STAGE, SOURCE } from '$lib/LearningData.js';
+  import Edit_OCR_Dialog from '$lib/Edit_OCR_Dialog.svelte'
 
   export let id; // manga id
   export let cid; // chapter id
@@ -17,8 +18,7 @@
 
   let interactive_ocr = false;
   let colorize = false;
-  let word_list;
-  let word_class_list;
+  let word_id_list;
   let word_learning_stages;
   let word_history;
 
@@ -26,13 +26,14 @@
   let mounted = false;
   let page_ref = undefined;
 
-  let selected_word;
-  let selected_word_class;
-  let selected_word_stage;
-  let selected_word_history;
-  let selected_block; // OCR block number in current page
+  let selected_word_id_index_list;
+  let selected_block; // Selected OCR block number in current page
+  let selected_item_id; // OCR item in selected block
+  let selected_text; // Clicked item text
   let showModal;
   let hovered_block_id = -1;
+  export let edit_mode = false;
+  let edited_ocr_block = [];
 
   function hoverm(e) {
     let a = e.srcElement.children[0];
@@ -53,14 +54,17 @@
     }
     hovered_block_id = -1;
   }
+  $: console.log(hovered_block_id);
 
-  function clicked(word_id, block_id) {
+  function clicked(text, word_id_index_list, block_id, item_id) {
     selected_block = block_id;
-    selected_word = word_list[word_id];
-    selected_word_class = word_class_list[word_id];
-    selected_word_stage = word_learning_stages[word_id];
-    selected_word_history = word_history[word_id];
-    console.log("clicked " + JSON.stringify(selected_word));
+    selected_item_id = item_id;
+    selected_text = text;
+    selected_word_id_index_list = word_id_index_list;
+    console.log(`clicked block ${block_id} item ${item_id} [${text}]:`);
+    for (let idx of word_id_index_list) {
+      console.log(word_id_list[idx]);
+    }
     showModal = true;
   	}
 
@@ -75,13 +79,22 @@
       let all_known = true;
 
       for (let elem of word_elements) {
-        let wid = parseInt(elem.getAttribute("wid"));
-        let stage = word_learning_stages[wid];
-        if ( (stage != STAGE.NONE) && (stage != STAGE.IGNORED) ) {
-          if (stage != STAGE.KNOWN) {
-            all_known = false;
-            if (stage > highest_stage) {
-              highest_stage = stage;
+        let stage = STAGE.NONE;
+        // TODO: show the learning stage of other (than first) references by
+        // changing the border color
+        let word_id_index_list = getWordIdIndexList(elem);
+        if (word_id_index_list.length > 0) {
+          let widx = word_id_index_list[0];
+          stage = word_learning_stages[widx];
+          if (stage==STAGE.FORGOTTEN) {
+            console.log("Forgot" + word_id_list[widx] + ":" + elem.getAttribute("wil"));
+          }
+          if ( (stage != STAGE.NONE) && (stage != STAGE.IGNORED) ) {
+            if (stage != STAGE.KNOWN) {
+              all_known = false;
+              if (stage > highest_stage) {
+                highest_stage = stage;
+              }
             }
           }
         }
@@ -101,18 +114,23 @@
     }
   }
 
+  function setWordPopupToElementPosition(elem) {
+    var rect = elem.getBoundingClientRect();
+    ocr_root.querySelector('.popup-dialog').style.left = rect.left-70 + "px"; 
+    ocr_root.querySelector('.popup-dialog').style.top = rect.top-40 + "px";
+  }
+
   function setClickEventListeners() {
     let word_elements = ocr_root.querySelectorAll(".ocrtext1 span");
     for (let elem of word_elements) {
-      let word_id = elem.getAttribute("wid");
-      if (word_id != 0) {
+      let word_id_index_list = getWordIdIndexList(elem);
+      if (word_id_index_list.length > 0) {
         elem.addEventListener("click", (e) => {
           if (!showModal) { // prevent numerous click events
-            var rect = e.target.getBoundingClientRect();
-            ocr_root.querySelector('.popup-dialog').style.left = rect.left-70 + "px"; 
-            ocr_root.querySelector('.popup-dialog').style.top = rect.top-40 + "px";
+            setWordPopupToElementPosition(e.target);
             let block_id = parseInt(elem.parentElement.parentElement.getAttribute("block_id"));
-            clicked(word_id, block_id);
+            let item_id = parseInt(elem.getAttribute("ii"));
+            clicked(elem.innerText,word_id_index_list, block_id, item_id);
           }
         });
       }
@@ -120,11 +138,10 @@
   }
 
   async function sendChangedLearningStage(word_id, block_id, learning_stage) {
-    let word = word_list[word_id];
     let body = JSON.stringify({
       'func' : 'update_manually_set_word_learning_stage', 
       'stage_data' : {
-        'word' : word,
+        'word_id' : word_id,
         'stage' : learning_stage,
         'metadata' : {
             //'id' : manga_id,
@@ -141,35 +158,145 @@
         body: body,
     });
     const result = deserialize(await response.text());
-
-    // add event to history temporarily like this before it gets updated after next page flip
-    let new_entry = {
-        's' : learning_stage,
-        't' : new Date()/1000,
-        'm' : {
-            'src' : SOURCE.USER,
-            'comment' : 'Current update',
-        }
-    };
-    let history = word_history[word_id];
-    if (result.replaced_last_entry) {
-      history[history.length-1] = new_entry;
-    } else {
-        history.push(new_entry);
-    }
   };
 
-  const learningStageChanged = (word,new_learning_stage,block_id) => {
-    let word_id = word_list.indexOf(word);
-    let old_stage = word_learning_stages[word_id];
-    word_learning_stages[word_id] = new_learning_stage;
-    console.log("learningStageChanged " + word + " " + old_stage + " > " + new_learning_stage)
-    updateWordDecorations();
+
+  async function sendChangedOCRBlock(old_block,new_block,block_id) {
+    let body = JSON.stringify({
+      'func' : 'update_ocr_block', 
+      'cid' : cid,
+      'ocr_data' : {
+        'pr' : page_ref,
+        'b' : block_id,
+        'old_block' : old_block,
+        'new_block' : new_block,
+        },
+      }
+    );
+    const response = await fetch( "/ocr", {
+        headers: {"Content-Type" : "application/json" },
+        method: 'POST',
+        body: body,
+    });
+    const result = deserialize(await response.text());
+  };
+
+  const learningStageChanged = (word_id,new_learning_stage,block_id) => {
     sendChangedLearningStage(word_id, block_id, new_learning_stage);
+    // change the learning stage for all the word senses. This is just
+    // a temporary measure until the page changes and OCR file is reloaded and
+    // filled with the saved stage
+    for (let word_idx in word_id_list) {
+      let wid = word_id_list[word_idx];
+      let ws = wid.split(':')
+      let ss = ws[0].split('/')
+      let wid0 = ss[0] + ':' + ws[1];
+      if (wid0 == word_id) {
+        let old_stage = word_learning_stages[word_idx];
+        word_learning_stages[word_idx] = new_learning_stage;
+        console.log("learningStageChanged " + wid + " " + old_stage + " > " + new_learning_stage)
+      }
+    }
+    updateWordDecorations();
   }
 
   const learningStageChangedFromPopUpDialog = (e) => {
-    learningStageChanged(e.detail['word'], e.detail['stage'], selected_block);
+    learningStageChanged(e.detail['word_id'], e.detail['stage'], selected_block);
+  }
+
+  async function PriorityWordUpdatedManuallyFromPopUpDialog(e) {
+    let wid = e.detail['word_id'];
+    console.log(`Update ${selected_text} priority word to ${wid}`)
+    let ocr_block = ocrpage[selected_block]["og_lines"];
+
+    let body = JSON.stringify({
+      'func' : 'update_manually_priority_word', 
+      'cid' : cid,
+      'word_data' : {
+        'w' : selected_text,
+        'wid' : wid,
+        'block' : ocr_block,
+        'bid' : selected_block,
+        'iid' : selected_item_id,
+        'p' : page_jp,
+        'pr' : page_ref,
+        },
+    });
+    const response = await fetch( "/ocr", {
+        headers: {"Content-Type" : "application/json" },
+        method: 'POST',
+        body: body,
+    });
+    const result = deserialize(await response.text());
+
+    // Update current page to avoid total page refresh
+    let block_elements = ocr_root.querySelectorAll(".ocrtext");
+    for (let b_elem of block_elements) {
+      let block_id = parseInt(b_elem.getAttribute("block_id"));
+      if (block_id == selected_block) {
+        let word_elements = b_elem.querySelectorAll(".ocrtext1 span");
+        for (let elem of word_elements) {
+          let item_id = elem.getAttribute("ii");
+          if (item_id == selected_item_id) {
+            UpdateWordIdIndexList(elem, word_id_list.lastIndexOf(wid));
+          }
+        }
+      }
+    }
+    updateWordDecorations();
+  }
+  
+
+  const OCRBlockUpdated = (e) => {
+    let new_ocr_block = e.detail['ocr_block'];
+    sendChangedOCRBlock(ocrpage[selected_block]["og_lines"], new_ocr_block, selected_block );
+    ocrpage[selected_block]["lines"] = new_ocr_block;
+    //selected_block);
+  }
+
+  const getWordIdIndexList = (elem) => {
+    let widx_list = elem.getAttribute("wil").split(',');
+    if (widx_list[0] == "") {
+      return [];
+    }
+    let wil = [];
+    for (let wi of widx_list) {
+      wil.push(parseInt(wi))
+    }
+    return wil
+  }
+
+  const UpdateWordIdIndexList = (elem, priority_widx) => {
+    let widx_list = elem.getAttribute("wil").split(',');
+    let wil = [priority_widx];
+    for (let wi of widx_list) {
+      if (wi != priority_widx) {
+        wil.push(parseInt(wi))
+      }
+    }
+    let wil_str = wil.join(',')
+    elem.setAttribute("wil",wil_str)
+  }
+
+
+  const editHoveredBlock = () => {
+    if (hovered_block_id != -1) {
+      let block_elements = ocr_root.querySelectorAll(".ocrtext");
+      for (let b_elem of block_elements) {
+        let block_id = parseInt(b_elem.getAttribute("block_id"));
+        if (block_id == hovered_block_id) {
+          edited_ocr_block = []
+          let oc = ocrpage[hovered_block_id];
+          oc["og_lines"].forEach((line) => {
+            edited_ocr_block.push(line)
+            });
+          console.log("EditHoveredBlock block_id" + edited_ocr_block);
+          selected_block = block_id;
+          edit_mode = true;
+        }
+      }
+      console.log("EditHoveredBlock" + hovered_block_id);
+    }
   }
 
   const setHoveredBlockWordsKnown = (all_stages) => {
@@ -180,13 +307,23 @@
         if (block_id == hovered_block_id) {
           let word_elements = b_elem.querySelectorAll(".ocrtext1 span");
           for (let elem of word_elements) {
-            let word_id = parseInt(elem.getAttribute("wid"));
-            let word = word_list[word_id];
-            if (word != '') {
-              let stage = word_learning_stages[word_id];
+            let particle = elem.innerText;
+
+            let word_id_index_list = getWordIdIndexList(elem);
+            if (word_id_index_list.length>0) {
+              console.log("Inspecting " + particle + " with " + word_id_index_list.length + " refs");
+              let word_idx = word_id_index_list[0];
+              let word_id = word_id_list[word_idx];
+
+              let ws = word_id.split(':')
+              let ss = ws[0].split('/')
+              let wid0 = ss[0] + ':' + ws[1];
+
+              let stage = word_learning_stages[word_idx];
               if (stage != STAGE.KNOWN) {
                 if (all_stages || (stage == STAGE.PRE_KNOWN) || (stage == STAGE.FORGOTTEN)) {
-                  learningStageChanged(word,STAGE.KNOWN,block_id);
+                  console.log(`Setting learning stage of ${particle} (${wid0}) to KNOWN`);
+                  learningStageChanged(wid0,STAGE.KNOWN,block_id);
                 }
               }
             }
@@ -196,13 +333,53 @@
     }
   }
 
+  async function debugParser() {
+    if (hovered_block_id != -1) {
+      let block_text = []
+      let oc = ocrpage[hovered_block_id];
+      oc["og_lines"].forEach((line) => {
+        block_text.push(line)
+        });
+      let body = JSON.stringify({
+      'func' : 'parse', 
+      'text' : block_text,
+      });
+      const response = await fetch( "/jmdict", {
+        headers: {"Content-Type" : "application/json" },
+        method: 'POST',
+        body: body,
+      });
+    }
+  }
+
+  async function debugOcr() {
+    if (hovered_block_id != -1) {
+      let body = JSON.stringify({
+      'func' : 'debug_ocr',
+      'chapter_id' : cid,
+      'page_ref' : page_ref,
+      'block_id' : hovered_block_id,
+      });
+      const response = await fetch( "/ocr", {
+        headers: {"Content-Type" : "application/json" },
+        method: 'POST',
+        body: body,
+      });
+    }
+  }
 
   const keyPressListener = (event) => {
     var keyName = event.key;
-    if (keyName == 'k') {
+    if (keyName == 'p') {
+      debugParser();
+    } else if (keyName == 'o') {
+      debugOcr();
+    } else if (keyName == 'k') {
       setHoveredBlockWordsKnown(false);
     } else if (keyName == 'K') {
       setHoveredBlockWordsKnown(true);
+    } else if (keyName == 'e') {
+      editHoveredBlock();
     }
   }
 
@@ -238,9 +415,8 @@
 
       if (`${nam}` in ocr1 && ocr1[`${nam}`] != undefined && !ocroff) {
 
-        if ('settings' in ocr1) {
-          word_list = ocr1['word_list']
-          word_class_list = ocr1['word_class_list']
+        if ('version' in ocr1) {
+          word_id_list = ocr1['parsed_data']['word_id_list']
           word_learning_stages = ocr1['word_learning_stages']
           word_history = ocr1['word_history']
           interactive_ocr = true;
@@ -307,7 +483,8 @@
 
 <div bind:this={ocr_root}>
 
-<WordPopup bind:word={selected_word} bind:word_class={selected_word_class} bind:history={selected_word_history} bind:learning_stage={selected_word_stage} bind:showModal on:learning_stage_changed={learningStageChangedFromPopUpDialog}/>
+<WordPopup bind:word_id_index_list={selected_word_id_index_list} {word_id_list} {word_history} {word_learning_stages} bind:showModal on:learning_stage_changed={learningStageChangedFromPopUpDialog} on:priority_word_updated_manually={PriorityWordUpdatedManuallyFromPopUpDialog}/>
+<Edit_OCR_Dialog bind:ocr_block={edited_ocr_block} bind:showModal={edit_mode} on:ocr_block_updated={OCRBlockUpdated}/>
 
 {#each tocr as tdi}
   <div class="ocrsp" on:mouseenter={hoverm} on:mouseleave={hovero}>

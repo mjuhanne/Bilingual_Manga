@@ -1,6 +1,6 @@
 """
 This script is used to process BilingualManga.org OCR files (in /ocr directory) and
-calculate word and kanji frequencies as well as cumulative values.
+calculate word and kanji frequencies as well as their cumulative values.
 Each chapter(volume/tankobon) OCR file is processed first and then aggregate values 
 are saved for each manga title.
 
@@ -14,222 +14,65 @@ Because the original AI based OCR tool most likely didn't handle well the larger
 these are ignored (marked as 'skipped blocks'). The blocks are ignored in statistics and also
 in the parsed OCR files.
 
-Using this script requires installing also the fugashi dependencies:
+Using this script requires installing following dependencies:
+
+Fugashi:
     pip install fugashi[unidic-lite]
 
     # The full version of UniDic requires a separate download step
     pip install fugashi[unidic]
     python -m unidic download
+
+JMdict:
+    tools/install_jmdict.sh
+    python tools/process_jmdict.py
+
 """
 
 import os
 import json
 import sys
+import argparse
 from helper import *
+from jp_parser import (
+    init_scan_results, parse_block_with_unidic, post_process_unidic_particles, parse_with_jmdict, 
+    init_parser, reassemble_block, expand_word_id, #, get_highest_freq_class_list_with_particle_priority,
+    get_flat_class_list_by_seq, load_manga_specific_adjustments,
+    unidic_class_list, ignored_classes_for_freq
+)
+from bm_learning_engine_helper import read_user_settings
 
-"""
-Fugashi/Unidic is used to parse Japanese text. However there are some common words
-for which IPADIC is better for analysis. For example 'それで' is parsed with Unidic as two
-separate words 'それ' + 'で' whereas IPADIC keeps this word intact. 
-Some other common discrepancies:
-    'だから' -> 'だ' + 'から'
-    'ずっと' -> 'ずっ' + 'と'
-    'でも' -> 'で' + 'も'
-    'いつも' -> 'いつ' + 'も'
-.. and so on...
-For this reason there's a separate database (jlpt_difficult_to_parse_vocab_file.json) 
-of 400+ common JLPT words for which there's a difference in parsing.
-When these words are detected, the UNIDIC parsed words are replaced with IPADIC equivalent ones.
-"""
-import fugashi
-parser = fugashi.Tagger('')
+user_settings = read_user_settings()
+chapter_comprehension = user_settings['chapter_reading_status']
 
 parsed_ocr_dir = base_dir + "parsed_ocr/"
-jlpt_difficult_to_parse_vocab_file =  base_dir + "lang/jlpt/jlpt_difficult_parse.json"
-
-complicated_words_to_parse_unidic = dict()
-complicated_words_to_parse_ipadic = dict()
-complicated_words_to_parse = []
-
 error_count = 0
 processed_chapter_count = 0
 processed_title_count = 0
 
-all_word_classes = [
-    '名詞',
-    '助詞',
-    '補助記号',
-    '動詞',
-    '助動詞',
-    '接尾辞',
-    '副詞',
-    '代名詞',
-    '形容詞',
-    '感動詞',
-    '形状詞',
-    '接頭辞',
-    '接続詞',
-    '連体詞',
-    '記号',
-    '接頭詞',
-    'フィラー',  # failure?
-]
+def is_chapter_read(cid):
+    for chapter_id, reading_data in chapter_comprehension.items():
+        if chapter_id == cid:
+            if reading_data['status'] == 'Read':
+                return True
+            if reading_data['status'] == 'Reading':
+                return True
+    return False
 
-# some common auxiliary verbs, particles and markings which we ignore for frequency analysis
-ignored_classes = [
-    '補助記号', # ？
-    '助詞', # Grammatical particles: と, ん, から, の, だけ...
-    '助動詞', # Auxiliary verb: ちゃ, た, ます, てる, ない
-    ]
-
-# words consisting of these wide characters will be ignored
-ignored_full_width_characters = "ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ０１２３４５６７８９％"
-
-
-def parse_with_fugashi(line):
-    results = []
-    r = parser.parse(line)
-    lines = r.split('\n')
-    for r_line in lines:
-
-        result = r_line.split("\t")
-        if len(result) == 2:
-            w = result[0]
-            d = result[1].split(',')
-            if len(d)>=8:
-                wtype = d[0]
-                basic_type = d[8]
-                pro = d[9]
-                lemma = d[7]
-                orth_base = d[10]
-                results.append(([w,wtype,basic_type,pro],lemma,orth_base))
-            elif len(d)>0:
-                wtype = d[0]
-                results.append(([w,wtype,'',''],'',''))
-
-    return results
-
-def parse(line, replace_with_unidic=True):
-    res = parse_with_fugashi(line)
-    for w in complicated_words_to_parse:
-        if w in line:
-            ipadic = complicated_words_to_parse_ipadic[w]
-            unidic = complicated_words_to_parse_unidic[w]
-            if len(unidic)==0:
-                # add some words that Unidic didn't find
-                for p in ipadic:
-                    res.append((p,p[0],p[0]))
-            else:
-                # to augment/replace the previous Unidic parse result with the corresponding with ipadic,
-                # we must make sure that all the unidic findings are present
-                unidic_index = 0
-                new_res = []
-                match = False
-                for (r,lemma,orth_base) in res:
-                    if not match and r == unidic[unidic_index]:
-                        unidic_index += 1
-                        if not replace_with_unidic:
-                            new_res.append((r,lemma,orth_base))
-                        if unidic_index==len(unidic):
-                            # found match -> adding replacement/augment from ipadic
-                            for r in ipadic:
-                                # these are not in ipadic so copy dummy ones
-                                lemma = r[0]
-                                orth_base = r[0]
-                                new_res.append((r,lemma,orth_base))
-                            match = True
-                    else:
-                        new_res.append((r,lemma,orth_base))
-                if match:
-                    res = new_res
-                else:
-                    pass
-    return res
-
-
-def parse_line(line, word_count, word_count_per_class, kanji_count, unique_word_list, unique_word_class_list, lemmas):
-
-    res = parse(line)
-    if len(res)==0 and len(line)>0:
-        raise Exception("Couldn't parse '%s'" % line)
-        # parser couldn't parse this. 
-        return 0,0, [{line:''}]
-    
-    k_c = 0
-    parsed_words = []
-    postponed_non_jp_string = ''
-    for (wr,lemma,orth_base) in res:
-        w = wr[0]
-        cl = wr[1]
-
-        try:
-            class_index = all_word_classes.index(cl)
-            word_count_per_class[class_index] += 1
-        except:
-            raise Exception("Unknown class %d in word %s" % (cl, w))
-
-        word = ''
-        if all(c in ignored_full_width_characters for c in w):
-            # for some reason wide numbers and alphabets are parsed as 名詞 so ignore these
-            pass
-        else:
-
-            if cl not in ignored_classes:
-                word = orth_base
-                if word == '':
-                    # empty base form for some reason. Use the parsed form
-                    word = w
-                if word in word_count:
-                    word_count[word] += 1
-                else:
-                    word_count[word] = 1
-
-                if orth_base != lemma and lemma != '':
-                    if '-' not in lemma:
-                        if not is_katakana_word(lemma):
-                            lemmas[word] = lemma
-
-        try:
-            idx = unique_word_list.index(word)
-        except ValueError:
-            unique_word_list.append(word)
-            unique_word_class_list.append(class_index)
-            idx = len(unique_word_list)-1
-
-        if idx == 0:
-            # when many non-JP characters are in sequence we don't want to save them separately
-            # but instead wait until there's actual JP word
-            postponed_non_jp_string += w
-        else:
-            if postponed_non_jp_string != '':
-                parsed_words.append( {postponed_non_jp_string:0} )
-                postponed_non_jp_string = ''
-
-            parsed_words.append( {w:idx} )
-
-    if postponed_non_jp_string != '':
-        parsed_words.append( {postponed_non_jp_string:0} )
-
-    for k in set(filter_cjk(line)):
-        k_c += 1
-        if k in kanji_count:
-            kanji_count[k] += 1
-        else:
-            kanji_count[k] = 1
- 
-
-    return k_c, parsed_words
-
-
-def process_chapter(f_p, fo_p, data, word_count, kanji_count, lemmas):
+def is_title_read(id):
+    chapter_ids = get_chapters_by_title_id(id)
+    for cid in chapter_ids:
+        if is_chapter_read(cid):
+            return True
+        
+def process_chapter(f_p, fo_p, chapter_data):
 
     k_c = 0
     c_c = 0
     skipped_c = 0
 
-    # this is the word list of basic forms which are referred to by individual parsed words
-    unique_word_list = [''] # initialized with a placeholder for non-parseable/non-JP characters
-    unique_word_class_list = [''] # initialized with a placeholder for non-parseable/non-JP characters
+    results = init_scan_results()
+    kanji_count = dict()
 
     f = open(f_p, "r", encoding="utf-8")
     f_data = f.read()
@@ -239,141 +82,228 @@ def process_chapter(f_p, fo_p, data, word_count, kanji_count, lemmas):
         os.remove(f_p)
         raise Exception("404 error! Deleted file %s.." % f_p)
     
-    word_count_per_class = [0] * len(all_word_classes)
-    
     pages = json.loads(f_data)
+    page_count = 0
+    progress_bar_interval = int(len(pages)/10)
+    if progress_bar_interval == 0:
+        progress_bar_interval = 1
     for page_id,blocks in pages.items():
 
         for block in blocks:
             lines = block['lines']
-            parsed_lines = []
-            if any(len(l)>30 for l in lines):
-                # Blocks with any number of long lines have usually been 
-                # incorrectly recognized so ignore these when doing statistics
+
+            if any(len(l)>32 for l in lines):
+                # Blocks with any number of very long lines have usually been 
+                # incorrectly recognized so ignore these
                 skipped_c += 1
+                block['jlines'] = []
             else:
-                for line in lines:
-                    kc, parsed_words = parse_line(line, word_count, word_count_per_class, kanji_count, unique_word_list, unique_word_class_list, lemmas)
+                line = ''.join(lines)
+                kc, ud_items, mismatch = \
+                    parse_block_with_unidic(lines, kanji_count)
 
-                    k_c += kc
-                    c_c += len(line)
-                    parsed_lines.append(parsed_words)
-            
-            block['plines'] = parsed_lines
+                k_c += kc
+                c_c += len(line)
 
-    pages['word_list'] = unique_word_list
-    pages['lemmas'] = lemmas
-    pages['word_class_list'] = unique_word_class_list
+                ud_items = \
+                    post_process_unidic_particles(ud_items)
+                
+                parse_with_jmdict(
+                    ud_items, results,
+                )
+
+                block['jlines'] = reassemble_block(lines, ud_items, results['item_word_id_refs'])
+
+        page_count += 1
+        if page_count % progress_bar_interval == 0:
+            print(".",end='',flush=True)
+
+    pages['parsed_data'] = results
     pages['version'] = CURRENT_PARSED_OCR_VERSION
+    pages['parser_version'] = CURRENT_LANUGAGE_PARSER_VERSION
 
     # the total word count excluding words belonging to ignored classes 
     # (alphanumeric words, punctuation, auxialiary verbs, grammatical particles)
-    w_c = sum([word_count_per_class[i] for i in range(len(all_word_classes)) if all_word_classes[i] not in ignored_classes])
+    w_c = sum([results['word_count_per_unidict_class'][i] for i in range(len(unidic_class_list)) if unidic_class_list[i] not in ignored_classes_for_freq])
 
     f = open(fo_p, "w", encoding="utf-8")
     f.write(json.dumps(pages, ensure_ascii=False))
     f.close()
 
-    return c_c, w_c, k_c, skipped_c, word_count_per_class
+    #sorted_word_count = dict(sorted(unique_jmdict_word_count.items(), key=lambda x:x[1], reverse=True))
+    sorted_kanji_count = dict(sorted(kanji_count.items(), key=lambda x:x[1], reverse=True))
 
-def is_file_up_to_date(filename, version):
-    if os.path.exists(filename):
-        f = open(filename, "r", encoding="utf-8")
-        temp_data = json.loads(f.read())
-        f.close()
-        if 'version' not in temp_data:
-            return False
-        elif temp_data['version'] < version:
-            return False
-        return True
-    else:
-        return False
+    # create a list of unique words (word_ids) and their amount 
+    # (senses are pooled so only seq numbers count)
+    unique_words_list = []
+    unique_words_frequency = []
+    unique_words_classes = []
+    wid_to_unique_wid_dict = dict()
+    for word_id, word_freq in \
+        zip(results['priority_word_id_list'], results['priority_word_count']):
+        #zip(results['word_id_list'], results['word_count']):
+        seq,senses,word = expand_word_id(word_id)
+        word_id0 = str(seq) + ':' + word
+        if word_id0 in unique_words_list:
+            idx = unique_words_list.index(word_id0)
+            unique_words_frequency[idx] += word_freq
+        else:
+            unique_words_list.append(word_id0)
+            idx = len(unique_words_list) - 1
+            unique_words_frequency.append(word_freq)
+            unique_words_classes.append( get_flat_class_list_by_seq(seq) )
+        wid_to_unique_wid_dict[word_id] = idx
 
-def process_chapters(keyword):
+    num_unique_words = len(unique_words_list)
+
+    # convert the references in sentence list to match unique word list
+    adjusted_sentence_list = []
+    for sentence in results['sentence_list']:
+        new_sentence = []
+        for ref in sentence:
+            wid = results['word_id_list'][ref]
+            new_ref = wid_to_unique_wid_dict[wid]
+            new_sentence.append(new_ref)
+        adjusted_sentence_list.append(new_sentence)
+
+    chapter_data['num_characters'] = c_c
+    chapter_data['num_words'] = w_c
+    chapter_data['num_kanjis'] = k_c
+    chapter_data['num_sentences'] = len(adjusted_sentence_list)
+    chapter_data['num_skipped_blocks'] = skipped_c
+    chapter_data['num_unique_words'] = num_unique_words
+    chapter_data['num_unique_kanjis'] = len(sorted_kanji_count)
+    chapter_data['word_frequency'] = unique_words_frequency
+    chapter_data['kanji_frequency'] = sorted_kanji_count
+    chapter_data['word_id_list'] = unique_words_list
+    chapter_data['word_class_list'] = unique_words_classes
+    chapter_data['word_count_per_class'] = results['word_count_per_unidict_class']
+    chapter_data['sentence_list'] = adjusted_sentence_list
+    chapter_data['parser_version'] = CURRENT_LANUGAGE_PARSER_VERSION
+
+    return c_c, w_c, k_c, skipped_c
+
+def is_file_up_to_date(filename, version, parser_version):
+
+    try:
+        if os.path.exists(filename):
+            f = open(filename, "r", encoding="utf-8")
+            temp_data = json.loads(f.read())
+            f.close()
+            if 'version' not in temp_data:
+                return False
+            if 'parser_version' not in temp_data:
+                return False
+            if temp_data['version'] < version:
+                return False
+            if temp_data['parser_version'] < parser_version:
+                return False
+            return True
+    except:
+        pass
+    return False
+
+def process_chapters(args):
+    keyword = args['keyword']
+
     global error_count, processed_chapter_count
-    
-    files = [f_name for f_name in os.listdir(ocr_dir) if os.path.isfile(ocr_dir + f_name)]
 
     i = 0
-    i_c = len(files)
+    title_names = get_title_names()
+    i_c = len(title_names)
+    for title_id, title_name in title_names.items():
 
-    for f in files:
-        chapter_id = f.split('.')[0]
-        try:
-            title_id = get_title_id_by_chapter_id(chapter_id)
-        except:
-            title_id = ''
+      if args['keyword'] is None or args['keyword'].lower() in title_name.lower():
 
-        if title_id == '':
-            print(f + " unknown!")
-        else:
+        load_manga_specific_adjustments(title_name)
 
-            i += 1
-            word_count = dict()
-            kanji_count = dict()
-            lemmas = dict()
-            input_ocr_file = ocr_dir + f
+        i += 1
+        chapters = get_chapters_by_title_id(title_id)
+
+        for chapter_id in chapters:
+
+            input_ocr_file = ocr_dir + str(chapter_id) + '.json'
 
             chapter_data = dict()
             chapter_data['title'] = get_title_by_id(title_id)
             chapter_data['chapter'] = get_chapter_number_by_chapter_id(chapter_id)
             chapter_data['num_pages'] =  get_chapter_page_count(chapter_id)
 
+            if args['chapter'] is not None and chapter_data['chapter'] != args['chapter']:
+                if args['verbose']:
+                    print("Skipped chapter %d" % chapter_data['chapter'] )
+                continue
+
             if keyword is not None:
                 if keyword.lower() not in chapter_data['title'].lower():
                     continue
 
-            target_freq_filename = chapter_analysis_dir + chapter_id + ".json"
-            parsed_ocr_filename = parsed_ocr_dir + chapter_id + ".json"
-            
-
-            if is_file_up_to_date(target_freq_filename, CURRENT_OCR_SUMMARY_VERSION) and \
-                is_file_up_to_date(parsed_ocr_filename, CURRENT_PARSED_OCR_VERSION):
-                    print("Skipping %s [chapter %d]" % (chapter_data['title'],chapter_data['chapter']))
+            if args['read']:
+                if not is_chapter_read(chapter_id):
+                    if args['verbose']:
+                        print("Skipped not read chapter %d" % chapter_data['chapter'] )
                     continue
 
-            try:
-                c_c, w_c, k_c, skipped_c, w_c_per_class = process_chapter(input_ocr_file, parsed_ocr_filename, chapter_data, word_count, kanji_count, lemmas)
-            except Exception as e:
-                print("Error scanning %s [%d]" % ( chapter_data['title'], chapter_data['chapter']))
-                print(e)
-                error_count += 1
+            #if chapter_data['chapter'] != 9:
+            #    continue
+
+            if args['first']:
+                if get_chapter_number_by_chapter_id(chapter_id) != 1:
+                    continue
+
+            if i < args['start_index']:
                 continue
 
-            print("[%d/%d] Scanned %s [%d] with %d pages and %d/%d/%d/%d characters/words/kanjis/skipped_blocks" 
-                % (i, i_c, chapter_data['title'], chapter_data['chapter'], chapter_data['num_pages'], c_c, w_c, k_c, skipped_c))
+            target_freq_filename = chapter_analysis_dir + chapter_id + ".json"
+            parsed_ocr_filename = parsed_ocr_dir + chapter_id + ".json"
 
-            sorted_word_count = dict(sorted(word_count.items(), key=lambda x:x[1], reverse=True))
-            sorted_kanji_count = dict(sorted(kanji_count.items(), key=lambda x:x[1], reverse=True))
+            if os.path.exists(input_ocr_file):
+                
+                if not args['force']:
+                    if is_file_up_to_date(target_freq_filename, CURRENT_OCR_SUMMARY_VERSION, CURRENT_LANUGAGE_PARSER_VERSION) and \
+                        is_file_up_to_date(parsed_ocr_filename, CURRENT_PARSED_OCR_VERSION, CURRENT_LANUGAGE_PARSER_VERSION):
+                            #print("[%d/%d] Skipping %s [chapter %d]" % (i, i_c, chapter_data['title'],chapter_data['chapter']))
+                            continue
 
-            chapter_data['num_characters'] = c_c
-            chapter_data['num_words'] = w_c
-            chapter_data['num_kanjis'] = k_c
-            chapter_data['num_skipped_blocks'] = skipped_c
-            chapter_data['num_unique_words'] = len(sorted_word_count)
-            chapter_data['num_unique_kanjis'] = len(sorted_kanji_count)
-            chapter_data['word_frequency'] = sorted_word_count
-            chapter_data['kanji_frequency'] = sorted_kanji_count
-            chapter_data['lemmas'] = lemmas
-            chapter_data['word_count_per_class'] = w_c_per_class
+                #try:
+                print("[%d/%d] Scanning %s [%d : %s] " 
+                    % (i, i_c, chapter_data['title'], chapter_data['chapter'], chapter_id),end='')
 
-            chapter_data['version'] = CURRENT_OCR_SUMMARY_VERSION
+                c_c, w_c, k_c, skipped_c = process_chapter(input_ocr_file, parsed_ocr_filename, chapter_data)
+                #except Exception as e:
+                #    print("Error scanning %s [%d]" % ( chapter_data['title'], chapter_data['chapter']))
+                #    print(e)
+                #    error_count += 1
+                #    continue
 
-            o_f = open(target_freq_filename,"w",encoding="utf-8")
-            json_data = json.dumps(chapter_data,  ensure_ascii = False)
-            o_f.write(json_data)
-            o_f.close()
+                print(" scanned with %d pages and %d/%d/%d/%d characters/words/kanjis/skipped_blocks" 
+                    % ( chapter_data['num_pages'], c_c, w_c, k_c, skipped_c))
 
-            processed_chapter_count += 1
+                chapter_data['version'] = CURRENT_OCR_SUMMARY_VERSION
+
+                o_f = open(target_freq_filename,"w",encoding="utf-8")
+                json_data = json.dumps(chapter_data,  ensure_ascii = False)
+                o_f.write(json_data)
+                o_f.close()
+
+                processed_chapter_count += 1
+            else:
+                print("Warning! Missing %s chapter %d" % (title_name, chapter_data['chapter']))
 
 
-def process_titles(keyword):
+def process_titles(args):
     global processed_title_count
 
-    for title_id, title_name in get_title_names().items():
+    title_names = get_title_names()
+    l_title_names = len(title_names)
+    for i, (title_id, title_name) in enumerate(title_names.items()):
 
-        if keyword is not None:
-            if keyword.lower() not in title_name.lower():
+        if args['keyword'] is not None:
+            if args['keyword'].lower() not in title_name.lower():
+                continue
+
+        if args['read']:
+            if not is_title_read(title_id):
                 continue
 
         title_data = dict()
@@ -386,24 +316,29 @@ def process_titles(keyword):
         title_data['num_pages'] = 0
         title_data['num_unique_words'] = 0
         title_data['num_unique_kanjis'] = 0
-        title_data['word_frequency'] = dict()
         title_data['kanji_frequency'] = dict()
-        title_data['lemmas'] = dict()
+        title_data['num_sentences'] = 0
 
-        total_word_count_per_class = [0] * len(all_word_classes)
+        total_word_count_per_class = [0] * len(unidic_class_list)
+
+        word_id_list = []
+        word_freq = []
+        word_classes = []
+        sentence_list = []
 
         title_filename = title_analysis_dir + title_id + ".json"
 
         vs = get_chapters_by_title_id(title_id)
 
-        if is_file_up_to_date(title_filename, CURRENT_OCR_SUMMARY_VERSION):
+        if is_file_up_to_date(title_filename, CURRENT_OCR_SUMMARY_VERSION, CURRENT_LANUGAGE_PARSER_VERSION):
             print("Skipping %s [%s] with %d chapters" % (title_name, title_id, len(vs)))
         else:
-            print("%s [%s] with %d chapters" % (title_name, title_id, len(vs)))
+            print("%d/%d %s [%s] with %d chapters" % (i,l_title_names,title_name, title_id, len(vs)))
 
             for chapter_id in vs:
                 chapter_filename = chapter_analysis_dir + chapter_id + ".json"
                 chapter = get_chapter_number_by_chapter_id(chapter_id)
+
                 if os.path.exists(chapter_filename):
                     o_f = open(chapter_filename,"r",encoding="utf-8")
                     chapter_data = json.loads(o_f.read())
@@ -412,16 +347,33 @@ def process_titles(keyword):
                     title_data['num_characters'] += chapter_data['num_characters']
                     title_data['num_words'] += chapter_data['num_words']
                     title_data['num_kanjis'] += chapter_data['num_kanjis']
+                    title_data['num_sentences'] += chapter_data['num_sentences']
                     title_data['num_pages'] += chapter_data['num_pages']
 
-                    for i in range(len(all_word_classes)):
+                    for i in range(len(unidic_class_list)):
                         total_word_count_per_class[i] += chapter_data['word_count_per_class'][i]
 
-                    for w, freq in chapter_data['word_frequency'].items():
-                        if w in title_data['word_frequency']:
-                            title_data['word_frequency'][w] += freq
-                        else:
-                            title_data['word_frequency'][w] = freq
+                    chd = chapter_data
+
+                    for i, (word_id, freq, classes) in enumerate(
+                            zip(chd['word_id_list'], chd['word_frequency'], chd['word_class_list'])):
+                        try:
+                            idx = word_id_list.index(word_id)
+                            word_freq[idx] += freq
+                        except:
+                            word_id_list.append(word_id)
+                            word_freq.append(freq)
+                            word_classes.append(classes)
+
+                    # for each sentence convert word id reference from 
+                    # local (chapter) to global (title) reference
+                    for sentence in chapter_data['sentence_list']:
+                        new_sentence = []
+                        for wref in sentence:
+                            word_id = chd['word_id_list'][wref]
+                            idx = word_id_list.index(word_id)
+                            new_sentence.append(idx)
+                        sentence_list.append(new_sentence)
 
                     for w, freq in chapter_data['kanji_frequency'].items():
                         if w in title_data['kanji_frequency']:
@@ -429,16 +381,18 @@ def process_titles(keyword):
                         else:
                             title_data['kanji_frequency'][w] = freq
 
-                    for w, lemma in chapter_data['lemmas'].items():
-                        if w not in title_data['lemmas']:
-                            title_data['lemmas'][w] = lemma
                 else:
                     print("Warning! Missing %s chapter %d" % (title_name, chapter))
+
+            title_data['word_frequency'] = word_freq
+            title_data['word_id_list'] = word_id_list
+            title_data['word_class_list'] = word_classes
+            title_data['sentence_list'] = sentence_list
+            title_data['word_count_per_class'] = total_word_count_per_class
 
             title_data['num_chapters'] = len(vs)
             title_data['num_unique_words'] = len(title_data['word_frequency'])
             title_data['num_unique_kanjis'] = len(title_data['kanji_frequency'])
-
             title_data['version'] = CURRENT_OCR_SUMMARY_VERSION
 
             o_f = open(title_filename,"w",encoding="utf-8")
@@ -447,22 +401,28 @@ def process_titles(keyword):
             o_f.close()
             processed_title_count += 1
 
-
 read_manga_metadata()
 read_manga_data()
 
-with open(jlpt_difficult_to_parse_vocab_file,"r",encoding="utf-8") as f:
-    data = f.read()
-    d = json.loads(data)
-    for w,k in d.items():
-        complicated_words_to_parse.append(w)
-        complicated_words_to_parse_unidic[w] = k['unidic']
-        complicated_words_to_parse_ipadic[w] = k['ipadic']
+parser = argparse.ArgumentParser(
+    prog="bm_ocr_processor",
+    description="Bilingual Manga OCR processing tool",
+)
 
-if len(sys.argv)>1:
-    keyword = sys.argv[1]
-else:
-    keyword = None
+#parser.add_parser('analyze', help='Do comprehension analysis per title')
+parser.add_argument('--force', '-f', action='store_true', help='Force reprocessing')
+parser.add_argument('--first', '-1', action='store_true', help='Process only first chapter per title')
+parser.add_argument('--read', '-r', action='store_true', help='Process only read chapters')
+parser.add_argument('--verbose', '-v', action='store_true', help='Verbose')
+parser.add_argument('--start-index', '-si', nargs='?', type=int, default=1, help='Start from the selected title index')
+parser.add_argument('--chapter', '-ch',  nargs='?', type=int, default=None, help='Chapter')
+parser.add_argument('keyword', nargs='?', type=str, default=None, help='Title has to (partially) match the keyword in order to processed')
+
+args = vars(parser.parse_args())
+
+#args['force'] = True
+#args['keyword'] = 'death note'
+#args['chapter'] = 4
 
 if not os.path.exists(title_analysis_dir):
     os.mkdir(chapter_analysis_dir)
@@ -471,7 +431,10 @@ if not os.path.exists(chapter_analysis_dir):
 if not os.path.exists(parsed_ocr_dir):
     os.mkdir(parsed_ocr_dir)
 
-process_chapters(keyword)
-process_titles(keyword)
+init_parser(load_meanings=True)
+
+process_chapters(args)
+if args['chapter'] is None:
+    process_titles(args)
 
 print("Total errors: %d. Processed %d titles and %d chapters" % (error_count, processed_title_count, processed_chapter_count))

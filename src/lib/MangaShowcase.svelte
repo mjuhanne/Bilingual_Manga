@@ -1,6 +1,7 @@
     <script>
     import MangaCard from '$lib/MangaCard.svelte';
     import MangaSortDashboard from '$lib/MangaSortDashboard.svelte';
+    import MangaLabelDashboard from '$lib/MangaLabelDashboard.svelte';
     import { page } from '$app/stores';
     import { goto } from "$app/navigation";
     import { showcase_sort_options, sortManga } from '$lib/MangaSorter.js';
@@ -18,13 +19,21 @@
     let pagen=parseInt($page.url.searchParams.get('page'));
     let ls=$page.url.searchParams.get('ls');
     let sort_criteria=$page.url.searchParams.get('sort');
+    let selected_label=$page.url.searchParams.get('label');
     if (sort_criteria === null) {
         sort_criteria = 'Newly added';
+    } else {
+        sort_criteria = decodeURIComponent(sort_criteria); 
+    }
+    if (selected_label === null) {
+        selected_label = 'None';
+    } else {
+        selected_label = decodeURIComponent(selected_label); 
     }
     let sort_reverse=$page.url.searchParams.get('reverse') == "true" ? true : false;
 
-    $: url_param = "ls=" + ls + "&sort=" + sort_criteria + "&reverse=" + (sort_reverse ? "true" : "false");
-    $: sx = sortManga(x, sort_criteria, sort_reverse);
+    $: url_param = "ls=" + ls + "&sort=" + encodeURIComponent(sort_criteria) + "&reverse=" + (sort_reverse ? "true" : "false") + "&label=" + encodeURIComponent(selected_label);
+    $: sx = sortManga(x, sort_criteria, sort_reverse, selected_label);
 
     if(ls==="en" || ls==="jp")
     {
@@ -72,9 +81,15 @@ $: pii3=pii+1;
     }
     const sortCriteriaChanged = (e) => {
         sort_criteria = e.detail;
-		$page.url.searchParams.set('sort',sort_criteria);
+		$page.url.searchParams.set('sort',encodeURIComponent(sort_criteria));
 		$page.url.searchParams.set('page',1);
         pagen = 1;
+        goto(`?${$page.url.searchParams.toString()}`);
+    };
+
+    const LabelChanged = (e) => {
+        selected_label = e.detail;
+		$page.url.searchParams.set('label',encodeURIComponent(selected_label));
         goto(`?${$page.url.searchParams.toString()}`);
     };
 
@@ -86,26 +101,32 @@ $: pii3=pii+1;
 
     </script>
     <div class="selgrid">
-    <div class="lssel">
-    <a href="{url1}?page={pagenew}&ls=en" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">ENG TL</a>
-    <a href="{url1}?page={pagenew}&ls=jp" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">JP RAW</a>
-    <a href="{url1}?page=1&ls=all" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">ALL</a>
-    </div>
-    <div class="lssel">
-        <a href="{url1}download" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">Download</a>
-    </div>
-    <div class="sortsel">
-        <MangaSortDashboard {sort_criteria} {sort_reverse} 
-            sort_criteria_list={Object.keys(showcase_sort_options)} 
-            on:SortCriteriaChanged={sortCriteriaChanged}
-            on:SortReverseChanged={sortReverseChanged}
-        />
-    </div>
+        <div class="lssel">
+            <a href="{url1}?page={pagenew}&ls=en" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">ENG TL</a>
+            <a href="{url1}?page={pagenew}&ls=jp" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">JP RAW</a>
+            <a href="{url1}?page=1&ls=all" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">ALL</a>
+        </div>
+        <div class="lssel">
+            <a href="{url1}download" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">Download</a>
+        </div>
+        <div class="sortsel">
+            <MangaSortDashboard {sort_criteria} {sort_reverse} 
+                sort_criteria_list={Object.keys(showcase_sort_options)} 
+                on:SortCriteriaChanged={sortCriteriaChanged}
+                on:SortReverseChanged={sortReverseChanged}
+            />
+        </div>
+        <div class="sortsel">
+            <MangaLabelDashboard {selected_label}
+                label_list={Object.keys(showcase_sort_options)} 
+                on:LabelChanged={LabelChanged}
+            />
+        </div>
     </div>
 <div id="cardholderid" class="cardholder">
     {#each sx as manga,pi }
     {#if pii && pagchang(pi) }
-    <MangaCard data={manga} subheading={manga.subheading} ls={ls} cdncdn={cdncdn1}/>
+    <MangaCard data={manga} subheading={manga.subheading} subheading2={manga.subheading2} ls={ls} cdncdn={cdncdn1}/>
     {/if}        
     {/each}
     {#if xnum>1}
@@ -168,7 +189,7 @@ $: pii3=pii+1;
         }
         .selgrid {
             display: grid;
-            grid-template-columns: 1fr 0.5fr 1fr;
+            grid-template-columns: 1fr 0.5fr 1fr 1fr;
             grid-gap: 5px;
         }
         .lssel{

@@ -3,6 +3,7 @@ export let data;
 export let ls;
 export let cdncdn="";
 export let subheading="";
+export let subheading2="";
 
 $: jpi=`background-image:url(${cdncdn}/${data.coverjp});background-position: center;background-repeat: no-repeat;background-size: cover;`
 $: eni=`background-image:url(${cdncdn}/${data.coveren});background-position: center;background-repeat: no-repeat;background-size: cover;`
@@ -16,6 +17,7 @@ $: eni=`background-image:url(${cdncdn}/${data.coveren});background-position: cen
             <div class="mangacarddiv" >{data.entit}</div>
         </div>
         <div class="mangacarddiv" >{subheading}</div>
+        <div class="mangacarddiv" >{subheading2}</div>
     </a>
    </span>
 </span>
@@ -27,6 +29,7 @@ $: eni=`background-image:url(${cdncdn}/${data.coveren});background-position: cen
          <div class="mangacarddiv" >{data.jptit}</div>
         </div>
         <div class="mangacarddiv" >{subheading}</div>
+        <div class="mangacarddiv" >{subheading2}</div>
     </a>
  </span>
  </span>
@@ -39,6 +42,7 @@ $: eni=`background-image:url(${cdncdn}/${data.coveren});background-position: cen
          <div class="mangacarddiv" >{data.entit}</div>
         </div>
         <div class="mangacarddiv" >{subheading}</div>
+        <div class="mangacarddiv" >{subheading2}</div>
     </a>
     </span>
  </span>
@@ -48,6 +52,7 @@ $: eni=`background-image:url(${cdncdn}/${data.coveren});background-position: cen
          <div class="mangacarddiv" >{data.jptit}</div>
         </div>
         <div class="mangacarddiv" >{subheading}</div>
+        <div class="mangacarddiv" >{subheading2}</div>
     </a>
  </span>
  </span>

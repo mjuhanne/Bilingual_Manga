@@ -2,12 +2,20 @@
     import { page } from '$app/stores';
 
 	export let titles;
-	export let selectedTab = 0;
+	export let selectedTab = $page.url.searchParams.has('tab') ? $page.url.searchParams.get('tab') : 0;
 	export let lang;
-		
+	let lang_button_url;
+
+	const setTab = (tab) => {
+		selectedTab = tab;
+		let url1=`${$page.url}`.split('?')[0]
+		lang_button_url = url1 + "?lang=" + ( (lang=="jp") ? "en" : "jp" ) + "&tab=" + selectedTab.toString();
+	}
+
+	setTab(selectedTab)
+
 	let lang_button_text = (lang=="jp") ? "EN" : "JP";
-    let url1=`${$page.url}`.split('?')[0]
-	let lang_button_url = url1 + "?lang=" + ( (lang=="jp") ? "en" : "jp" );
+
 </script>
 
 <style>
@@ -63,7 +71,7 @@
 			{#each titles as t,i}
 				<button type="button" class="tab"
 				class:selected={selectedTab==i}
-					on:click={() => selectedTab = i}>
+					on:click={() => setTab(i)}>
 					{titles[i]}
 				</button>
 			{/each}

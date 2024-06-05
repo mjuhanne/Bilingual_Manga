@@ -8,8 +8,8 @@
 
 	export let buttons = ['Close']
 
-	$: if (dialog && showModal) dialog.showModal();
-	$: if (dialog && !showModal) dialog.close();
+	$: if (dialog && showModal) { dialog.showModal(); dispatch('modalOpened'); }
+	$: if (dialog && !showModal) { dialog.close(); dispatch('modalClosed'); }
 
 	function clicked(button) {
 		dispatch('buttonClicked', button);

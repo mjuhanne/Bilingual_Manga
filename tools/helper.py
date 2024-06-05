@@ -1,9 +1,13 @@
 import json
 import os
+import hashlib
 
-CURRENT_PARSED_OCR_VERSION = 2
-CURRENT_OCR_SUMMARY_VERSION = 2
+# Other tools depend on the right format of the parsed OCR and summary files..
+CURRENT_PARSED_OCR_VERSION = 7
+CURRENT_OCR_SUMMARY_VERSION = 5
 CURRENT_METADATA_CACHE_VERSION = 2
+# .. whereas older language parser works but may not have parsed all the words as efficiently
+CURRENT_LANUGAGE_PARSER_VERSION = 8
 
 AVERAGE_PAGES_PER_VOLUME = 180
 
@@ -44,6 +48,8 @@ source_labels = {
     SOURCE_USER     : 'User set word',
 }
 
+ALL_SENSES = 100
+
 base_dir = './'
 
 ocr_dir = base_dir + "ocr/"
@@ -53,13 +59,20 @@ chapter_analysis_dir = base_dir + "lang/chapters/"
 title_analysis_dir = base_dir + "lang/titles/"
 
 user_data_file = base_dir + 'json/user_data.json'
-user_set_words_file = base_dir + 'json/user_set_words.json'
+user_set_words_file__old = base_dir + 'json/user_set_words.json'  # deprecated
+user_set_word_ids_file = base_dir + 'json/user_set_word_ids.json'
+
 
 manga_metadata_file = base_dir + "json/admin.manga_metadata.json"
 manga_data_file = base_dir + "json/admin.manga_data.json"
 
 jlpt_kanjis_file = base_dir + "lang/jlpt/jlpt_kanjis.json"
-jlpt_vocab_file =  base_dir + "lang/jlpt/jlpt_vocab.json"
+jlpt_vocab_with_waller_kanji_restrictions_path_= base_dir + "lang/jlpt-vocab/data_with_waller_restricted_kanji/"
+jlpt_vocab_path =  base_dir + "lang/jlpt-vocab/data/"
+jlpt_vocab_jmdict_file =  base_dir + "lang/jlpt/jlpt_vocab_jmdict.json"
+
+manga_specific_settings_file = base_dir + "tools/manga_specific_settings.json"
+counter_word_id_file = base_dir + "lang/counter_word_ids.tsv"
 
 _title_names = dict()
 _title_name_to_id = dict()
@@ -69,22 +82,35 @@ _chapter_id_to_chapter_name = dict()
 _title_chapters = dict()
 _chapter_page_count = dict()
 
-_user_settings = dict()
-_learning_settings = dict()
-
-_jlpt_word_reading_reverse = dict()
-_jlpt_words = dict()
+_jlpt_word_jmdict_references = None
+_jlpt_word_levels = None
+_jlpt_word_reading_levels = None
 
 _manga_data = dict()
 
+full_width_alpha_characters = "ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ％"
+full_width_numeric_characters = "０１２３４５６７８９"
+numerics = list('一二三四五六七八九十百万億') + list(full_width_numeric_characters)
+
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
 def get_user_set_words():
     try: 
-        with open(user_set_words_file,"r",encoding="utf-8") as f:
+        with open(user_set_word_ids_file,"r",encoding="utf-8") as f:
             data = f.read()
-            user_set_words = json.loads(data)
+            return json.loads(data)
     except:
-        print("User set words file doesn't exist")
-    return user_set_words
+        print("User set word id file doesn't exist")
+        return []
 
 def get_chapter_name_by_id(id):
     return _chapter_id_to_chapter_name[id]
@@ -134,8 +160,14 @@ def read_manga_data():
         _manga_data = json.loads(data)
         for m in _manga_data:
             title_id = m['_id']['$oid']
-            chapter_ids = m['jp_data']['ch_jph']
-            chapter_ids = [cid.split('/')[0] for cid in chapter_ids]
+
+            _chapter_ids = m['jp_data']['ch_jph']
+            _chapter_ids = [cid.split('/')[0] for cid in _chapter_ids]
+            chapter_ids = []
+            for cid in _chapter_ids:
+                if cid not in chapter_ids:
+                    chapter_ids.append(cid)
+
             pages = m['jp_data']['ch_jp']
             _title_chapters[title_id] = chapter_ids
             chapter_names = m['jp_data']['ch_najp']
@@ -161,67 +193,79 @@ def get_title_id(item):
         return item
     raise Exception("unknown manga title/id %d" % item)
 
-def get_stage_by_frequency(item_type, freq):
-    if item_type == 'words':
-        if freq >= _learning_settings['known_word_threshold']:
-            if _learning_settings['automatic_graduation_to_known']:
-                return STAGE_KNOWN
-            else:
-                return STAGE_PRE_KNOWN
-        elif freq >= _learning_settings['learning_word_threshold']:
-            return STAGE_LEARNING
-    if item_type == 'kanjis':
-        if freq >= _learning_settings['known_kanji_threshold']:
-            if _learning_settings['automatic_graduation_to_known']:
-                return STAGE_KNOWN
-            else:
-                return STAGE_PRE_KNOWN
-        elif freq >= _learning_settings['learning_kanji_threshold']:
-            return STAGE_LEARNING
-    return STAGE_UNFAMILIAR
-
-def read_user_settings():
-    global _user_settings, _learning_settings
-    if os.path.exists(user_data_file):
-        with open(user_data_file,"r") as f:
-            d = f.read()
-            _user_settings = json.loads(d)
-            if 'learning_settings' in _user_settings:
-                _learning_settings = _user_settings['learning_settings']
-            else:
-                raise Exception("Please set the learning settings first in the Language settings screen!")
-    else:
-        raise Exception("Please set the learning settings first in the Language settings screen!")
-    return _user_settings
-
-def get_learning_settings():
-    return _learning_settings
-
 def get_jlpt_kanjis():
     with open(jlpt_kanjis_file,"r",encoding="utf-8") as f:
         jlpt_kanjis = json.loads(f.read())
     return jlpt_kanjis
 
-def read_jlpt_word_file():
-    global _jlpt_words, _jlpt_word_reading_reverse
-    with open(jlpt_vocab_file,"r",encoding="utf-8") as f:
-        v = json.loads(f.read())
-        _jlpt_words = v['words']
-        _jlpt_word_reading_reverse = v['word_reading_reverse']
-        """
-        jlpt_words_parsed = v['words_parsed']
-        jlpt_word_count_per_level = v['word_count_per_level']
-        jlpt_word_readings = v['word_readings']
-        jlpt_word_reading_reverse = v['word_reading_reverse']
-        jlpt_word_level_suitable_form = v['word_level_suitable_form']
-        jlpt_word_kanji_level = v['word_kanji_level']
-        """
 
-def get_jlpt_words():
-    return _jlpt_words
+def get_jlpt_word_levels():
+    global _jlpt_word_levels
+    if _jlpt_word_levels is None:
+        calculate_jlpt_word_levels()
+    return _jlpt_word_levels
 
-def get_jlpt_word_reverse_readings():
-    return _jlpt_word_reading_reverse
+def get_jlpt_word_reading_levels():
+    global _jlpt_word_reading_levels
+    if _jlpt_word_reading_levels is None:
+        calculate_jlpt_word_levels()
+    return _jlpt_word_reading_levels
+
+def calculate_jlpt_word_levels():
+    global _jlpt_word_levels, _jlpt_word_reading_levels
+    refs = get_jlpt_word_jmdict_references()
+    _jlpt_word_levels = dict()
+    _jlpt_word_reading_levels = dict()
+    for level, seqs_per_level in refs.items():
+        for seq, word_dict in seqs_per_level.items():
+            for word in word_dict['kanji']:
+                if word not in _jlpt_word_levels:
+                    _jlpt_word_levels[word] = level
+                else:
+                    if _jlpt_word_levels[word] < level:
+                        _jlpt_word_levels[word] = level
+
+            for reading in word_dict['kana']:
+                if reading not in _jlpt_word_reading_levels:
+                    _jlpt_word_reading_levels[reading] = level
+                else:
+                    if _jlpt_word_reading_levels[reading] < level:
+                        _jlpt_word_reading_levels[reading] = level
+            
+
+def get_jlpt_word_jmdict_references():
+    global _jlpt_word_jmdict_references
+    if _jlpt_word_jmdict_references is not None:
+        return _jlpt_word_jmdict_references
+    refs = dict()
+    for level in range(1,6):
+        filename = "%sn%d.csv" %(jlpt_vocab_with_waller_kanji_restrictions_path_,level)
+        refs[level] = dict()
+        with open(filename,"r",encoding="utf-8") as f:
+            lines = f.readlines()
+            for line in lines[1:]: #skip header
+                d = line.split(',')
+
+                if d[0] != '':
+                    seq = int(d[0])
+                    if seq not in refs[level]:
+                        refs[level][seq] = {'kanji':[],'kana':[]}
+                    kana = d[2]
+                    kana = kana.replace('"','')
+                    if kana != '':
+                        if has_word_katakana(kana):
+                            kana = katakana_to_hiragana(kana)
+                        if kana not in refs[level][seq]['kana']:
+                            refs[level][seq]['kana'].append(kana)
+
+                    kanji = d[1]
+                    kanji = kanji.replace('"','')
+                    if kanji != '':
+                        if kanji not in refs[level][seq]['kanji']:
+                            refs[level][seq]['kanji'].append(kanji)
+                    
+    _jlpt_word_jmdict_references = refs
+    return refs
 
 cjk_ranges = [
     (0x4E00, 0x9FAF),  # CJK unified ideographs
@@ -246,11 +290,89 @@ katakana = list(
 def is_katakana_word(word):
     return all(c in katakana for c in word)
 
+def has_word_katakana(word):
+    return any(c in katakana for c in word)
+
 def is_cjk(c):
     return any(s <= ord(c) <= e for (s, e) in cjk_ranges)
+
+def is_numerical(word):
+    return all(c in numerics for c in word)
+    
+def num_cjk(word):
+    count = 0
+    for c in word:
+        if is_cjk(c):
+            count += 1
+    return count
 
 def has_cjk(word):
     return any(is_cjk(c) for c in word)
 
+def has_numbers(word):
+    return any(c in numerics for c in word)
+
 def filter_cjk(text):
     return filter(has_cjk, text)
+
+hira_start = int("3041", 16)
+hira_end = int("3096", 16)
+kata_start = int("30a1", 16)
+
+def is_hiragana(c):
+    return hira_start <= ord(c) <= hira_end
+
+def is_hiragana_word(word):
+    return all(is_hiragana(c) for c in word)
+
+hira_to_kata = dict()
+kata_to_hira = dict()
+for i in range(hira_start, hira_end+1):
+    hira_to_kata[chr(i)] = chr(i-hira_start+kata_start)
+    #print(chr(i), chr(i-hira_start+kata_start))    
+for hira,kata in hira_to_kata.items():
+    kata_to_hira[kata] = hira
+
+def hiragana_to_katakana(word):
+    katakana = ''
+    for chr in word:
+        if chr in hira_to_kata:
+            katakana += hira_to_kata[chr]
+        else:
+            katakana += chr
+    return katakana
+
+def katakana_to_hiragana(word):
+    hiragana = ''
+    for chr in word:
+        if chr in kata_to_hira:
+            hiragana += kata_to_hira[chr]
+        else:
+            hiragana += chr
+    return hiragana
+
+def get_seq_and_word_from_word_id(word_id):
+    sw = word_id.split(':')
+    word = sw[1]
+    seq = sw[0].split('/')[0]
+    return int(seq),word
+
+def get_word_id_components(word_id):
+    sw = word_id.split(':')
+    word = sw[1]
+    ss = sw[0].split('/')
+    seq = int(ss[0])
+    if len(ss) > 1:
+        sense = int(ss[1])
+    else:
+        sense = ALL_SENSES
+    return seq,sense,word
+
+def strip_sense_from_word_id(word_id):
+    seq,word = get_seq_and_word_from_word_id(word_id)
+    return str(seq) + ':' + word
+
+# Modified stable hash function implementation from https://death.andgravity.com/stable-hashing
+def get_stable_hash(thing):
+    byte_digest = hashlib.md5(json.dumps(thing).encode('utf-8')).digest()
+    return int.from_bytes(byte_digest)

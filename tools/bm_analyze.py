@@ -6,6 +6,7 @@ import time
 import sys
 
 from helper import *
+from bm_learning_engine_helper import *
 
 # Full history is just for debugging because the resulting data set becomes quickly too large.
 # Instead we keep history only for those events when the learning stage changes
@@ -44,10 +45,10 @@ def read_dataset(data_set, item_type, learning_dataset, retain_changes=False,
     known_dataset = learning_dataset[item_type]
 
     if item_type == 'words':
-        title_data_set = data_set['word_frequency']
+        title_data_list =  zip(data_set['word_id_list'], data_set['word_frequency'])
         known_threshold = learning_settings['known_word_threshold']
     else:
-        title_data_set = data_set['kanji_frequency']
+        title_data_list = data_set['kanji_frequency'].items()
         known_threshold = learning_settings['known_kanji_threshold']
 
     # these counters contain occurrences per learning stage
@@ -69,16 +70,27 @@ def read_dataset(data_set, item_type, learning_dataset, retain_changes=False,
     for stage in save_items_for_these_stages:
         saved_items[stage] = []
 
+    num_all_total = 0
+    num_all_unique = 0
+    for i, (wid, freq) in enumerate(title_data_list):
 
-    for w,freq in title_data_set.items():
+        if item_type == 'words':
+            class_list = data_set['word_class_list'][i]
+            if learning_settings['omit_particles'] and jmdict_particle_class in class_list:
+                continue
+        else:
+            class_list = None
 
-        if w in known_dataset:
-            l_freq = known_dataset[w]['lf'] # learning phase occurrence
-            l_stage = known_dataset[w]['s']
+        if wid in known_dataset:
+            l_freq = known_dataset[wid]['lf'] # learning phase occurrence
+            l_stage = known_dataset[wid]['s']
         else:
             l_freq = 0
             l_stage = STAGE_UNKNOWN
         old_stage = l_stage
+
+        num_all_unique += 1
+        num_all_total += freq
 
         # counters pre-read
         total_counter[l_stage] += freq
@@ -88,7 +100,7 @@ def read_dataset(data_set, item_type, learning_dataset, retain_changes=False,
             # this is a word/kanji not (fully) known after started reading..
             if learning_settings['automatic_learning_enabled']:
                 l_freq = l_freq + freq
-                l_stage = get_stage_by_frequency(item_type, l_freq)
+                l_stage = get_stage_by_frequency_and_class(item_type, l_freq, class_list)
                 if l_stage < old_stage:
                     # don't downgrade stage just by frequency
                     l_stage = old_stage
@@ -103,34 +115,28 @@ def read_dataset(data_set, item_type, learning_dataset, retain_changes=False,
         unique_post_read_counter[l_stage] += 1
 
         if retain_changes:
-            if w not in known_dataset:
-                known_dataset[w] = {}
-            known_dataset[w]['s'] = l_stage
-            known_dataset[w]['lf'] = l_freq 
+            if wid not in known_dataset:
+                known_dataset[wid] = {}
+            known_dataset[wid]['s'] = l_stage
+            known_dataset[wid]['lf'] = l_freq 
 
         if old_stage in save_items_for_these_stages:
-            saved_items[old_stage].append(w)
+            saved_items[old_stage].append(wid)
 
         if old_stage != l_stage:
             if l_stage in save_changes_for_these_stages:
-                saved_changes[l_stage].append(w)
+                saved_changes[l_stage].append(wid)
 
     analysis = dict()
     for analysis_type in ['total_statistics','unique_statistics']:
         if analysis_type == 'unique_statistics':
             counter = unique_counter
             post_read_counter = unique_post_read_counter
-            if item_type == 'words':
-                num_all = data_set['num_unique_words']
-            else:
-                num_all = data_set['num_unique_kanjis']
+            num_all = num_all_unique
         else:
             counter = total_counter
             post_read_counter = total_post_read_counter
-            if item_type == 'words':
-                num_all = data_set['num_words']
-            else:
-                num_all = data_set['num_kanjis']
+            num_all = num_all_total
 
         an = dict()
         an['num_all'] = num_all
@@ -166,6 +172,62 @@ def read_dataset(data_set, item_type, learning_dataset, retain_changes=False,
 
     return analysis
 
+# Calculate number and percentage of i+0/i+1/i+.. sentences (i.e. how many
+# sentences have 0,1 or more not-known words. In this case PRE_KNOWN words 
+# are considered as KNOWN_WORDS)
+def read_sentences(data_set, learning_dataset, results):
+
+    known_dataset = learning_dataset["words"]
+
+    unknown_i_sentences = [0] * 3
+    unknown_word_occurrences = dict()
+
+    for i,sentence in enumerate(data_set['sentence_list']):
+
+        unknown_count = 0
+        for ref in sentence:
+            wid = data_set['word_id_list'][ref]
+
+            class_list = data_set['word_class_list'][ref]
+            if learning_settings['omit_particles'] and jmdict_particle_class in class_list:
+                continue
+
+            if wid in known_dataset:
+                l_freq = known_dataset[wid]['lf'] # learning phase occurrence
+                l_stage = known_dataset[wid]['s']
+            else:
+                l_freq = 0
+                l_stage = STAGE_UNKNOWN
+            old_stage = l_stage
+
+            if l_stage != STAGE_KNOWN and l_stage != STAGE_PRE_KNOWN:
+                # this is a word/kanji not (fully) known after started reading..
+
+                if wid not in unknown_word_occurrences:
+                    unknown_word_occurrences[wid] = 1
+                else:
+                    unknown_word_occurrences[wid] += 1
+
+                if learning_settings['automatic_learning_enabled']:
+                    l_freq = l_freq + unknown_word_occurrences[wid]
+                    l_stage = get_stage_by_frequency_and_class(item_type, l_freq, class_list)
+                    if l_stage < old_stage:
+                        # don't downgrade stage just by frequency
+                        l_stage = old_stage
+
+                if l_stage != STAGE_KNOWN and l_stage != STAGE_PRE_KNOWN:
+                    unknown_count += 1
+
+        if unknown_count > 2:
+            unknown_count = 2
+
+        unknown_i_sentences[unknown_count] += 1
+
+    l_s = len(data_set['sentence_list'])
+    results['unknown_i_sentences'] = unknown_i_sentences
+    results['unknown_i_sentences_pct'] = [round(100*unk/l_s,1) for unk in unknown_i_sentences ]
+    results['comprehensible_input_pct'] = round(results['unknown_i_sentences_pct'][0] + results['unknown_i_sentences_pct'][1],1)
+
 # This calculates known/unknown word and kanji distribution of chapter/title
 # for each JLPT level (1-5). 
 # Additional categories: 0 = non-Katakana non-JLPT word, 6=Katakana non-JLPT word
@@ -173,25 +235,17 @@ def fetch_known_jlpt_levels(data, calc, total):
 
     ## WORDS
     jlpt_word_count_per_level = [ 0 for i in range(7) ]
-    for w,c in data['word_frequency'].items():
-        if w in learning_data['words']:
-            s = learning_data['words'][w]['s']
+    total_w = 0
+    for wid,freq in zip(data['word_id_list'], data['word_frequency']):
+        if wid in learning_data['words']:
+            s = learning_data['words'][wid]['s']
+            seq,w = get_seq_and_word_from_word_id(wid)
             if s == STAGE_KNOWN or s == STAGE_PRE_KNOWN:
-                if w in jlpt_words:
-                    level = jlpt_words[w]
+                if w in jlpt_word_levels:
+                    level = jlpt_word_levels[w]
                 else:
-                    if w in jlpt_word_reading_reverse:
-                        rw = jlpt_word_reading_reverse[w]
-
-                        if len(rw)==1:
-                            w = rw[0]
-                            level = jlpt_words[w]
-                        else:
-                            # ambigous (too many homonymous readings). Assume non-jlpt word
-                            if is_katakana_word(w):
-                                level = 6
-                            else:
-                                level = 0
+                    if w in jlpt_word_reading_levels:
+                        level = jlpt_word_reading_levels[w]
                     else:
                         # non-jlpt word
                         if is_katakana_word(w):
@@ -199,11 +253,15 @@ def fetch_known_jlpt_levels(data, calc, total):
                         else:
                             level = 0
                 if total:
-                    jlpt_word_count_per_level[level] += c
+                    jlpt_word_count_per_level[level] += freq
                 else:
                     jlpt_word_count_per_level[level] += 1
 
-    total_w = calc['words']['num_all']
+        if total:
+            total_w += freq
+        else:
+            total_w += 1
+
     if total_w > 0:
         jlpt_w_level_pct = [ round(100*jlpt_word_count_per_level[i]/total_w,1) for i in range(7) ]
         jlpt_w_level_per_v = [ round(jlpt_word_count_per_level[i]/data['num_virtual_volumes'],1) for i in range(7) ]
@@ -254,6 +312,8 @@ def load_and_analyze_dataset(file_name):
     k_an = read_dataset(data_set, "kanjis", learning_data)
     analysis['total_statistics']['kanjis'] = k_an['total_statistics']
     analysis['unique_statistics']['kanjis'] =  k_an['unique_statistics']
+
+    read_sentences(data_set, learning_data, analysis)
     
     analysis['total_statistics']['words']['pct_known_pre_known'] = \
         round(analysis['total_statistics']['words']['pct_known_pre_known'],1)
@@ -355,11 +415,14 @@ def suggest_preread(args):
     # first read the target title and save analysis before pre-reading
     target_word_analysis = read_dataset(target_title_data, "words", learning_data, 
         save_items_for_these_stages=[STAGE_UNFAMILIAR,STAGE_LEARNING, STAGE_FORGOTTEN])
-    weak_words = set(target_word_analysis['saved_items'][STAGE_UNFAMILIAR])
-    weak_words.update(target_word_analysis['saved_items'][STAGE_LEARNING])
-    weak_words.update(target_word_analysis['saved_items'][STAGE_FORGOTTEN])
-    #target_unique_word_analysis = w_an['unique_statistics']
+    weak_word_ids = set(target_word_analysis['saved_items'][STAGE_UNFAMILIAR])
+    weak_word_ids.update(target_word_analysis['saved_items'][STAGE_LEARNING])
+    weak_word_ids.update(target_word_analysis['saved_items'][STAGE_FORGOTTEN])
     target_pct_known = target_word_analysis['total_statistics']['pct_known_pre_known']
+
+    # comprehensible input (CI) = percentage of senteces with 0 or 1 not-known/pre-known words
+    read_sentences(target_title_data, learning_data, target_word_analysis)
+    target_pct_ci = target_word_analysis['comprehensible_input_pct']
 
     analysis = dict()
 
@@ -386,10 +449,15 @@ def suggest_preread(args):
         if candidate_pct_known < target_pct_known:
             print("Skipping %s with comprehension %.1f" % (title_name,candidate_pct_known))
             continue
+        read_sentences(title_data, this_session_learning_data, w_an)
+        candicate_pct_ci = w_an['comprehensible_input_pct']
+        if candicate_pct_ci < target_pct_ci:
+            print("Skipping %s with comprehensible input %.1f" % (title_name,candicate_pct_ci))
+            continue
 
         # calculate number of common unique weak (unfamiliar or learning) words
-        w_set = set( title_data['word_frequency'].keys())
-        common_unique_weak_words = w_set.intersection(weak_words)
+        w_id_set = set(title_data['word_id_list'])
+        common_unique_weak_words = w_id_set.intersection(weak_word_ids)
         cuww = len(common_unique_weak_words)
         title_analysis['num_common_unique_weak_words'] = cuww
         if num_pages > 0:
@@ -400,7 +468,8 @@ def suggest_preread(args):
         # .. then analyze how much reading the candidate improved the comprehension of target manga
         w_an = read_dataset(target_title_data, "words", this_session_learning_data)
         title_analysis_words = w_an['total_statistics']
-        #title_analysis_kanjis = read_dataset(target_title_data, "kanji_frequency", this_session_learning_data)
+        read_sentences(target_title_data, this_session_learning_data, w_an)
+        improvement_ci_pct = w_an['comprehensible_input_pct'] - target_pct_ci
 
         improvement_pct = title_analysis_words['pct_known_pre_known'] - target_pct_known
         if num_pages > 0:
@@ -420,6 +489,7 @@ def suggest_preread(args):
             points = -1
 
         title_analysis['improvement_pct'] = round(improvement_pct,2)
+        title_analysis['improvement_ci_pct'] = round(improvement_ci_pct,2)
         title_analysis['relative_improvement'] = round(points,2) # in relation to the effort
         analysis[title_id] = title_analysis
 
@@ -448,9 +518,9 @@ def series_analysis_for_jlpt():
         # first read the candidate and save the words learned from this session
         # while analyzing how difficult this candidate series is..
         title_analysis = dict()
-        w_an = read_dataset(title_data, "words", learning_data, save_changes_for_these_stages=[STAGE_KNOWN, STAGE_PRE_KNOWN])
+        w_an = read_dataset(title_data, "words", learning_data, save_changes_for_these_stages=[STAGE_KNOWN, STAGE_PRE_KNOWN, STAGE_LEARNING], save_items_for_these_stages=[STAGE_LEARNING])
         title_analysis['words'] = w_an['total_statistics']
-        k_an = read_dataset(title_data, "kanjis", learning_data, save_changes_for_these_stages=[STAGE_KNOWN,STAGE_PRE_KNOWN])
+        k_an = read_dataset(title_data, "kanjis", learning_data, save_changes_for_these_stages=[STAGE_KNOWN,STAGE_PRE_KNOWN, STAGE_LEARNING], save_items_for_these_stages=[STAGE_LEARNING])
         title_analysis['kanjis'] = k_an['total_statistics']
         candidate_pct_known = title_analysis['words']['pct_known_pre_known']
 
@@ -458,25 +528,36 @@ def series_analysis_for_jlpt():
         num_words = title_data['num_words']
 
         # .. then calculate how many new JLPT words/kanjis we would have learned
-        new_known_words = w_an['saved_changes'][STAGE_KNOWN]
-        new_known_words += w_an['saved_changes'][STAGE_PRE_KNOWN]
+        new_known_word_ids = w_an['saved_changes'][STAGE_KNOWN]
+        new_known_word_ids += w_an['saved_changes'][STAGE_PRE_KNOWN]
+        new_learning_word_ids = w_an['saved_changes'][STAGE_LEARNING]
         new_known_kanjis = k_an['saved_changes'][STAGE_KNOWN]
         new_known_kanjis += k_an['saved_changes'][STAGE_PRE_KNOWN]
+        new_learning_kanjis = k_an['saved_changes'][STAGE_LEARNING]
 
         jlpt_points = 0
-        for w in new_known_words:
+        # Give points for every new known/pre-known JLPT word..
+        # Prioritize beginner level (from JLPT5 downwards) words by giving 2 points per level
+        # E.g. 10 points per every new known JLPT5 leve
+        for wid in new_known_word_ids:
             level = 0
-            if w in jlpt_words:
-                level = jlpt_words[w]
+            seq, w = get_seq_and_word_from_word_id(wid)
+            if w in jlpt_word_levels:
+                level = jlpt_word_levels[w]
             else:
-                if w in jlpt_word_reading_reverse:
-                    rw = jlpt_word_reading_reverse[w]
-                    if len(rw)>1:
-                        #print("ambigous")
-                        pass
-                    else:
-                        w = rw[0]
-                        level = jlpt_words[w] + 0.5
+                if w in jlpt_word_reading_levels:
+                    level = jlpt_word_reading_levels[w]
+            jlpt_points += level*2
+
+        # .. and for learning stage JLPT words give half amount of points
+        for wid in new_learning_word_ids:
+            level = 0
+            seq, w = get_seq_and_word_from_word_id(wid)
+            if w in jlpt_word_levels:
+                level = jlpt_word_levels[w]
+            else:
+                if w in jlpt_word_reading_levels:
+                    level = jlpt_word_reading_levels[w]
             jlpt_points += level
 
         if num_pages > 0:
@@ -497,8 +578,10 @@ def series_analysis_for_jlpt():
 
         title_analysis['relative_points'] = round(points,1)
         title_analysis['absolute_points'] = jlpt_points
-        title_analysis['num_new_known_words'] = len(new_known_words)
+        title_analysis['num_new_known_words'] = len(new_known_word_ids)
         title_analysis['num_new_known_kanjis'] = len(new_known_kanjis)
+        title_analysis['num_new_learning_words'] = len(new_learning_word_ids)
+        title_analysis['num_new_learning_kanjis'] = len(new_learning_kanjis)
         analysis[title_id] = title_analysis
 
     return analysis
@@ -547,9 +630,8 @@ user_set_words = get_user_set_words()
 user_settings = read_user_settings()
 learning_settings = get_learning_settings()
 
-read_jlpt_word_file()
-jlpt_words = get_jlpt_words()
-jlpt_word_reading_reverse = get_jlpt_word_reverse_readings()
+jlpt_word_levels = get_jlpt_word_levels()
+jlpt_word_reading_levels= get_jlpt_word_reading_levels()
 jlpt_kanjis = get_jlpt_kanjis()
 
 chapter_comprehension = user_settings['chapter_reading_status']
@@ -574,6 +656,8 @@ args = vars(parser.parse_args())
 cmd = args.pop('command')
 
 #analyze(args)
+#suggest_preread({'title':'Fullmetal Alchemist'})
+
 if cmd is not None:
     try:
         locals()[cmd](args)

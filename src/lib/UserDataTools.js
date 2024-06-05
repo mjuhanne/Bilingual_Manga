@@ -24,7 +24,7 @@ export const saveUserData = (db) => {
 
 export const saveUserSetWords = (db) => {
     console.log("saveUserSetWords");
-	fs.writeFile ("json/user_set_words.json", JSON.stringify(db['user_set_words']), function(err) {
+	fs.writeFile ("json/user_set_word_ids.json", JSON.stringify(db['user_set_words']), function(err) {
 		if (err) throw err;
     });
 };
@@ -69,6 +69,7 @@ export const AugmentMetadataWithCustomLanguageSummary = (manga_metadata, custom_
             element['unique_statistics']['jlpt_known_k_level_per_v'] = l['unique_statistics']['kanjis']['jlpt_level_per_v'];
             element['total_statistics']['jlpt_known_w_level_per_v'] = l['total_statistics']['words']['jlpt_level_per_v'];
             element['unique_statistics']['jlpt_known_w_level_per_v'] = l['unique_statistics']['words']['jlpt_level_per_v'];
+            element['comprehensible_input_pct'] = l['comprehensible_input_pct']
         }
     });
 
@@ -91,7 +92,7 @@ export const AugmentMetadataWithCustomLanguageSummary = (manga_metadata, custom_
 
             element['total_statistics']['num_unknown_kanjis_next_ch'] = l['total_statistics']['kanjis']['num_unknown'];
             element['unique_statistics']['num_unknown_kanjis_next_ch'] = l['unique_statistics']['kanjis']['num_unknown'];
-
+            element['comprehensible_input_pct_next_ch'] = l['comprehensible_input_pct']
         }
     });
 
@@ -117,6 +118,8 @@ export const AugmentMetadataWithUserData = (db) => {
     let read_chapters = 'chapter_reading_status' in user_data ? Object.keys(user_data['chapter_reading_status']) : [];
     let read_chapter_pct_by_manga = {};
     let chapter_names_by_manga = {};
+
+    db['manga_metadata']['0'].user_data_timestamp = db['user_data']['timestamp'];
 
     console.log("Augment manga_metadata with " +read_chapters.length + " read chapters");
 

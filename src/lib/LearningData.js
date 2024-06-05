@@ -30,14 +30,14 @@ export const learning_stages = {
 }
 
 export const learning_stage_colors = {
-    [STAGE.NONE] : '#fff',
+    [STAGE.NONE] : '#ccc',
     [STAGE.UNKNOWN] : '#dbd',
     [STAGE.UNFAMILIAR] : '#bbf',
     [STAGE.LEARNING] :  '#F8C471',
     [STAGE.PRE_KNOWN] : '#7f7',
-    [STAGE.KNOWN] : "#fff",
+    [STAGE.KNOWN] : "#cfc",
     [STAGE.FORGOTTEN] : "#F977CB",
-    [STAGE.IGNORED] : '#ccc',
+    [STAGE.IGNORED] : '#aaa',
 }
 
 export const SOURCE = {
@@ -95,6 +95,9 @@ export const DEFAULT_LEARNING_SETTINGS = {
     'max_encounters_per_chapter' : 2,
     'initial_remembering_period' : 60,
     'remembering_period_prolong_pct' : 30,
+    'omit_particles' : true,
+    'always_know_particles' : true,
+    'always_know_aux_verbs' : false,
 };
 
 export function date2timestamp(date) {

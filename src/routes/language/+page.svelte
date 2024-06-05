@@ -235,15 +235,23 @@ function colorizeStage(stage) {
                 <input class="datepicker" name="jlpt_learned_date" bind:value={learned_jlpt_date} on:change={onChangedJlptForgetting} type="date" />
                 {/if}
             </div>
+            <div class="knowledge-subsection">
+                <label for="always_know_particles">Always know particles</label>
+                <input name="always_know_particles" type="checkbox" bind:checked={learning_settings.always_know_particles} on:change={onSettingsChanged}/>
+            </div>
+            <div class="knowledge-subsection">
+                <label for="omit_particles">Omit particles from freq analysis</label>
+                <input name="omit_particles" type="checkbox" bind:checked={learning_settings.omit_particles} on:change={onSettingsChanged}/>
+            </div>
             <div class="knowledge-table-div">
                 <table class="knowledge-table" class:settings_changed={jlpt_settings_changed}>
                     <tr>
                         <th>Unique known words</th>
-                        <td>{known_word_stats.num_unique_jlpt_words}</td>
+                        <td>{known_word_stats.num_unique_known_jlpt_base_words}</td>
                     </tr>
                     <tr>
                         <th>Unique known kanjis</th>
-                        <td>{known_word_stats.num_unique_jlpt_kanjis}</td>
+                        <td>{known_word_stats.num_unique_known_jlpt_base_kanjis}</td>
                     </tr>
                 </table>
             </div>
@@ -403,6 +411,12 @@ function colorizeStage(stage) {
                     </button>
                     {status_msg}
                 </div>
+                <div class="timestamp">
+                    User data updated<br>{new Date(meta['0'].user_data_timestamp).toLocaleString()}
+                </div>
+                <div class="timestamp">
+                        Lang analysis updated<br>{new Date(meta['0'].custom_lang_summary_timestamp).toLocaleString()}
+                </div>
             </div>
         </div>
 
@@ -535,6 +549,10 @@ th {
     background-color: #444;
     text-align: left;
     padding: 10px;
+}
+
+.timestamp {
+    margin: 5px;
 }
 
 .knowledge-section {

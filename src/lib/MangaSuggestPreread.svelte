@@ -20,7 +20,7 @@ export let manga_data;
 
 let suggested_preread = [];
 
-$: sorted_suggested_preread = sortManga(suggested_preread, sort_criteria, sort_reverse);
+$: sorted_suggested_preread = sortManga(suggested_preread, sort_criteria, sort_reverse, "None");
 
 let fetched = false;
 async function fetchData(meta_data) {
@@ -40,6 +40,7 @@ async function fetchData(meta_data) {
                 let preread = data.suggested_preread[manga.enid];
                 manga.ncuuw = preread['num_common_unique_weak_words'];
                 manga.ncuuw_per_vol = preread['num_common_unique_weak_words_per_vol'];
+                manga.improvement_ci_pct = preread['improvement_ci_pct'];
                 manga.improvement_pct = preread['improvement_pct'];
                 manga.relative_improvement = preread['relative_improvement'];
 
@@ -72,7 +73,12 @@ const sortReverseChanged = (e) => {
         <th>Next unread volume(chapter)</th>
     </tr>
     <tr>
-        <th>Comprehension %</th>
+        <th>Comprehensible input %</th>
+        <td>{meta.comprehensible_input_pct}</td>
+        <td>{meta.comprehensible_input_pct_next_ch}</td>
+    </tr>
+    <tr>
+        <th>Known words %</th>
         <td>{meta.total_statistics.pct_known_words}</td>
         <td>{meta.total_statistics.pct_known_words_next_ch}</td>
     </tr>
@@ -106,10 +112,12 @@ const sortReverseChanged = (e) => {
                 <th>Manga</th>
                 <th>Volumes</th>
                 <th>Rating</th>
-                <th>Comprehension</th>
+                <th>Comprehensible input %</th>
+                <th>Known words %</th>
                 <th>Common weak words</th>
                 <th>Common weak words / vol</th>
                 <th>Comprehension % improvement</th>
+                <th>Known words % improvement</th>
                 <th>Relative improvement</th>
             </tr>
 
@@ -119,9 +127,11 @@ const sortReverseChanged = (e) => {
                 <td><a href="/manga/{manga.enid}?lang=en" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">{manga.title}</a></td>
                 <td>{manga.num_volumes}</td>
                 <td>{manga.rating_data.rating}</td>
+                <td>{manga.comprehensible_input_pct}</td>
                 <td>{manga.total_statistics.pct_known_words}</td>
                 <td>{manga.ncuuw}</td>
                 <td>{manga.ncuuw_per_vol}</td>
+                <td>{manga.improvement_ci_pct}</td>
                 <td>{manga.improvement_pct}</td>
                 <td>{manga.relative_improvement}</td>
             </tr>
