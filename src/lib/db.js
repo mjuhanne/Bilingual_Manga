@@ -1,12 +1,12 @@
 import fetch from 'node-fetch'
 import { AugmentMetadataWithUserData, AugmentMetadataWithCustomLanguageSummary, checkUserData } from '$lib/UserDataTools.js'
 console.log("Loading data files..")
-const response = await fetch('http://localhost:3300/json/admin.manga_metadata.json')
+const response = await fetch('http://localhost:3300/json/BM_data.manga_metadata.json')
 if (!response.ok) {
-    throw new Error("admin.manga_metadata.json not found! Please install the metadata files and restart the server")
+    throw new Error("BM_data.manga_metadata.json not found! Please install the metadata files and restart the server")
 }
 const a = await response.json()
-const response1 = await fetch('http://localhost:3300/json/admin.manga_data.json')
+const response1 = await fetch('http://localhost:3300/json/BM_data.manga_data.json')
 const b = await response1.json()
 const response_r = await fetch('http://localhost:3300/json/ratings.json')
 const ratings = await response_r.json()

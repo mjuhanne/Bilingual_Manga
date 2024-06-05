@@ -907,12 +907,12 @@ export async function fetchCoverImages() {
 export function initRepository(send_event_callback_func) {
   send_event_func = send_event_callback_func;
 
-  let data = fs.readFileSync("./json/admin.manga_data.json", "utf8");
+  let data = fs.readFileSync("./json/BM_data.manga_data.json", "utf8");
   let mdata = JSON.parse(data);
   manob["data"] = mdata;
   console.log("Loaded manga_data")
 
-  data = fs.readFileSync("./json/admin.manga_metadata.json", "utf8");
+  data = fs.readFileSync("./json/BM_data.manga_metadata.json", "utf8");
   mdata = JSON.parse(data);
   let re1 = mdata[0];
   manob["meta"] = re1;

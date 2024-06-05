@@ -6,6 +6,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation'
   	import { page } from '$app/stores'
+    import { bind } from "svelte/internal";
 
 	export let check=false;
 	let nomouse=false;
@@ -16,6 +17,7 @@
 	let pausejp=false;
 	export let id=''; // manga id
 	export let cid=''; // chapter id
+	let auto=true;
 	export let prel=0	
 	export let delayml=10000	
 	export let lang="JP";
@@ -33,7 +35,8 @@
 	export let iii; // eng vol
 	export let jjj; // jap vol
 	export let updown=true;
-	export let upt="🡅";
+	export let upt="M";
+	export let imgdata={};
 	let src_o={};
 	let src_o1={};
 	let imgs_jp=[]
@@ -46,11 +49,98 @@
 	let ocron=false;
 	let edit_mode=false;
 	
+	let recheckhe=true
+	let recheckhj=true
+	let recheckhj1=true
+	let recheckhe1=true
 	$:j=0;
 	$: langds=lang==="JP"?"ENG":"JP";
+	let notj=j-1;
 	export let jpp = [0];  // jap page
 	export let enp = [0];  // eng page
 	let scrollon=false;
+	
+	const imgmatcher=(a)=>{
+
+		let ddk=Object.keys(imgdata);
+		if(imgdata!={} && ddk.length>0 && auto)
+		{	
+
+			let kkkk=Object.keys(imgdata["jp"])
+			let kkkk1=Object.keys(imgdata["en"])
+			if(kkkk.includes(`${jjj}_${jpp[0]}`) && lang=='JP')
+			{	
+				let kkken=imgdata["jp"][`${jjj}_${jpp[0]}`].split('.')
+				let kkkka=kkken[0]
+				let newiii=parseInt(kkkka.split('_')[0]);
+				let newenp=[parseInt(kkkka.split('_')[1])];
+				iii=newiii
+				enp=newenp
+				let lollo=kkkka.split('_')
+				if(lollo.length==3)
+				{
+					checken=true;
+					notj=lollo[2];
+				}
+				else
+				{
+					checken=false;					
+				}
+			}
+
+			if(!kkkk.includes(`${jjj}_${jpp[0]}`))
+			{	checken=false;
+				notj=j-1;
+			}
+
+
+			if(kkkk1.includes(`${iii}_${enp[0]}`) && lang=='ENG')
+			{	
+
+				let kkkka=imgdata["en"][`${iii}_${enp[0]}`].split('.')[0]
+			
+				let supbreak=kkkka
+				let newjjj=parseInt(supbreak.split('_')[0]);
+				let newjpp=[parseInt(supbreak.split('_')[1])];
+				jjj=newjjj
+				jpp=newjpp
+
+				let lollo=kkkka.split('_')
+				if(lollo.length==3)
+				{
+					checkjp=true;
+					notj=lollo[2];
+				}
+				else
+				{
+					checkjp=false;					
+				}
+				
+			}
+			if(!kkkk1.includes(`${iii}_${enp[0]}`))
+			{	checkjp=false;
+				notj=j-1;
+			}
+		
+			$page.url.searchParams.set('chjp',jjj);
+			$page.url.searchParams.set('chen',iii);
+			$page.url.searchParams.set('enp',enp[0]);
+			$page.url.searchParams.set('jpp',jpp[0]);
+
+		}
+		
+	}
+
+
+	$:{
+
+		imgmatcher([enp,jpp,vi,iii,vj,jjj,auto]);
+
+	}
+
+
+
+
 	onMount(() => {refresh();imgloadercc();scrollon=true;});
 
 	const fitfunc=()=>{
@@ -86,7 +176,6 @@
 		$page.url.searchParams.set('chen',iii);
 		$page.url.searchParams.set('enp',enp[0]);
 		$page.url.searchParams.set('jpp',jpp[0]);
-
 		setTimeout(()=>{
 		
 		goto(`?${$page.url.searchParams.toString()}#img_store`,{replaceState:true})
@@ -95,8 +184,6 @@
 	
 	};
 	
-	let alternate=0;
-	let alternate1=0;
 	const twox=(op)=>{	
 		if(checkjp)
 		{
@@ -179,7 +266,6 @@
 	};
 	
 	const incdec=(op)=>{
-		
 		scrollon=true;
 		if(op)
 		{   
@@ -237,11 +323,11 @@
 
 			}
 
-		}	
-		
+		}
+	
+		imgmatcher([enp,jpp,vi,iii,vj,jjj,auto])
 		allquerys();
 		refresh();
-
 		imgloadercc();
 
 	}
@@ -281,26 +367,11 @@
 	};
 	
 
-	
-	const refreshImage=(imgElement, imgURL)=>
-		{    
-    		
-    		var timestamp = new Date().getTime();  
-  
-    		var el = imgElement;  
-  
-    		var queryString = "?t=" + timestamp;     
-    		el.src = imgURL + queryString;    
-		}
 
 	
 	const img_wid=(e)=>{
-		
 		let srce = e.srcElement.src;
-		e.srcElement.src="/loader.svg";
-
-		setTimeout(
-		()=>{refreshImage(e.srcElement,srce);},delayml);
+		e.srcElement.alt = `Error loading this image.Try Reloading The Page after a few seconds...`
 	};
 	
 	const setImage =(element_id, url) => {
@@ -323,21 +394,59 @@
 
 		if(checken&&lang==="ENG"||checkjp&&lang==="JP")
 		{
-			if(j>0)
+			if(j>0 || auto)
 			{
-				setImage("ch-i1", imgs_jp[j-1]);
+				setImage("ch-i1", imgs_jp[notj]);
 			}
-		else if(j==0)
+		else if(j==0 && !auto)
 			{
 				setImage("ch-i1", imgs_jp[0]);
 			}
 		src_o1=document.getElementById("ch-i1");
+		
 		}
 
 		fitfunc();	
+		let fdfdxx=jpp[0];
+		let fdfdxy=enp[0];
+		if(auto)
+		{
+			if(lang=="JP"){
+				if((fdfdxx != 0))
+				{recheckhj=true;}
+				else
+				{if(recheckhj)
+					{imgmatcher([]);refresh();recheckhj=false;}}
+
+				if((fdfdxx != imgs_jap.length-1))
+				{recheckhj1=true;}
+				else
+				{if(recheckhj1)
+					{imgmatcher([]);refresh();recheckhj1=false;}}
+			}
+
+			if(lang=="EN"){
+				if((fdfdxy != 0))
+				{recheckhe=true;}
+				else
+				{if(recheckhe)
+					{imgmatcher([]);refresh();recheckhe=false;}}
+
+				if((fdfdxy != imgs_eng.length-1))
+				{recheckhe1=true;}
+				else
+				{if(recheckhe1)
+					{imgmatcher([]);refresh();recheckhe1=false;}}
+			}
+		}
+
 	};
 
+
+
+
 	const img_wid2=(e)=>{
+
 		
 		setImage("ch-i", imgs_jp[j]);
 		src_o=document.getElementById("ch-i");
@@ -345,11 +454,11 @@
 
 		if(checken&&lang==="ENG"||checkjp&&lang==="JP")
 		{
-			if(j>0)
+			if(j>0 || auto)
 			{
-				setImage("ch-i1", imgs_jp[j-1]);
+				setImage("ch-i1", imgs_jp[notj]);
 			}
-		else if(j==0)
+		else if(j==0 && !auto)
 			{
 				setImage("ch-i1", imgs_jp[0]);
 			}
@@ -357,7 +466,6 @@
 		}
 
 	};
-
 
 
 	const handleKeydown=(e)=>{		
@@ -380,32 +488,34 @@ const sli1=()=>{
 	if(lang==="JP")
 	{
 		j=jpp[0];
-		
+		imgmatcher([enp,jpp,vi,iii,vj,jjj,auto])
 		
 		refresh();
 	}
-	upt="🡇";
+	upt="W";
 	updown=false;
 	document.getElementById("dash").style="position:fixed;bottom:1px;right:2.5vw;left:2.5vw;z-index: 999;background-color:rgba(0,0,0,0.6);"
+	
 	allquerys();
+	
 
 	
 }
 const sli2=()=>{
-	
 	if(lang==="ENG")
 	{
 		j=enp[0];
-		
+		imgmatcher([enp,jpp,vi,iii,vj,jjj,auto])
 		
 		refresh();
 	}
-	upt="🡇";
+	upt="W";
 	updown=false;
 	document.getElementById("dash").style="position:fixed;bottom:1px;right:2.5vw;left:2.5vw;z-index: 999;background-color:rgba(0,0,0,0.6);"
-	allquerys();
-}
 
+	allquerys();
+	
+}
 let irrcom=[]
 for(let ixxx=0;ixxx<=prel;ixxx++)
 {
@@ -454,7 +564,8 @@ for(let ixxx=0;ixxx<=prel;ixxx++)
 
 <div id="dash" >
 
-<Dashboard 
+<Dashboard
+bind:auto={auto}
 bind:pauseen={pauseen}
 bind:pausejp={pausejp}
 bind:check={check}
@@ -502,6 +613,11 @@ fitfunc={fitfunc}/>
 	<img alt="" src="/loader.svg" class="loadprefetchimgjp" style="max-width:200px;max-height:200px;" on:error={img_wid}/>
   	{/each}
 </div>
+
+
+
+
+
 <style>
 	#reader{
 		margin: auto;
