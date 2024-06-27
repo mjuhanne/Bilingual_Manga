@@ -27,58 +27,64 @@ volume_count_corrections = {
 with open(manga_data_file,"r",encoding="utf-8") as f:
     data = f.read()
     manga_data = json.loads(data)
-    for m in manga_data:
-        title_id = m['_id']['$oid']
-        volume_ids = m['jp_data']['ch_jph']
-        volume_ids = [vid.split('/')[0] for vid in volume_ids]
-        pages = m['jp_data']['ch_jp']
 
-        name = get_title_by_id(title_id)
-        # it's very complex to count how many volumes the manga has because
-        # sometimes the listed chapters are actually volumes. Then there are extras 
-        # and few times it's a mixed bag. 
-        if name in volume_count_corrections:
-            volume_count = volume_count_corrections[name]
+with open(ext_manga_data_file,"r",encoding="utf-8") as f:
+    data = f.read()
+    ext_manga_data = json.loads(data)
+    manga_data += ext_manga_data
+
+for m in manga_data:
+    title_id = m['_id']['$oid']
+    volume_ids = m['jp_data']['ch_jph']
+    volume_ids = [vid.split('/')[0] for vid in volume_ids]
+    pages = m['jp_data']['ch_jp']
+
+    name = get_title_by_id(title_id)
+    # it's very complex to count how many volumes the manga has because
+    # sometimes the listed chapters are actually volumes. Then there are extras 
+    # and few times it's a mixed bag. 
+    if name in volume_count_corrections:
+        volume_count = volume_count_corrections[name]
+    else:
+        small_chapter_cutoff = 70
+
+        page_count_per_chapter = [len(pages[ch]) for ch in pages]
+        vol_structures = m['jp_data']['vol_jp']
+        volume_count = 0
+        chapter_count = len(page_count_per_chapter)
+        large_chapters = sum(page_count > small_chapter_cutoff for page_count in page_count_per_chapter)
+        if large_chapters ==  chapter_count:
+            # chapters are actually volumes
+            volume_count = chapter_count
+        elif large_chapters == 0:
+            # each volume is actually a volume
+            volume_count = len(vol_structures)
+            print(name, volume_count, " volumes divided into ",chapter_count, "chapters")
+        elif len(vol_structures) == 1:
+            # few smaller chapters (extras?). Count only larger chapters as volumes
+            volume_count = large_chapters
+            print(name, volume_count, " volumes with ",large_chapters,"full volumes and ",chapter_count-large_chapters, "smaller")
+        elif len(vol_structures) == large_chapters - 1:
+            volume_count = large_chapters +1 
+            print(name, volume_count, " volumes with ",large_chapters,"full volumes and 1 incomplete with " , chapter_count-large_chapters , " chapters")
         else:
-            small_chapter_cutoff = 70
+            print("*** ",name)
+            for vol_name, vol_struct in vol_structures.items():
+                start = vol_struct['s']
+                end = vol_struct['e']
+                chapters_in_vol = end + 1 - start
+                large_chapters_in_vol = sum(page_count_per_chapter[i] > small_chapter_cutoff for i in range(start,end+1))
+                if large_chapters_in_vol > 0:
+                    # assume each chapter in this 'volume folder' is actually a volume and the smaller chapters are extras
+                    print("   ", vol_name, " has volumes with ",large_chapters_in_vol,"full volumes and " , chapters_in_vol-large_chapters_in_vol , " smaller extras")
+                    volume_count += large_chapters_in_vol
+                else:
+                    # all chapters are part of bigger volume
+                    print("   ", vol_name, " is 1 volume with ",chapters_in_vol," chapters")
+                    volume_count += 1
+            print("  ",name," has total ",volume_count," volumes")
 
-            page_count_per_chapter = [len(pages[ch]) for ch in pages]
-            vol_structures = m['jp_data']['vol_jp']
-            volume_count = 0
-            chapter_count = len(page_count_per_chapter)
-            large_chapters = sum(page_count > small_chapter_cutoff for page_count in page_count_per_chapter)
-            if large_chapters ==  chapter_count:
-                # chapters are actually volumes
-                volume_count = chapter_count
-            elif large_chapters == 0:
-                # each volume is actually a volume
-                volume_count = len(vol_structures)
-                print(name, volume_count, " volumes divided into ",chapter_count, "chapters")
-            elif len(vol_structures) == 1:
-                # few smaller chapters (extras?). Count only larger chapters as volumes
-                volume_count = large_chapters
-                print(name, volume_count, " volumes with ",large_chapters,"full volumes and ",chapter_count-large_chapters, "smaller")
-            elif len(vol_structures) == large_chapters - 1:
-                volume_count = large_chapters +1 
-                print(name, volume_count, " volumes with ",large_chapters,"full volumes and 1 incomplete with " , chapter_count-large_chapters , " chapters")
-            else:
-                print("*** ",name)
-                for vol_name, vol_struct in vol_structures.items():
-                    start = vol_struct['s']
-                    end = vol_struct['e']
-                    chapters_in_vol = end + 1 - start
-                    large_chapters_in_vol = sum(page_count_per_chapter[i] > small_chapter_cutoff for i in range(start,end+1))
-                    if large_chapters_in_vol > 0:
-                        # assume each chapter in this 'volume folder' is actually a volume and the smaller chapters are extras
-                        print("   ", vol_name, " has volumes with ",large_chapters_in_vol,"full volumes and " , chapters_in_vol-large_chapters_in_vol , " smaller extras")
-                        volume_count += large_chapters_in_vol
-                    else:
-                        # all chapters are part of bigger volume
-                        print("   ", vol_name, " is 1 volume with ",chapters_in_vol," chapters")
-                        volume_count += 1
-                print("  ",name," has total ",volume_count," volumes")
-
-        volume_count_per_title[title_id] = volume_count
+    volume_count_per_title[title_id] = volume_count
 
 
 # This calculates word and kanji distribution for each JLPT levels (1-5)

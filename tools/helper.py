@@ -63,8 +63,11 @@ user_set_words_file__old = base_dir + 'json/user_set_words.json'  # deprecated
 user_set_word_ids_file = base_dir + 'json/user_set_word_ids.json'
 
 
-manga_metadata_file = base_dir + "json/admin.manga_metadata.json"
-manga_data_file = base_dir + "json/admin.manga_data.json"
+manga_metadata_file = base_dir + "json/BM_data.manga_metadata.json"
+manga_data_file = base_dir + "json/BM_data.manga_data.json"
+ext_manga_data_file = 'json/ext.manga_data.json'
+ext_manga_metadata_file = 'json/ext.manga_metadata.json'
+
 
 jlpt_kanjis_file = base_dir + "lang/jlpt/jlpt_kanjis.json"
 jlpt_vocab_with_waller_kanji_restrictions_path_= base_dir + "lang/jlpt-vocab/data_with_waller_restricted_kanji/"
@@ -141,15 +144,24 @@ def get_chapter_page_count(id):
 
 def read_manga_metadata():
     global _title_names, _title_name_to_id
-    with open(manga_metadata_file,"r",encoding="utf-8") as f:
-        data = f.read()
-        manga_metadata = json.loads(data)
-        manga_titles = manga_metadata[0]['manga_titles']
+    def process_manga_metadata(manga_titles):
         for t in manga_titles:
             title_id = t['enid']
             title_name = t['entit']
             _title_names[title_id] = title_name
             _title_name_to_id[title_name] = title_id
+
+    with open(ext_manga_metadata_file,"r",encoding="utf-8") as f:
+        data = f.read()
+        manga_titles = json.loads(data)
+        process_manga_metadata(manga_titles)
+
+    with open(manga_metadata_file,"r",encoding="utf-8") as f:
+        data = f.read()
+        manga_metadata = json.loads(data)
+        manga_titles = manga_metadata[0]['manga_titles']
+        process_manga_metadata(manga_titles)
+
 
 def read_manga_data():
     global _manga_data
@@ -158,26 +170,32 @@ def read_manga_data():
     with open(manga_data_file,"r",encoding="utf-8") as f:
         data = f.read()
         _manga_data = json.loads(data)
-        for m in _manga_data:
-            title_id = m['_id']['$oid']
 
-            _chapter_ids = m['jp_data']['ch_jph']
-            _chapter_ids = [cid.split('/')[0] for cid in _chapter_ids]
-            chapter_ids = []
-            for cid in _chapter_ids:
-                if cid not in chapter_ids:
-                    chapter_ids.append(cid)
+    with open(ext_manga_data_file,"r",encoding="utf-8") as f:
+        data = f.read()
+        _ext_manga_data = json.loads(data)
+        _manga_data += _ext_manga_data
+    
+    for m in _manga_data:
+        title_id = m['_id']['$oid']
 
-            pages = m['jp_data']['ch_jp']
-            _title_chapters[title_id] = chapter_ids
-            chapter_names = m['jp_data']['ch_najp']
-            chapter_number = 1
-            for cid in chapter_ids:
-                _chapter_id_to_title_id[cid] = title_id
-                _chapter_id_to_chapter_number[cid] = chapter_number
-                _chapter_id_to_chapter_name[cid] = chapter_names[chapter_number-1]
-                _chapter_page_count[cid] = len(pages[str(chapter_number)])
-                chapter_number += 1
+        _chapter_ids = m['jp_data']['ch_jph']
+        _chapter_ids = [cid.split('/')[0] for cid in _chapter_ids]
+        chapter_ids = []
+        for cid in _chapter_ids:
+            if cid not in chapter_ids:
+                chapter_ids.append(cid)
+
+        pages = m['jp_data']['ch_jp']
+        _title_chapters[title_id] = chapter_ids
+        chapter_names = m['jp_data']['ch_najp']
+        chapter_number = 1
+        for cid in chapter_ids:
+            _chapter_id_to_title_id[cid] = title_id
+            _chapter_id_to_chapter_number[cid] = chapter_number
+            _chapter_id_to_chapter_name[cid] = chapter_names[chapter_number-1]
+            _chapter_page_count[cid] = len(pages[str(chapter_number)])
+            chapter_number += 1
 
 def get_manga_data():
     return _manga_data

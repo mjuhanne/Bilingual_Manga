@@ -16,6 +16,30 @@ if (!response_l.ok) {
 }
 const lang_summary = await response_l.json()
 
+
+const response_emmd = await fetch('http://localhost:3300/json/ext.manga_metadata.json')
+if (response_emmd.ok) {
+    const ext_mangametadata = await response_emmd.json()
+    ext_mangametadata.forEach(element => {
+        a[0]['manga_titles'].unshift(element)
+    });
+}
+
+const response_emd = await fetch('http://localhost:3300/json/ext.manga_data.json')
+if (response_emd.ok) {
+    const ext_mangadata = await response_emd.json()
+    ext_mangadata.forEach(element => {
+        //console.log(element)
+        b.unshift(element)
+    });
+}
+
+let ext_ratings = {}
+const response_er = await fetch('http://localhost:3300/json/ext_ratings.json')
+if (response_er.ok) {
+    ext_ratings = await response_er.json()
+}
+
 let custom_lang_summary = undefined
 const response_cl = await fetch('http://localhost:3300/json/custom_lang_analysis.json')
 if (response_cl.ok) {
@@ -47,6 +71,7 @@ console.log("Loading data files complete!")
 const AugmentMetadataWithRatings = (db) => {
     let manga_titles = db['manga_metadata']['0'].manga_titles;
     let ratings = db['ratings'];
+    let ext_ratings = db['ext_ratings'];
     console.log("Augment manga_metadata with " + Object.keys(ratings).length + " ratings");
 
     manga_titles.forEach(element => {
@@ -54,8 +79,14 @@ const AugmentMetadataWithRatings = (db) => {
 
         if (id in ratings) {
             element["rating_data"] = ratings[id]
+        } else if (id in ext_ratings) {
+            if (ext_ratings[id]['series_id'] != -1) {
+                element["rating_data"] = ext_ratings[id]
+            } else {
+                element["rating_data"] = { "url":"http://mangaupdates.com", "rating":-1, "votes": 0, "last_updated":"N/A"}
+            }
         } else {
-            element["rating_data"] = { "url":"http://mangaupdates.com", "rating":"N/A", "votes": 0, "last_updated":"N/A"}
+            element["rating_data"] = { "url":"http://mangaupdates.com", "rating":-1, "votes": 0, "last_updated":"N/A"}
         }
     });
 };
@@ -86,6 +117,7 @@ const admin={
     "manga_metadata":a,
     "manga_data":b,
     "ratings":ratings,
+    "ext_ratings":ext_ratings,
     "lang_summary":lang_summary,
     "user_data":user_data,
     "custom_lang_summary":custom_lang_summary,
