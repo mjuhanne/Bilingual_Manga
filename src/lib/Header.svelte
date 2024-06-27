@@ -14,6 +14,7 @@ const search=()=>{se=true;}
   <a href="https://twitter.com/BilingualManga" target="_top" rel="noopener noreferrer"><img src="/twitter.svg" alt="twitter" style="max-height:20px;"/></a>
   <a href="/about" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><img src="/info.svg" alt="about" style="max-height:20px;"/></a>
   <a href="/favourites" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><img src="/favourites.svg" alt="favourite manga" style="max-height:20px;"/></a>
+  <a href="/download" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><img src="/download.svg" alt="download manga" style="max-height:20px;"/></a>
   <a href="/language" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><img src="/language.svg" alt="favourite manga" style="max-height:20px;"/></a>
   <a href="/advanced" data-sveltekit:prefetch targ  et="_top" rel="noopener noreferrer"><img src="/advsearch.svg" alt="advanced search" style="max-height:20px;"/></a>
 

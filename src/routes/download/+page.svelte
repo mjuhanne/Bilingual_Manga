@@ -83,7 +83,7 @@
     $: {
         if (Object.keys(manga_repo_status).length>0) {
             // wait until valid repo status is available
-            x12 = sortManga(meta['0'].manga_titles, sort_criteria, sort_reverse);
+            x12 = sortManga(meta['0'].manga_titles, sort_criteria, sort_reverse, 'None');
             console.log(`sorted '${sort_criteria}'`);
             console.log("first is " + x12[0].entit);
         }

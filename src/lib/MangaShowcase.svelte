@@ -2,18 +2,30 @@
     import MangaCard from '$lib/MangaCard.svelte';
     import MangaSortDashboard from '$lib/MangaSortDashboard.svelte';
     import MangaLabelDashboard from '$lib/MangaLabelDashboard.svelte';
+    import MangaFilterDashboard from '$lib/MangaFilterDashboard.svelte';
+    import AddMangaFilter from './AddMangaFilter.svelte';
     import { page } from '$app/stores';
     import { goto } from "$app/navigation";
     import { showcase_sort_options, sortManga } from '$lib/MangaSorter.js';
+    import { available_filters, filterManga } from '$lib/MangaFilter.js';
+	import { onMount } from 'svelte';
     export let x;
     export let cdncdn;
     export let cdncdn1;
 
+    let user_filter_list = [];
+	onMount(() => {
+        user_filter_list = localStorage.getItem("user_filter_list");
+        if (user_filter_list === null || user_filter_list == "")  {
+            user_filter_list = [];
+        } else {
+            user_filter_list = JSON.parse(user_filter_list);
+        }
+    });
+
     let pagenew=1;
     let numoe=12
     let url1=""
-
-    let sx=x; // sorted manga list (already sorted by 'Newly added' by default)
 
     url1=`${$page.url}`.split('?')[0]
     let pagen=parseInt($page.url.searchParams.get('page'));
@@ -32,8 +44,11 @@
     }
     let sort_reverse=$page.url.searchParams.get('reverse') == "true" ? true : false;
 
-    $: url_param = "ls=" + ls + "&sort=" + encodeURIComponent(sort_criteria) + "&reverse=" + (sort_reverse ? "true" : "false") + "&label=" + encodeURIComponent(selected_label);
-    $: sx = sortManga(x, sort_criteria, sort_reverse, selected_label);
+    $: url_param = "ls=" + ls + "&sort=" + encodeURIComponent(sort_criteria) + "&reverse=" + (sort_reverse ? "true" : "false") + "&label=" + encodeURIComponent(selected_label);// + "&filters=" + encodeURIComponent(JSON.stringify(filters));
+    $: fx = filterManga(x, user_filter_list, showcase_sort_options);
+    $: sx = sortManga(fx, sort_criteria, sort_reverse, selected_label);
+
+    let sx=[]; // sorted manga list (already sorted by 'Newly added' by default)
 
     if(ls==="en" || ls==="jp")
     {
@@ -47,11 +62,14 @@
     }
     
 
-    let xnum=Math.ceil(sx.length/numoe)
+    $: xnum=Math.ceil(sx.length/numoe)
     let xarr=[];
-    for(let i=1;i<=xnum;i++)
-    {
-        xarr.push(i)
+    $: {
+        xarr=[];
+        for(let i=1;i<=xnum;i++)
+        {
+            xarr.push(i)
+        }
     }
 
     let pii=1;
@@ -99,6 +117,11 @@ $: pii3=pii+1;
         goto(`?${$page.url.searchParams.toString()}`);
     };
 
+    const FiltersUpdated = (e) => {
+        user_filter_list = e.detail; // force update
+        localStorage.setItem("user_filter_list", JSON.stringify(user_filter_list));
+    };
+
     </script>
     <div class="selgrid">
         <div class="lssel">
@@ -106,8 +129,10 @@ $: pii3=pii+1;
             <a href="{url1}?page={pagenew}&ls=jp" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">JP RAW</a>
             <a href="{url1}?page=1&ls=all" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">ALL</a>
         </div>
-        <div class="lssel">
-            <a href="{url1}download" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">Download</a>
+        <div class="sortsel">
+            <AddMangaFilter manga_titles={x} filter_options={available_filters} 
+                filter_list={user_filter_list} on:onFiltersUpdated={FiltersUpdated}
+            />
         </div>
         <div class="sortsel">
             <MangaSortDashboard {sort_criteria} {sort_reverse} 
@@ -122,6 +147,11 @@ $: pii3=pii+1;
                 on:LabelChanged={LabelChanged}
             />
         </div>
+    </div>
+    <div>
+        <MangaFilterDashboard filter_list={user_filter_list} filtered_num={fx.length} total_num={x.length}
+            on:onFiltersUpdated={FiltersUpdated}
+        />
     </div>
 <div id="cardholderid" class="cardholder">
     {#each sx as manga,pi }

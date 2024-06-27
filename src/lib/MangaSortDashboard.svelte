@@ -7,7 +7,7 @@ export let sort_criteria_list;
 export let sort_criteria;
 export let sort_reverse;
 
-export let width = 350;
+export let width = 360;
 
 const onCriteriaChanged = () => {
     dispatch("SortCriteriaChanged",sort_criteria);
