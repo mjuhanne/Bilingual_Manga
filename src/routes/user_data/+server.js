@@ -40,7 +40,7 @@ const toggleFavourite = (manga_id) => {
     let favourite = false;
     if (db['user_data'].favourites.includes(manga_id)) {
         console.log(db['user_data'].favourites);
-        db['user_data'].favourites = db['user_data'].favourites.filter((id) => {id != manga_id});
+        db['user_data'].favourites = db['user_data'].favourites.filter((id) => id != manga_id);
     } else {
         db['user_data'].favourites.push(manga_id);
         favourite = true;
@@ -52,6 +52,7 @@ const toggleFavourite = (manga_id) => {
 
 const updateLearningSettings = (settings) => {
     db['user_data']['learning_settings'] = settings
+    db['user_data']['timestamp'] = Date.now();
 	saveUserData(db);
     updateCustomLanguageAnalysis();
 	AugmentMetadataWithUserData(db);
@@ -78,6 +79,8 @@ const massSetChapterReadingStatus = (status_list) => {
         }
     }
     db['user_data']['chapter_reading_status'] = rs;
+    db['user_data']['timestamp'] = Date.now();
+    saveUserData(db);
     updateCustomLanguageAnalysis();
 	AugmentMetadataWithUserData(db);
 }
@@ -92,7 +95,6 @@ async function updateCustomLanguageAnalysis() {
     }
     update_process_lock = true;
     broadcastEvent(EVENT_TYPE.UPDATING_STATS);
-    saveUserData(db); // save reading status & comprehension
     do {
         if (redo_process) {
             console.log("updateCustomLanguageAnalysis - redo process");
@@ -126,8 +128,6 @@ async function updateCustomLanguageAnalysis() {
         }
     } while(redo_process);
     console.log("updateCustomLanguageAnalysis - analysis done")
-    db['user_data']['timestamp'] = Date.now();
-    saveUserData(db); // save timestamp
     updateMetadata();
     broadcastEvent(EVENT_TYPE.UPDATED_ANALYSIS);
     update_process_lock = false;

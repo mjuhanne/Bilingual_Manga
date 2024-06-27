@@ -767,7 +767,7 @@ def add_emphatetic_and_elongated_alternative_forms(pos,items):
             normal_form_pos = pos
             alt_form = items[pos].txt[:i-1] + normal_form
         else:
-            if pos>0:
+            if pos>0 and len(items[pos-1].txt)>0:
                 normal_form = get_norm_form_for_colloquial_vowel_extension(items[pos-1].txt[-1])
                 alt_form = items[pos-1].txt[:-1] + normal_form
                 normal_form_pos = pos-1

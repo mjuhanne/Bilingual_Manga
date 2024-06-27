@@ -413,6 +413,7 @@ function colorizeStage(stage) {
                 </div>
                 <div class="timestamp">
                     User data updated<br>{new Date(meta['0'].user_data_timestamp).toLocaleString()}
+                    User data timestamp<br>{meta['0'].user_data_timestamp}
                 </div>
                 <div class="timestamp">
                         Lang analysis updated<br>{new Date(meta['0'].custom_lang_summary_timestamp).toLocaleString()}

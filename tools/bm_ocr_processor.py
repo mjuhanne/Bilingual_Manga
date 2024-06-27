@@ -50,6 +50,8 @@ error_count = 0
 processed_chapter_count = 0
 processed_title_count = 0
 
+processed_titles = set()
+
 def is_chapter_read(cid):
     for chapter_id, reading_data in chapter_comprehension.items():
         if chapter_id == cid:
@@ -263,8 +265,10 @@ def process_chapters(args):
                     if is_file_up_to_date(target_freq_filename, CURRENT_OCR_SUMMARY_VERSION, CURRENT_LANUGAGE_PARSER_VERSION) and \
                         is_file_up_to_date(parsed_ocr_filename, CURRENT_PARSED_OCR_VERSION, CURRENT_LANUGAGE_PARSER_VERSION):
                             #print("[%d/%d] Skipping %s [chapter %d]" % (i, i_c, chapter_data['title'],chapter_data['chapter']))
+                            print(".",end='',flush=True)
                             continue
 
+                processed_titles.update([title_id])
                 #try:
                 print("[%d/%d] Scanning %s [%d : %s] " 
                     % (i, i_c, chapter_data['title'], chapter_data['chapter'], chapter_id),end='')
@@ -330,11 +334,12 @@ def process_titles(args):
 
         vs = get_chapters_by_title_id(title_id)
 
-        if is_file_up_to_date(title_filename, CURRENT_OCR_SUMMARY_VERSION, CURRENT_LANUGAGE_PARSER_VERSION):
+        if not args['force'] and title_id not in processed_titles and is_file_up_to_date(title_filename, CURRENT_OCR_SUMMARY_VERSION, CURRENT_LANUGAGE_PARSER_VERSION):
             print("Skipping %s [%s] with %d chapters" % (title_name, title_id, len(vs)))
         else:
             print("%d/%d %s [%s] with %d chapters" % (i,l_title_names,title_name, title_id, len(vs)))
 
+            parser_version = 0
             for chapter_id in vs:
                 chapter_filename = chapter_analysis_dir + chapter_id + ".json"
                 chapter = get_chapter_number_by_chapter_id(chapter_id)
@@ -349,6 +354,7 @@ def process_titles(args):
                     title_data['num_kanjis'] += chapter_data['num_kanjis']
                     title_data['num_sentences'] += chapter_data['num_sentences']
                     title_data['num_pages'] += chapter_data['num_pages']
+                    parser_version = chapter_data['parser_version']
 
                     for i in range(len(unidic_class_list)):
                         total_word_count_per_class[i] += chapter_data['word_count_per_class'][i]
@@ -394,6 +400,7 @@ def process_titles(args):
             title_data['num_unique_words'] = len(title_data['word_frequency'])
             title_data['num_unique_kanjis'] = len(title_data['kanji_frequency'])
             title_data['version'] = CURRENT_OCR_SUMMARY_VERSION
+            title_data['parser_version'] = parser_version
 
             o_f = open(title_filename,"w",encoding="utf-8")
             json_data = json.dumps(title_data,  ensure_ascii = False)
@@ -421,7 +428,7 @@ parser.add_argument('keyword', nargs='?', type=str, default=None, help='Title ha
 args = vars(parser.parse_args())
 
 #args['force'] = True
-#args['keyword'] = 'death note'
+#args['keyword'] = 'Error'
 #args['chapter'] = 4
 
 if not os.path.exists(title_analysis_dir):

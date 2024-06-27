@@ -8,7 +8,7 @@ import { suggested_preread_sort_options, sortManga } from '$lib/MangaSorter.js';
 let all_meta_data;
 obj.subscribe(value => { all_meta_data=value[0].manga_titles;});
 
-let sort_criteria='Relative improvement' //'Newly added';
+let sort_criteria='Relative CI improvement' //'Newly added';
 let sort_reverse=false;
 
 $: custom_analysis_available = 'pct_known_words' in meta.total_statistics;
@@ -43,6 +43,7 @@ async function fetchData(meta_data) {
                 manga.improvement_ci_pct = preread['improvement_ci_pct'];
                 manga.improvement_pct = preread['improvement_pct'];
                 manga.relative_improvement = preread['relative_improvement'];
+                manga.relative_ci_improvement = preread['relative_ci_improvement'];
 
                 suggested_preread.push(manga);
             }
@@ -113,12 +114,14 @@ const sortReverseChanged = (e) => {
                 <th>Volumes</th>
                 <th>Rating</th>
                 <th>Comprehensible input %</th>
+                <th>Comprehensible input % next ch</th>
                 <th>Known words %</th>
                 <th>Common weak words</th>
                 <th>Common weak words / vol</th>
                 <th>Comprehension % improvement</th>
                 <th>Known words % improvement</th>
                 <th>Relative improvement</th>
+                <th>Relative CI improvement</th>
             </tr>
 
             {#key sorted_suggested_preread}
@@ -128,12 +131,14 @@ const sortReverseChanged = (e) => {
                 <td>{manga.num_volumes}</td>
                 <td>{manga.rating_data.rating}</td>
                 <td>{manga.comprehensible_input_pct}</td>
+                <td>{manga.comprehensible_input_pct_next_ch}</td>                
                 <td>{manga.total_statistics.pct_known_words}</td>
                 <td>{manga.ncuuw}</td>
                 <td>{manga.ncuuw_per_vol}</td>
                 <td>{manga.improvement_ci_pct}</td>
                 <td>{manga.improvement_pct}</td>
                 <td>{manga.relative_improvement}</td>
+                <td>{manga.relative_ci_improvement}</td>
             </tr>
             {/each}
             {/key}

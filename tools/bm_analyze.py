@@ -7,6 +7,7 @@ import sys
 
 from helper import *
 from bm_learning_engine_helper import *
+from jmdict import *
 
 # Full history is just for debugging because the resulting data set becomes quickly too large.
 # Instead we keep history only for those events when the learning stage changes
@@ -182,9 +183,12 @@ def read_sentences(data_set, learning_dataset, results):
     unknown_i_sentences = [0] * 3
     unknown_word_occurrences = dict()
 
+    opt_ci_points = 0
+
     for i,sentence in enumerate(data_set['sentence_list']):
 
         unknown_count = 0
+        unknown_points = 0
         for ref in sentence:
             wid = data_set['word_id_list'][ref]
 
@@ -218,8 +222,29 @@ def read_sentences(data_set, learning_dataset, results):
                 if l_stage != STAGE_KNOWN and l_stage != STAGE_PRE_KNOWN:
                     unknown_count += 1
 
+                    seq, word = get_seq_and_word_from_word_id(wid)
+                    j_freq = get_frequency_by_seq_and_word(seq,word)
+
+                    if j_freq < 10: # first 5000 words
+                        unknown_points += 100
+                    elif j_freq < 20: # first 10000 words
+                        unknown_points += 50
+                    elif j_freq < 40: # first 20000 words
+                        unknown_points += 20
+                    elif j_freq < 99: # first 50000 words
+                        unknown_points += 10
+                    if l_stage == STAGE_LEARNING or l_stage == STAGE_FORGOTTEN:
+                        unknown_points += 20
+
         if unknown_count > 2:
             unknown_count = 2
+
+        if unknown_count == 0:
+            opt_ci_points += 30
+        elif unknown_count == 1:
+            opt_ci_points += unknown_points
+        else: 
+            opt_ci_points -= 50
 
         unknown_i_sentences[unknown_count] += 1
 
@@ -227,6 +252,8 @@ def read_sentences(data_set, learning_dataset, results):
     results['unknown_i_sentences'] = unknown_i_sentences
     results['unknown_i_sentences_pct'] = [round(100*unk/l_s,1) for unk in unknown_i_sentences ]
     results['comprehensible_input_pct'] = round(results['unknown_i_sentences_pct'][0] + results['unknown_i_sentences_pct'][1],1)
+    #results['w_comprehensible_input_pct'] = round(results['unknown_i_sentences_pct'][1]*0.5 + results['unknown_i_sentences_pct'][1] - results['unknown_i_sentences_pct'][2],1)
+    results['opt_comprehensible_input_pts'] = round(opt_ci_points/l_s,1)
 
 # This calculates known/unknown word and kanji distribution of chapter/title
 # for each JLPT level (1-5). 
@@ -334,6 +361,10 @@ def analyze_titles():
 
         title_filename = title_analysis_dir + title_id + ".json"
 
+        if not os.path.exists(title_filename):
+            print("Title %s datafile %s not found!" % (title_name,title_filename))
+            continue
+
         title_analysis, title_data = load_and_analyze_dataset(title_filename)
         
         # Average tankobon volume page count is 180, but it might vary considerable by
@@ -404,16 +435,28 @@ def analyze_next_unread():
 def suggest_preread(args):
 
     target_title_id = get_title_id(args['title'])
+    read_whole_titles = False
 
     print("Analyzing suggested pre-reading for " + get_title_by_id(target_title_id))
 
-    index_title_filename = title_analysis_dir + target_title_id + ".json"
-    o_f = open(index_title_filename,"r",encoding="utf-8")
-    target_title_data = json.loads(o_f.read())
-    o_f.close()
+    if read_whole_titles:
+        index_title_filename = title_analysis_dir + target_title_id + ".json"
+        o_f = open(index_title_filename,"r",encoding="utf-8")
+        target_data = json.loads(o_f.read())
+        o_f.close()
+    else:
+        target_chapter_id = get_next_unread_chapter(target_title_id)
+        target_chapter = get_chapter_number_by_chapter_id(target_chapter_id)
+
+        index_chapter_filename = chapter_analysis_dir + target_chapter_id + ".json"
+        if os.path.exists(index_chapter_filename):
+            o_f = open(index_chapter_filename,"r",encoding="utf-8")
+            target_data = json.loads(o_f.read())
+            o_f.close()
+
 
     # first read the target title and save analysis before pre-reading
-    target_word_analysis = read_dataset(target_title_data, "words", learning_data, 
+    target_word_analysis = read_dataset(target_data, "words", learning_data, 
         save_items_for_these_stages=[STAGE_UNFAMILIAR,STAGE_LEARNING, STAGE_FORGOTTEN])
     weak_word_ids = set(target_word_analysis['saved_items'][STAGE_UNFAMILIAR])
     weak_word_ids.update(target_word_analysis['saved_items'][STAGE_LEARNING])
@@ -421,7 +464,7 @@ def suggest_preread(args):
     target_pct_known = target_word_analysis['total_statistics']['pct_known_pre_known']
 
     # comprehensible input (CI) = percentage of senteces with 0 or 1 not-known/pre-known words
-    read_sentences(target_title_data, learning_data, target_word_analysis)
+    read_sentences(target_data, learning_data, target_word_analysis)
     target_pct_ci = target_word_analysis['comprehensible_input_pct']
 
     analysis = dict()
@@ -431,32 +474,46 @@ def suggest_preread(args):
         # TODO: optimize
         this_session_learning_data = copy.deepcopy(learning_data)
 
-        title_filename = title_analysis_dir + title_id + ".json"
-        o_f = open(title_filename,"r",encoding="utf-8")
-        title_data = json.loads(o_f.read())
+        if read_whole_titles:
+            candidate_filename = title_analysis_dir + title_id + ".json"
+            chapter = 'ALL'
+        else:
+            chapter_id = get_next_unread_chapter(title_id)
+            if chapter_id is None:
+                print("Skipping %s because already read all chapters" % (title_name))
+                continue
+            chapter = str(get_chapter_number_by_chapter_id(chapter_id))
+            candidate_filename = chapter_analysis_dir + chapter_id + ".json"
+        if not os.path.exists(candidate_filename):
+            print("Skipping %s because data file %s not found" % (title_name,candidate_filename))
+            continue
+
+        o_f = open(candidate_filename,"r",encoding="utf-8")
+        candidate_data = json.loads(o_f.read())
         o_f.close()
 
-        num_pages = title_data['num_pages']
-        num_words = title_data['num_words']
+        num_pages = candidate_data['num_pages']
+        num_words = candidate_data['num_words']
 
         title_analysis = dict()
+        title_analysis['chapter'] = chapter
 
         # first read the candidate, retaining the words learned from this session
         # while analyzing how difficult this candidate series is..
-        w_an = read_dataset(title_data, "words", this_session_learning_data, retain_changes=True)
+        w_an = read_dataset(candidate_data, "words", this_session_learning_data, retain_changes=True)
         candidate_word_analysis = w_an['total_statistics']
         candidate_pct_known = candidate_word_analysis['pct_known_pre_known']
-        if candidate_pct_known < target_pct_known:
+        if candidate_pct_known < target_pct_known - 2:
             print("Skipping %s with comprehension %.1f" % (title_name,candidate_pct_known))
             continue
-        read_sentences(title_data, this_session_learning_data, w_an)
+        read_sentences(candidate_data, this_session_learning_data, w_an)
         candicate_pct_ci = w_an['comprehensible_input_pct']
         if candicate_pct_ci < target_pct_ci:
             print("Skipping %s with comprehensible input %.1f" % (title_name,candicate_pct_ci))
             continue
 
         # calculate number of common unique weak (unfamiliar or learning) words
-        w_id_set = set(title_data['word_id_list'])
+        w_id_set = set(candidate_data['word_id_list'])
         common_unique_weak_words = w_id_set.intersection(weak_word_ids)
         cuww = len(common_unique_weak_words)
         title_analysis['num_common_unique_weak_words'] = cuww
@@ -466,9 +523,9 @@ def suggest_preread(args):
             title_analysis['num_common_unique_weak_words_per_vol'] = -1
 
         # .. then analyze how much reading the candidate improved the comprehension of target manga
-        w_an = read_dataset(target_title_data, "words", this_session_learning_data)
+        w_an = read_dataset(target_data, "words", this_session_learning_data)
         title_analysis_words = w_an['total_statistics']
-        read_sentences(target_title_data, this_session_learning_data, w_an)
+        read_sentences(target_data, this_session_learning_data, w_an)
         improvement_ci_pct = w_an['comprehensible_input_pct'] - target_pct_ci
 
         improvement_pct = title_analysis_words['pct_known_pre_known'] - target_pct_known
@@ -485,17 +542,31 @@ def suggest_preread(args):
             else:
                 difficulty_modifier = (candidate_pct_known - 80)/(95-80)*(2-0.5) + 0.5
             points *= difficulty_modifier
+
+            ci_points = 1000000*improvement_ci_pct / divider
+            # and modify the sort value depending on how difficult reading this candidate actually was
+            # (2 is easy, 0.5 is hard)
+            if candicate_pct_ci > 95:
+                difficulty_modifier = 2
+            elif candicate_pct_ci < 80:
+                difficulty_modifier = 0.5
+            else:
+                difficulty_modifier = (candicate_pct_ci - 80)/(95-80)*(2-0.5) + 0.5
+            ci_points *= difficulty_modifier
+
         else:
             points = -1
+            ci_points = -1
 
         title_analysis['improvement_pct'] = round(improvement_pct,2)
         title_analysis['improvement_ci_pct'] = round(improvement_ci_pct,2)
         title_analysis['relative_improvement'] = round(points,2) # in relation to the effort
+        title_analysis['relative_ci_improvement'] = round(ci_points,2) # in relation to the effort
         analysis[title_id] = title_analysis
 
     o_f = open(suggested_preread_dir + target_title_id + '.json' ,"w",encoding="utf-8")
     timestamp = int(time.time())*1000
-    data = {'timestamp':timestamp, 'analysis':analysis}
+    data = {'timestamp':timestamp, 'analysis':analysis, 'read_whole_titles':read_whole_titles}
     json_data = json.dumps(data)
     o_f.write(json_data)
     o_f.close()
@@ -511,6 +582,10 @@ def series_analysis_for_jlpt():
     for title_id, title_name in get_title_names().items():
 
         title_filename = title_analysis_dir + title_id + ".json"
+        if not os.path.exists(title_filename):
+            print("Title %s datafile %s not found!" % (title_name,title_filename))
+            continue
+
         o_f = open(title_filename,"r",encoding="utf-8")
         title_data = json.loads(o_f.read())
         o_f.close()
@@ -625,6 +700,7 @@ except Exception as e:
 
 read_manga_data()
 read_manga_metadata()
+load_jmdict()
 
 user_set_words = get_user_set_words()
 user_settings = read_user_settings()
@@ -655,8 +731,9 @@ parser_suggest_preread.add_argument('title', type=str, help='Target manga title'
 args = vars(parser.parse_args())
 cmd = args.pop('command')
 
-#analyze(args)
-#suggest_preread({'title':'Fullmetal Alchemist'})
+#analyze({'title'})
+#analyze_next_unread()
+#suggest_preread({'title':'Detective Conan'})
 
 if cmd is not None:
     try:

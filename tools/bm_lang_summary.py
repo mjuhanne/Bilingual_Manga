@@ -200,6 +200,11 @@ def save_summary():
 
         print(title_name)
         title_filename = title_analysis_dir + title_id + ".json"
+
+        if not os.path.exists(title_filename):
+            print("%s data file %s doesn't exist!" % (title_name,title_filename))
+            continue
+        
         o_f = open(title_filename,"r",encoding="utf-8")
         title_data = json.loads(o_f.read())
         o_f.close()
@@ -236,6 +241,7 @@ def save_summary():
         del(title_data['kanji_frequency'])
         del(title_data['word_id_list'])
         del(title_data['word_class_list'])
+        del(title_data['sentence_list'])
         del(title_data['title_id']) # redundant
         if 'lemmas' in title_data:
             del(title_data['lemmas']) # redundant

@@ -188,10 +188,16 @@ const colorizeDifference = (a,b) => {
                 <th>Whole series</th>
                 <th>Next unread volume(chapter)</th>
             </tr>
+            
             <tr>
                 <th>Comprehensible input %</th>
                 <td>{meta.comprehensible_input_pct}</td>
                 <td>{meta.comprehensible_input_pct_next_ch}</td>
+            </tr>
+            <tr>
+                <th>Optimized comprehensible input</th>
+                <td>{meta.opt_comprehensible_input_pts}</td>
+                <td>{meta.opt_comprehensible_input_pts_next_ch}</td>
             </tr>
             <tr>
                 <th>Known words %</th>

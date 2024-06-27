@@ -70,6 +70,7 @@ export const AugmentMetadataWithCustomLanguageSummary = (manga_metadata, custom_
             element['total_statistics']['jlpt_known_w_level_per_v'] = l['total_statistics']['words']['jlpt_level_per_v'];
             element['unique_statistics']['jlpt_known_w_level_per_v'] = l['unique_statistics']['words']['jlpt_level_per_v'];
             element['comprehensible_input_pct'] = l['comprehensible_input_pct']
+            element['opt_comprehensible_input_pts'] = l['opt_comprehensible_input_pts']
         }
     });
 
@@ -79,6 +80,9 @@ export const AugmentMetadataWithCustomLanguageSummary = (manga_metadata, custom_
     manga_titles.forEach(element => {
         let id = element.enid;
 
+        if (!('total_statistics' in element)) {
+            console.log(element.entit,"not does not have language summary!")
+        } else
         if (id in ls) {
             let l = ls[id];
             element['total_statistics']['pct_known_words_next_ch'] = l['total_statistics']['words']['pct_known_pre_known'];
@@ -93,6 +97,7 @@ export const AugmentMetadataWithCustomLanguageSummary = (manga_metadata, custom_
             element['total_statistics']['num_unknown_kanjis_next_ch'] = l['total_statistics']['kanjis']['num_unknown'];
             element['unique_statistics']['num_unknown_kanjis_next_ch'] = l['unique_statistics']['kanjis']['num_unknown'];
             element['comprehensible_input_pct_next_ch'] = l['comprehensible_input_pct']
+            element['opt_comprehensible_input_pts_next_ch'] = l['opt_comprehensible_input_pts']
         }
     });
 
