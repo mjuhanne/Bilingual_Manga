@@ -451,11 +451,9 @@
 			else if(key=="ArrowLeft")
 			{
 				incdec(false);
-			} else if(key=='l') {
-				change();
-			}
 			}
 		}
+	}
 
 const sli1=()=>{
 	if(lang==="JP")
@@ -538,6 +536,7 @@ for(let ixxx=0;ixxx<=prel;ixxx++)
 <div id="dash" >
 
 <Dashboard
+bind:edit_mode={edit_mode}
 bind:auto={auto}
 bind:pauseen={pauseen}
 bind:pausejp={pausejp}

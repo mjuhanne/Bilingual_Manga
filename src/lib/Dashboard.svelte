@@ -41,6 +41,7 @@
 	export let ocroff = false;
 	export let ocrbor;
 
+	export let edit_mode;
 	export let fitfunc;
 	let autotxt="AX"
 	const autoxf=()=>{if(auto){auto=false;autotxt="AO"}else{auto=true;autotxt="AX"};setfunc();}
@@ -48,19 +49,21 @@
 	onMount(() => {allst();flt();fitfunc();autoxf1()});
 	
 
-	const handleKeydown=(e)=>{	
-		let key = e.key;
-		if(key=="l")
-		{
-			change()
-		}
-		else if(key == "m")
-		{
-			upb()
-		}
-		else if(key == "o")
-		{
-			autoxf()
+	const handleKeydown=(e)=>{
+		if (!edit_mode) {
+			let key = e.key;
+			if(key=="l")
+			{
+				change()
+			}
+			else if(key == "m")
+			{
+				upb()
+			}
+			else if(key == "o")
+			{
+				autoxf()
+			}
 		}
 	}
 
