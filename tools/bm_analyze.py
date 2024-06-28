@@ -34,6 +34,15 @@ suggested_preread_dir = base_dir + 'lang/suggested_preread/'
 # all the words will be set as known (at known threshold)
 comprehension_modifier = [0, 0.1, 0.5, 1, 2]
 
+CI_ALL_WORDS_KNOWN = 0
+CI_UNKNOWN_IS_F5K_WORD = 1
+CI_UNKNOWN_IS_F10K_WORD = 2
+CI_UNKNOWN_IS_F20K_WORD = 3
+CI_UNKNOWN_IS_F50K_WORD = 4
+CI_UNKNOWN_IS_LOW_FREQ_WORD = 5
+CI_MORE_THAN_2_UNKNOWN_WORDS = 6
+
+
 learning_data = dict()
 
 # Read a data set of words/kanjis (a title or a chapter) and gather statistics 
@@ -181,9 +190,9 @@ def read_sentences(data_set, learning_dataset, results):
     known_dataset = learning_dataset["words"]
 
     unknown_i_sentences = [0] * 3
+    ci_sentence_count = [0] * 7
     unknown_word_occurrences = dict()
-
-    opt_ci_points = 0
+    ci_score = 0
 
     for i,sentence in enumerate(data_set['sentence_list']):
 
@@ -225,26 +234,33 @@ def read_sentences(data_set, learning_dataset, results):
                     seq, word = get_seq_and_word_from_word_id(wid)
                     j_freq = get_frequency_by_seq_and_word(seq,word)
 
-                    if j_freq < 10: # first 5000 words
-                        unknown_points += 100
-                    elif j_freq < 20: # first 10000 words
-                        unknown_points += 50
-                    elif j_freq < 40: # first 20000 words
-                        unknown_points += 20
-                    elif j_freq < 99: # first 50000 words
-                        unknown_points += 10
-                    if l_stage == STAGE_LEARNING or l_stage == STAGE_FORGOTTEN:
-                        unknown_points += 20
 
         if unknown_count > 2:
             unknown_count = 2
 
         if unknown_count == 0:
-            opt_ci_points += 30
+            ci_sentence_count[CI_ALL_WORDS_KNOWN] += 1
+            ci_score += 30
         elif unknown_count == 1:
-            opt_ci_points += unknown_points
+            if j_freq < 10: # first 5000 words
+                ci_sentence_count[CI_UNKNOWN_IS_F5K_WORD] += 1
+                ci_score += 100
+            elif j_freq < 20: # first 10000 words
+                ci_sentence_count[CI_UNKNOWN_IS_F10K_WORD] += 1
+                ci_score += 50
+            elif j_freq < 40: # first 20000 words
+                ci_sentence_count[CI_UNKNOWN_IS_F20K_WORD] += 1
+                ci_score += 20
+            elif j_freq < 99: # first 50000 words
+                ci_sentence_count[CI_UNKNOWN_IS_F50K_WORD] += 1
+                ci_score += 10
+            else:
+                ci_sentence_count[CI_UNKNOWN_IS_LOW_FREQ_WORD] += 1
+            if l_stage == STAGE_LEARNING or l_stage == STAGE_FORGOTTEN:
+                ci_score += 20
         else: 
-            opt_ci_points -= 50
+            ci_sentence_count[CI_MORE_THAN_2_UNKNOWN_WORDS] += 1
+            ci_score -= 50
 
         unknown_i_sentences[unknown_count] += 1
 
@@ -253,7 +269,8 @@ def read_sentences(data_set, learning_dataset, results):
     results['unknown_i_sentences_pct'] = [round(100*unk/l_s,1) for unk in unknown_i_sentences ]
     results['comprehensible_input_pct'] = round(results['unknown_i_sentences_pct'][0] + results['unknown_i_sentences_pct'][1],1)
     #results['w_comprehensible_input_pct'] = round(results['unknown_i_sentences_pct'][1]*0.5 + results['unknown_i_sentences_pct'][1] - results['unknown_i_sentences_pct'][2],1)
-    results['opt_comprehensible_input_pts'] = round(opt_ci_points/l_s,1)
+    results['comprehensible_input_score'] = round(ci_score/l_s,1)
+    results['comprehensible_input_sentence_grading'] = [round(100*cic/l_s,1) for cic in ci_sentence_count ]
 
 # This calculates known/unknown word and kanji distribution of chapter/title
 # for each JLPT level (1-5). 
@@ -355,6 +372,8 @@ def analyze_titles():
 
     print("Analyzing comprehension for all manga titles")
 
+    avg_ci_sentence_count = [0] * 7
+
     analysis = dict()
 
     for title_id, title_name in get_title_names().items():
@@ -375,8 +394,17 @@ def analyze_titles():
         fetch_known_jlpt_levels(title_data, title_analysis['total_statistics'], total=True)
         fetch_known_jlpt_levels(title_data, title_analysis['unique_statistics'], total=False)
 
+        # aggregate ci sentence grading
+        for i in range(7):
+            avg_ci_sentence_count[i] += title_analysis['comprehensible_input_sentence_grading'][i]
+
         analysis[title_id] = title_analysis
-    
+
+    # calculate ci sentence grading average
+    for i in range(7):
+        avg_ci_sentence_count[i] /= len(analysis.keys())
+    analysis['avg_ci_sentence_count'] = [ round(ac,1) for ac in avg_ci_sentence_count ]
+
     return analysis
 
 def get_next_unread_chapter(title_id):

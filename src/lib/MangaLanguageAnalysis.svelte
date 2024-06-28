@@ -53,6 +53,34 @@ const table_fields = [
 
 let jlpt_word_data, jlpt_kanji_data;
 
+let ci_data =  {
+        labels: ['All known', '<5K', '<10K', '<20K', '<50K', 'Low Freq','>=2 unknown'],
+        datasets: [
+            {
+            label: 'This manga (all chapters)',
+            data: meta.comprehensible_input_sentence_grading,
+            borderWidth: 1,
+            borderColor: '#555555',
+            backgroundColor: '#eeeeee',
+            },
+            {
+            label: 'This manga (next chapter)',
+            data: meta.comprehensible_input_sentence_grading_next_ch,
+            borderWidth: 1,
+            borderColor: '#005500',
+            backgroundColor: '#009900',
+            },
+            {
+            label: 'Average manga',
+            data: all_meta_data[0].average_manga.avg_ci_sentence_count,
+            borderWidth: 1,
+            borderColor: '#707070',
+            backgroundColor: '#606060',
+            }
+        ]
+    };
+
+
 const set_jlpt_graph_set = () => {
 
     jlpt_word_data =  {
@@ -147,6 +175,7 @@ const draw = (canvas, data, title) => {
 }
 
 const draw_graphs = () => {
+    draw('CI_chart',ci_data,'Word frequency of the unknown word in sentence');
     set_jlpt_graph_set();
     let txt = 'JLPT ' + (unique_items_set?'unique':'total') + ' word distribution ' + 
         (w_per_v_set?'per volume':'(%)')
@@ -196,8 +225,8 @@ const colorizeDifference = (a,b) => {
             </tr>
             <tr>
                 <th>Optimized comprehensible input</th>
-                <td>{meta.opt_comprehensible_input_pts}</td>
-                <td>{meta.opt_comprehensible_input_pts_next_ch}</td>
+                <td>{meta.comprehensible_input_score}</td>
+                <td>{meta.comprehensible_input_score_next_ch}</td>
             </tr>
             <tr>
                 <th>Known words %</th>
@@ -241,6 +270,9 @@ const colorizeDifference = (a,b) => {
     <div class="subcontainer">
         <div>
             <ToggleSwitch onLabel="Quantity per volume" offLabel="Percentage" bind:switchPosition={w_per_v_set} on:switchChanged={toggleWordsPerVolume}></ToggleSwitch>
+        </div>
+        <div>
+            <canvas id="CI_chart"></canvas>
         </div>
         <div>
             <canvas id="JLPT_word_chart"></canvas>

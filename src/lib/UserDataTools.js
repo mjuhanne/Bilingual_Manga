@@ -44,6 +44,7 @@ export const AugmentMetadataWithCustomLanguageSummary = (manga_metadata, custom_
     console.log("Augment manga_metadata with custom language summary for " + Object.keys(ls).length + " titles");
     
     manga_metadata['0'].custom_lang_summary_timestamp = custom_lang_summary['timestamp']
+    manga_metadata['0'].average_manga.avg_ci_sentence_count = custom_lang_summary['analysis']['series_analysis']['avg_ci_sentence_count']
     manga_titles.forEach(element => {
         let id = element.enid;
 
@@ -70,7 +71,8 @@ export const AugmentMetadataWithCustomLanguageSummary = (manga_metadata, custom_
             element['total_statistics']['jlpt_known_w_level_per_v'] = l['total_statistics']['words']['jlpt_level_per_v'];
             element['unique_statistics']['jlpt_known_w_level_per_v'] = l['unique_statistics']['words']['jlpt_level_per_v'];
             element['comprehensible_input_pct'] = l['comprehensible_input_pct']
-            element['opt_comprehensible_input_pts'] = l['opt_comprehensible_input_pts']
+            element['comprehensible_input_score'] = l['comprehensible_input_score']
+            element['comprehensible_input_sentence_grading'] = l['comprehensible_input_sentence_grading']
         }
     });
 
@@ -97,7 +99,8 @@ export const AugmentMetadataWithCustomLanguageSummary = (manga_metadata, custom_
             element['total_statistics']['num_unknown_kanjis_next_ch'] = l['total_statistics']['kanjis']['num_unknown'];
             element['unique_statistics']['num_unknown_kanjis_next_ch'] = l['unique_statistics']['kanjis']['num_unknown'];
             element['comprehensible_input_pct_next_ch'] = l['comprehensible_input_pct']
-            element['opt_comprehensible_input_pts_next_ch'] = l['opt_comprehensible_input_pts']
+            element['comprehensible_input_score_next_ch'] = l['comprehensible_input_score']
+            element['comprehensible_input_sentence_grading_next_ch'] = l['comprehensible_input_sentence_grading']
         }
     });
 
