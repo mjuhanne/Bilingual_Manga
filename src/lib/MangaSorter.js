@@ -3,7 +3,7 @@ let common_sort_options = {
     'Newly added': { s:'', field: '',         type:'str', subheading_template:'', rev:false },
     'A-Z'        : { s:'', field: 'entit',    type:'str', subheading_template:'', rev:false },
     'Release'    : { s:'', field: 'Release',  type:'val', subheading_template:'Release _', rev:true },
-    'Rating'     : { s:'rating_data', field: 'rating', type:'val', subheading_template:'Rating: _', rev:true },
+    'Rating'     : { s:'mangaupdates_data', field: 'rating', type:'val', subheading_template:'Rating: _', rev:true },
     'Status'     : { s:'', field: 'Status',   type:'str', subheading_template:'_', rev:false },
     'Read status': { s:'', field: 'read_chapter_pct',   type:'val', subheading_template:'Read _ %', rev:true },
     'JLPT content': { s:'total_statistics', field: 'jlpt_word_content_pct',  type:'val', subheading_template:'JLPT _ %', rev:true },
@@ -44,11 +44,19 @@ export let suggested_preread_sort_options = {
     ...common_sort_options,
 }
 
+export let category_showcase_sort_options = {
+    ...{
+        'Category score': { s:'', field: 'category_score',   type:'val', subheading_template:'Score _', rev:true },
+    },
+    ...common_sort_options,
+}
+
 export let showcase_sort_options = common_sort_options;
 
 let sort_options = {
     ...download_view_sort_options,
     ...suggested_preread_sort_options,
+    ...category_showcase_sort_options,
 }
 
 const getSortValue = (x, key, sort_criteria) => {

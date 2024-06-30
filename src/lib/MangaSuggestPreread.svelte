@@ -129,7 +129,7 @@ const sortReverseChanged = (e) => {
             <tr>
                 <td><a href="/manga/{manga.enid}?lang=en" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">{manga.title}</a></td>
                 <td>{manga.num_volumes}</td>
-                <td>{manga.rating_data.rating}</td>
+                <td>{manga.mangaupdates_data.rating}</td>
                 <td>{manga.comprehensible_input_pct}</td>
                 <td>{manga.comprehensible_input_pct_next_ch}</td>                
                 <td>{manga.total_statistics.pct_known_words}</td>

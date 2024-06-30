@@ -37,7 +37,7 @@ USAGE:
 2) Use mangaupdates.py to match each new manga title ID to mangaupdates.com entry
 
     The matched entries will be saved to
-        json/ext_ratings.json
+        json/ext_mangaupdates.json
 
 3) Use
         python mokuro2bm.py fetch_metadata
@@ -67,7 +67,7 @@ logging.captureWarnings(True) # repress HTML certificate verification warnings
 default_mokuro_path = '/mnt/Your/Mokuro/Directory'
 
 dw_file_path = 'json/dw.json'
-ext_ratings_file = base_dir + "json/ext_ratings.json"
+ext_mangaupdates_file = base_dir + "json/ext_mangaupdates.json"
 
 target_ext_oid_path = 'json/ext.oids.json'
 target_ocr_path = 'ocr/'
@@ -83,6 +83,7 @@ parser_import = subparsers.add_parser('scan', help='Scan and import all the moku
 parser_import.add_argument('--force', '-f', action='store_true', help='Force import')
 parser_import.add_argument('--copy_images', '-ci', action='store_true', help='Copy also manga image files from source directory to IPFS')
 parser_import.add_argument('--source_dir', '-src', type=str, default=default_mokuro_path, help='Source mokuro directory (with jp/ and en/ subdirectories)')
+parser_import.add_argument('--simulate', '-s', action='store_true', help='Scan only (do not create new OIDs or import)')
 parser_import.add_argument('keyword', nargs='?', type=str, default=None, help='Title has to (partially) match the keyword in order to processed')
 
 parser_fetch_metadata = subparsers.add_parser('fetch_metadata', help='Scan and import all the mokuro manga titles with placeholder metadata and process OCR files')
@@ -95,25 +96,32 @@ parser_remove.add_argument('title_id', type=str, default=None, help='Title id')
 parser_search = subparsers.add_parser('search', help='Search title/chapter_ids with given keyword')
 parser_search.add_argument('keyword', type=str, default=None, help='Keyword')
 
+parser_show = subparsers.add_parser('show', help='Show list of all imported manga')
+
 args = vars(parser.parse_args())
 cmd = args.pop('command')
 
 if cmd == 'scan':
-    src_jp = args['source_dir'] + '/jp/'
+    if args['source_dir'][-1] != '/':
+        args['source_dir'] += '/'
+    src_jp = args['source_dir'] + 'jp/'
     titles = [f_name for f_name in os.listdir(src_jp) if os.path.isdir(src_jp + f_name) and f_name != 'en']
     titles.sort()
 
 ext_object_ids = dict()
+oid_to_title = dict()
 if os.path.exists(target_ext_oid_path):
     with open(target_ext_oid_path,'r',encoding="UTF-8") as oid_f:
         ext_object_ids = json.loads(oid_f.read())
-
+    for title,oid in ext_object_ids.items():
+        oid_to_title[oid] = title
 
 def get_mokuro_id(text, create_new_if_not_found=True):
     if text not in ext_object_ids:
         if create_new_if_not_found:
             oid = str(bson.objectid.ObjectId())
             ext_object_ids[text] = oid
+            oid_to_title[oid] = text
             print("\tNew OID [%s] %s" % (oid,text))
             with open(target_ext_oid_path,'w',encoding="UTF-8") as oid_f:
                 oid_f.write(json.dumps(ext_object_ids))
@@ -126,7 +134,7 @@ def get_mokuro_id(text, create_new_if_not_found=True):
 j = 0
 manga_metadata_per_id = dict()
 manga_data_per_id = dict()
-ext_ratings = dict()
+ext_mangaupdates = dict()
 
 if os.path.exists(ext_manga_metadata_file):
     with open(ext_manga_metadata_file,"r",encoding="utf-8") as f:
@@ -145,12 +153,12 @@ if os.path.exists(ext_manga_data_file):
             manga_data_per_id[id] = mdata
 
 
-if os.path.exists(ext_ratings_file):
-    with open(ext_ratings_file,"r",encoding="utf-8") as f:
+if os.path.exists(ext_mangaupdates_file):
+    with open(ext_mangaupdates_file,"r",encoding="utf-8") as f:
         data = f.read()
-        ext_ratings = json.loads(data)
-        for id,item in ext_ratings.items():
-            ext_ratings[id] = item
+        ext_mangaupdates = json.loads(data)
+        for id,item in ext_mangaupdates.items():
+            ext_mangaupdates[id] = item
 
 def download_image(img_url,target_img_path):
     subprocess.run(['wget','--no-verbose',img_url,'-O',target_img_path])
@@ -182,13 +190,24 @@ def copy_file(src, target_path, target_file):
         print("\tDoes not exist! %s" % src)
 
 def fetch_metadata_from_mangaupddates(title_id, title_root, t_metadata, t_data, force=False):
-    if title_id not in ext_ratings:
+    if title_id not in ext_mangaupdates:
         print("\t[%s] %s not yet matched with mangaupdates.com" % (title_id,t_metadata['entit']))
         return False
-    mangaupdates_id = ext_ratings[title_id]['series_id']
+    mangaupdates_id = ext_mangaupdates[title_id]['series_id']
     if mangaupdates_id == -1:
-        print("Mangaupdates series id is set to NOT_FOUND!")
-        return False
+        print("Mangaupdates series id is set to NOT_FOUND! Removing stale data..")
+        t_data['syn_en'] = PLACEHOLDER
+        t_data['syn_jp'] = PLACEHOLDER
+        t_metadata['jptit'] = PLACEHOLDER
+        t_metadata['coverjp'] = PLACEHOLDER
+        t_metadata['genres'] = []
+        t_metadata['Author'] = [PLACEHOLDER]
+        t_metadata['Artist'] = [PLACEHOLDER]
+        t_metadata['Release'] = PLACEHOLDER
+        t_metadata['Status'] = PLACEHOLDER
+        t_metadata['search'] = PLACEHOLDER
+        t_metadata['entit'] = title_root
+        return True
     print("\tFetching metadata from mangaupdates.com")
     get_series_url = "http://api.mangaupdates.com/v1/series/"
     headers = {'Content-Type': 'application/json'}
@@ -197,6 +216,7 @@ def fetch_metadata_from_mangaupddates(title_id, title_root, t_metadata, t_data, 
 
     entit = r['title']
     entit = entit.replace('&#039;',"'")
+    entit = entit.replace('&quot;','"')
     t_metadata['entit'] = entit
     jptit = None
 
@@ -220,8 +240,9 @@ def fetch_metadata_from_mangaupddates(title_id, title_root, t_metadata, t_data, 
             assoc_title = assoc_title.replace('&quot;','"')
             assoc_title = assoc_title.replace('&amp;',"&")
             search_list.append(assoc_title)
-            if jptit is None and has_cjk(assoc_title):
-                jptit = assoc_title
+            if jptit is None:
+                if has_word_hiragana(assoc_title) or has_word_katakana(assoc_title) or has_cjk(assoc_title):
+                    jptit = assoc_title
     if jptit is None:
         jptit = entit
     t_metadata['jptit'] = jptit
@@ -271,27 +292,22 @@ def fetch_metadata_from_mangaupddates(title_id, title_root, t_metadata, t_data, 
 PLACEHOLDER = 'Placeholder'
 
 def fetch_metadata(args):
-    for title in titles:
+    for title_id, t_metadata in manga_metadata_per_id.items():
+
+        title = oid_to_title[title_id]
 
         if args['keyword'] is not None and args['keyword'].lower() not in title.lower():
             continue
 
-        title_id = get_mokuro_id(title, create_new_if_not_found=False)
-        if title_id is not None:
+        t_data = manga_data_per_id[title_id]
 
-            if title_id not in manga_data_per_id or title_id not in manga_metadata_per_id:
-                continue
+        if t_metadata['fetched'] and not args['force']: # and '&q' not in t_metadata['entit']:
+            continue
 
-            t_data = manga_data_per_id[title_id]
-            t_metadata = manga_metadata_per_id[title_id]
+        print("Fetching metadata for %s [%s]" % (title,title_id))
 
-            if t_metadata['fetched'] and not args['force']: # and '&' not in t_metadata['search']:
-                continue
-
-            print("Fetching metadata for %s [%s]" % (title,title_id))
-
-            if fetch_metadata_from_mangaupddates(title_id,title,t_metadata,t_data,args['force']):
-                save_metadata_files()
+        if fetch_metadata_from_mangaupddates(title_id,title,t_metadata,t_data,args['force']):
+            save_metadata_files()
 
 
 def save_metadata_files():
@@ -308,6 +324,12 @@ def scan(args):
         if args['keyword'] is not None and args['keyword'].lower() not in title.lower():
             continue
 
+        if args['simulate']:
+            title_id = get_mokuro_id(title, create_new_if_not_found=False)
+            if title_id is None:
+                print("New title found: %s" % title)
+            continue
+                
         title_id = get_mokuro_id(title)
 
         if title_id in manga_metadata_per_id and title_id in manga_data_per_id and not args['force'] and not args['copy_images']:
@@ -604,12 +626,12 @@ def remove(args):
                 del(manga_metadata_per_id[title_id])
                 save_metadata_files()
 
-                if title_id in ext_ratings:
-                    del(ext_ratings[title_id])
-                    ext_ratings[title_id] =  { "series_id":-1 }
+                if title_id in ext_mangaupdates:
+                    del(ext_mangaupdates[title_id])
+                    ext_mangaupdates[title_id] =  { "series_id":-1 }
                     print(" * Deleted also mangaupdates match")
-                    f = open(ext_ratings_file,"w",encoding="utf-8")
-                    s = json.dumps(ext_ratings)
+                    f = open(ext_mangaupdates_file,"w",encoding="utf-8")
+                    s = json.dumps(ext_mangaupdates)
                     f.write(s)
                     f.close()
 
@@ -621,11 +643,21 @@ def search(args):
         if args['keyword'].lower() in title.lower():
             print("[%s] %s" % (title_id,title))
 
+def show(args):
+    for title_id, mdata in manga_metadata_per_id.items():
+        for title, oid in ext_object_ids.items():
+            if oid == title_id:
+                entit = mdata['entit']
+                mark = ' '
+                if entit.lower() != title.lower():
+                    mark = '*'
+                print("%s [%s] %s\t%s" % (mark,title_id,title.ljust(20),mdata['entit']))
+
 #FOR DEBUGGING
 #fetch_metadata({'keyword':None,'force':False})
-#fetch_metadata({'keyword':'Yondemasu','force':True})
+#fetch_metadata({'keyword':'look','force':True})
 #remove({'title_id':'6664444753468576c994cdd7'})
-#scan({'keyword':None,'force':False,'copy_images':False,'source_dir':default_mokuro_path})
+#scan(args)
 
 if cmd != None:
   locals()[cmd](args)

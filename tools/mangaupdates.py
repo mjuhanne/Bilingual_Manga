@@ -1,5 +1,5 @@
 """
- Bilingual Manga DB <-> MangaUpdates.com id match and ratings update tool
+ Bilingual Manga DB <-> MangaUpdates.com id match and entries update tool
 
  USAGE: 
 
@@ -53,7 +53,7 @@
             python3 mangaupdates.py match_url 667809ff5346850879afe0bf 'I"s' https://www.mangaupdates.com/series/vih2i09/i-quot-s
 
 
-* To refresh votes and ratings for each matched manga title:
+* To refresh votes and entries for each matched manga title:
 
         python3 mangaupdates.py refresh
 
@@ -80,7 +80,7 @@ subparsers = parser.add_subparsers(help='', dest='command')
 
 parser_download = subparsers.add_parser('match_all', help='Search data for all the manga titles and select the first match')
 
-parser_update = subparsers.add_parser('refresh', help='Refresh ratings')
+parser_update = subparsers.add_parser('refresh', help='Refresh entries')
 
 parser_list = subparsers.add_parser('show', help='Show matched titles')
 
@@ -110,8 +110,8 @@ manga_data_file = base_dir + "json/BM_data.manga_data.json"
 manga_metadata_file = base_dir + "json/BM_data.manga_metadata.json"
 ext_manga_data_file = base_dir + "json/ext.manga_data.json"
 ext_manga_metadata_file = base_dir + "json/ext.manga_metadata.json"
-ratings_file = base_dir + "json/ratings.json"
-ext_ratings_file = base_dir + "json/ext_ratings.json"
+mangaupdates_file = base_dir + "json/mangaupdates.json"
+ext_mangaupdates_file = base_dir + "json/ext_mangaupdates.json"
 ext_oid_file = 'json/ext.oids.json'
 
 search_url = "http://api.mangaupdates.com/v1/series/search"
@@ -123,30 +123,30 @@ title_names = dict()
 title_years = dict()
 synopsis = dict()
 
-ratings = dict()
-ext_ratings = dict()
-all_ratings = dict()
+entries = dict()
+ext_entries = dict()
+all_entries = dict()
 ext_object_ids = dict()
 
 try:
-    with open(ratings_file,"r",encoding="utf-8") as f:
+    with open(mangaupdates_file,"r",encoding="utf-8") as f:
         data = f.read()
-        ratings = json.loads(data)
-        for id,item in ratings.items():
-            all_ratings[id] = item
+        entries = json.loads(data)
+        for id,item in entries.items():
+            all_entries[id] = item
 except:
-    print("Existing ratings.json not found")
+    print("Existing mangaupdates.json not found")
 
 
 try:
-    with open(ext_ratings_file,"r",encoding="utf-8") as f:
+    with open(ext_mangaupdates_file,"r",encoding="utf-8") as f:
         data = f.read()
-        ext_ratings = json.loads(data)
-        for id,item in ext_ratings.items():
+        ext_entries = json.loads(data)
+        for id,item in ext_entries.items():
             #if item['series_id'] != -1:
-            all_ratings[id] = item
+            all_entries[id] = item
 except:
-    print("Existing ext_ratings.json not found")
+    print("Existing ext_mangaupdates.json not found")
 
 if os.path.exists(ext_oid_file):
     with open(ext_oid_file,'r',encoding="UTF-8") as oid_f:
@@ -209,11 +209,13 @@ def is_external_title(title_id):
 
 CLEANR = re.compile('<.*?>') 
 def cleanhtml(raw_html):
+  if raw_html is None:
+      return None
   cleantext = re.sub(CLEANR, '', raw_html)
-  cleantext = clean_title(cleantext)
+  cleantext = clean_text(cleantext)
   return cleantext
 
-def clean_title(title):
+def clean_text(title):
     title = title.replace('&#039;',"'")
     title = title.replace('&quot;','"')
     title = title.replace('&amp;',"&")
@@ -223,10 +225,10 @@ def show(args):
     i = 0
     for title_id, title_name in title_names.items():
         i += 1
-        if title_id not in all_ratings:
+        if title_id not in all_entries:
             print("MISSING: [%s] %s " % (title_id, title_name))
         else:
-            c = all_ratings[title_id]
+            c = all_entries[title_id]
             if c['series_id'] == -1:
                 print("OMITTED: [%s] " % (title_id))
             else:
@@ -235,7 +237,8 @@ def show(args):
                 t = t.replace("&amp;","&")
                 t = t.replace("&quot;",'"')
                 star = '* ' if t.lower() != title_name.lower() else '  '
-                print("%s %d [%s] %s : %s" % (star, i, title_id, title_name,t ))
+                cat = 'C ' if len(c['categories'])>0 else ' '
+                print("%s %s %d [%s] %s : %s" % (star, cat, i, title_id, title_name,t ))
 
 def copy_record(c,r):
     c['url'] = r['url']
@@ -251,7 +254,10 @@ def copy_record(c,r):
             del(cat['series_id'])
             if 'added_by' in cat:
                 del(cat['added_by'])
+            cat['category'] = clean_text(cat['category'])
             categories.append(cat)
+        else:
+            print("Weird! Category series ID %s != Series ID %s" % (cat['series_id'],c['series_id']))
     c['categories'] = categories
     c['recommendations'] = r['recommendations']
     c['category_recommendations'] = r['category_recommendations']
@@ -272,7 +278,7 @@ def search_records_and_select_one(title_id, keyword, index):
                 j['hit_title'], j['record']['year'], j['record']['title'])
         )
         print("BM synopsis: %s" % (synopsis[title_id]))
-        print("MU synopsis: %s" % (clean_title(j['record']['description'])))
+        print("MU synopsis: %s" % (clean_text(j['record']['description'])))
         print("")
 
         c = dict()
@@ -287,17 +293,17 @@ def search_records_and_select_one(title_id, keyword, index):
         copy_record(c,r)
 
         if is_external_title(title_id):
-            ext_ratings[title_id] = c
+            ext_entries[title_id] = c
 
-            f = open(ext_ratings_file,"w",encoding="utf-8")
-            s = json.dumps(ext_ratings)
+            f = open(ext_mangaupdates_file,"w",encoding="utf-8")
+            s = json.dumps(ext_entries)
             f.write(s)
             f.close()
         else:
-            ratings[title_id] = c
+            entries[title_id] = c
 
-            f = open(ratings_file,"w",encoding="utf-8")
-            s = json.dumps(ratings)
+            f = open(mangaupdates_file,"w",encoding="utf-8")
+            s = json.dumps(entries)
             f.write(s)
             f.close()
     else:
@@ -311,7 +317,7 @@ def search(args):
     r_json = response.json()
     i = 1
     for r in r_json['results']:
-        print("%d: %s (JP: %s)" % (i, clean_title(r['hit_title']), clean_title(r['record']['title'])))
+        print("%d: %s (JP: %s)" % (i, clean_text(r['hit_title']), clean_text(r['record']['title'])))
         print("%s" % r['record']['url'])
         print("\t(%s) %s" % ( r['record']['year'], cleanhtml(r['record']['description'])))
         print("")
@@ -347,45 +353,46 @@ def match_url(args):
     print("MU synopsis: %s" % (cleanhtml(r['description'])))
     print("")
 
-    c['series_id'] = series_id
-    c['title_name'] = clean_title(r['title'])
+    c['series_id'] = int(series_id)
+    c['title_name'] = clean_text(r['title'])
     copy_record(c,r)
 
     if is_external_title(title_id):
-        ext_ratings[title_id] = c
+        ext_entries[title_id] = c
 
-        f = open(ext_ratings_file,"w",encoding="utf-8")
-        s = json.dumps(ext_ratings)
+        f = open(ext_mangaupdates_file,"w",encoding="utf-8")
+        s = json.dumps(ext_entries)
         f.write(s)
         f.close()
     else:
-        ratings[title_id] = c
+        entries[title_id] = c
 
-        f = open(ratings_file,"w",encoding="utf-8")
-        s = json.dumps(ratings)
+        f = open(mangaupdates_file,"w",encoding="utf-8")
+        s = json.dumps(entries)
         f.write(s)
         f.close()
 
 def refresh(args):
 
     i = 0
-    for title_id, c in all_ratings.items():
+    for title_id, c in all_entries.items():
         i += 1
 
         if title_id not in title_names:
-            print("!! Removing deprecated item %s [%s]" % (c['title_name'],title_id))
-            if is_external_title(title_id):
-                del(ext_ratings[title_id])
-                f = open(ext_ratings_file,"w",encoding="utf-8")
-                s = json.dumps(ext_ratings)
-                f.write(s)
-                f.close()
-            else:
-                del(ratings[title_id])
-                f = open(ratings_file,"w",encoding="utf-8")
-                s = json.dumps(ratings)
-                f.write(s)
-                f.close()
+            if all_entries[title_id]['series_id'] != -1:
+                print("!! Removing deprecated item %s [%s]" % (c['title_name'],title_id))
+                if is_external_title(title_id):
+                    del(ext_entries[title_id])
+                    f = open(ext_mangaupdates_file,"w",encoding="utf-8")
+                    s = json.dumps(ext_entries)
+                    f.write(s)
+                    f.close()
+                else:
+                    del(entries[title_id])
+                    f = open(mangaupdates_file,"w",encoding="utf-8")
+                    s = json.dumps(entries)
+                    f.write(s)
+                    f.close()
             continue
 
         timestamp = int(time.time())
@@ -411,43 +418,43 @@ def refresh(args):
             copy_record(c,r)
             
             if is_external_title(title_id):
-                ext_ratings[title_id] = c
+                ext_entries[title_id] = c
             else:
-                ratings[title_id] = c
+                entries[title_id] = c
             #time.sleep(0.1)
 
-            f = open(ratings_file,"w",encoding="utf-8")
-            f.write(json.dumps(ratings))
+            f = open(mangaupdates_file,"w",encoding="utf-8")
+            f.write(json.dumps(entries))
             f.close()
 
-            f = open(ext_ratings_file,"w",encoding="utf-8")
-            f.write(json.dumps(ext_ratings))
+            f = open(ext_mangaupdates_file,"w",encoding="utf-8")
+            f.write(json.dumps(ext_entries))
             f.close()
 
 def match_all(args):
     for title_id, title_name in title_names.items():
-        if not title_id in all_ratings:
+        if not title_id in all_entries:
             search_records_and_select_one(title_id,title_name,0)
             time.sleep(1)
 
 def remove(args):
     title_id = get_title_id(args['manga'])
-    if title_id in all_ratings:
-        if all_ratings['series_id'] == -1:
+    if title_id in all_entries:
+        if all_entries[title_id]['series_id'] == -1:
             print("Already removed!")
             return
         
         if is_external_title(title_id):
-            del(ext_ratings[title_id])
-            ext_ratings[title_id] =  { "series_id":-1 }
-            f = open(ext_ratings_file,"w",encoding="utf-8")
-            f.write(json.dumps(ext_ratings))
+            del(ext_entries[title_id])
+            ext_entries[title_id] =  { "series_id":-1 }
+            f = open(ext_mangaupdates_file,"w",encoding="utf-8")
+            f.write(json.dumps(ext_entries))
             f.close()
         else:
-            del(ratings[title_id])
-            ratings[title_id] =  { "series_id":-1 }
-            f = open(ratings_file,"w",encoding="utf-8")
-            f.write(json.dumps(ratings))
+            del(entries[title_id])
+            entries[title_id] =  { "series_id":-1 }
+            f = open(mangaupdates_file,"w",encoding="utf-8")
+            f.write(json.dumps(entries))
             f.close()
         print("Removed match for %s [%s]" % (title_names[title_id],title_id))
 
@@ -457,10 +464,10 @@ def remove(args):
 def duplicates(args):
     title_by_series = dict()
     for title_id, title_name in title_names.items():
-        if not title_id in all_ratings:
+        if not title_id in all_entries:
             print("%s [%s] missing!" % (title_name,title_id))
         else:
-            sid = all_ratings[title_id]['series_id']
+            sid = all_entries[title_id]['series_id']
             if sid != -1:
                 if sid not in title_by_series:
                     title_by_series[sid] = title_id

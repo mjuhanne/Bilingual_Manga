@@ -19,6 +19,22 @@ export let syn;
      <a href="/manga-genre/{genre}">{genre}</a>
     {/each}    
 </div>
+
+{#if (meta.mangaupdates_data.category_list.length>0)}
+<b style="font-size: 1.1rem;">Categories</b>
+{/if}
+<div class="metae">
+    {#each meta.mangaupdates_data.category_list as category}
+        {#if meta.mangaupdates_data.category_scores[category] == 1}
+        <a class="category_weak" href="/manga-category/{encodeURIComponent(category)}">{category}</a>
+        {:else if meta.mangaupdates_data.category_scores[category] == 3}
+        <a class="category_average" href="/manga-category/{encodeURIComponent(category)}">{category}</a>
+        {:else}
+        <a class="category_strong" href="/manga-category/{encodeURIComponent(category)}">{category}</a>
+        {/if}
+    {/each}    
+</div>
+
 {#if (meta.Author.length<=1)}
 <b style="font-size: 1.1rem;">Author</b>
 {:else}
@@ -53,13 +69,19 @@ export let syn;
     <a href="/manga-status/{meta.Status}">{meta.Status}</a>
     </div>
     </div>
-    <div>
+    <div style="margin-left:10px;">
+        <b style="font-size: 1.1rem;">Volumes</b>
+        <div class="metae">
+        <a>{meta.num_volumes}</a>
+        </div>
+    </div>
+    <div style="margin-left:10px;">
     <b style="font-size: 1.1rem;">Rating</b>
     <div class="metae">
-    <a href="{meta.rating_data.url}" target="_blank" title="Mangaupdates.com ({meta.rating_data.last_updated})">{meta.rating_data.rating} ({meta.rating_data.votes} votes)</a>
+    <a href="{meta.mangaupdates_data.url}" target="_blank" title="Mangaupdates.com ({meta.mangaupdates_data.last_updated})">{meta.mangaupdates_data.rating} ({meta.mangaupdates_data.votes} votes)</a>
     </div>
     </div>
-    <div>
+    <div tyle="margin-left:10px;">
     <b style="font-size: 1.1rem;">Favourite</b>
     <div class="metae">
     <MangaFavouriteButton {meta}/>
@@ -97,6 +119,16 @@ color: whitesmoke;
 background:#333;
 border-radius:5px;
 
+}
+
+a.category_weak {
+    background:#292929;
+}
+a.category_average {
+    background:#3b3b3b;
+}
+a.category_strong {
+    background:#666;
 }
 
 a:hover {

@@ -3,6 +3,7 @@ import { showcase_sort_options } from '$lib/MangaSorter.js';
 export let available_filters = {
     ...{
         'Genre': { s:'', field: 'genres',   type:'list'},
+        'Category': { s:'mangaupdates_data', field: 'category_list',   type:'list'},
         'Author': { s:'', field: 'Author',   type:'list'},
         'Artist': { s:'', field: 'Artist',   type:'list'},
     },

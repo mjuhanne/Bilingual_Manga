@@ -8,8 +8,8 @@ if (!response.ok) {
 const a = await response.json()
 const response1 = await fetch('http://localhost:3300/json/BM_data.manga_data.json')
 const b = await response1.json()
-const response_r = await fetch('http://localhost:3300/json/ratings.json')
-const ratings = await response_r.json()
+const response_r = await fetch('http://localhost:3300/json/mangaupdates.json')
+const mangaupdates = await response_r.json()
 const response_l = await fetch('http://localhost:3300/json/lang_summary.json')
 if (!response_l.ok) {
     throw new Error("lang_summary.json not found! Please unzip lang_summary.zip and restart the server")
@@ -34,10 +34,10 @@ if (response_emd.ok) {
     });
 }
 
-let ext_ratings = {}
-const response_er = await fetch('http://localhost:3300/json/ext_ratings.json')
+let ext_mangaupdates = {}
+const response_er = await fetch('http://localhost:3300/json/ext_mangaupdates.json')
 if (response_er.ok) {
-    ext_ratings = await response_er.json()
+    ext_mangaupdates = await response_er.json()
 }
 
 let custom_lang_summary = undefined
@@ -68,27 +68,62 @@ checkUserData(user_data);
 
 console.log("Loading data files complete!")
 
-const AugmentMetadataWithRatings = (db) => {
+const AugmentMetadataWithmangaupdates = (db) => {
     let manga_titles = db['manga_metadata']['0'].manga_titles;
-    let ratings = db['ratings'];
-    let ext_ratings = db['ext_ratings'];
-    console.log("Augment manga_metadata with " + Object.keys(ratings).length + " ratings");
+    let mangaupdates = db['mangaupdates'];
+    let ext_mangaupdates = db['ext_mangaupdates'];
+    console.log("Augment manga_metadata with " + Object.keys(mangaupdates).length + " mangaupdates.com entries");
 
+    let global_avg_votes = 0;
+    let valid_entries = 0;
+
+    function process_categories(element,id,mangaupdates_data) {
+        let avg_votes = 0;
+        let category_list = [];
+        let category_scores = {};
+        let category_votes = {};
+        for (let categoryData of mangaupdates_data[id]['categories']) {
+            avg_votes += categoryData.votes;
+            category_votes[categoryData.category] = categoryData.votes;
+            category_list.push(categoryData.category)
+        }
+        if (mangaupdates_data[id]['categories'].length>0) {
+            avg_votes /= mangaupdates_data[id]['categories'].length;
+        }
+        for (let categoryData of mangaupdates_data[id]['categories']) {
+            if (categoryData.votes < avg_votes*2/3) {
+                category_scores[categoryData.category] = 1;
+            } else if (categoryData.votes > avg_votes*4/3) {
+                category_scores[categoryData.category] = 3;
+            } else {
+                category_scores[categoryData.category] = 2;
+            }
+        }
+        element["mangaupdates_data"]['avg_category_votes'] = avg_votes;
+        element["mangaupdates_data"]['category_list'] = category_list;
+        element["mangaupdates_data"]['category_votes'] = category_votes;
+        element["mangaupdates_data"]['category_scores'] = category_scores;
+        global_avg_votes += avg_votes;
+        valid_entries += 1;
+    }
     manga_titles.forEach(element => {
         let id = element.enid;
 
-        if (id in ratings) {
-            element["rating_data"] = ratings[id]
-        } else if (id in ext_ratings) {
-            if (ext_ratings[id]['series_id'] != -1) {
-                element["rating_data"] = ext_ratings[id]
+        if (id in mangaupdates) {
+            element["mangaupdates_data"] = mangaupdates[id]
+            process_categories(element,id,mangaupdates);
+        } else if (id in ext_mangaupdates) {
+            if (ext_mangaupdates[id]['series_id'] != -1) {
+                element["mangaupdates_data"] = ext_mangaupdates[id]
+                process_categories(element,id,ext_mangaupdates);
             } else {
-                element["rating_data"] = { "url":"http://mangaupdates.com", "rating":-1, "votes": 0, "last_updated":"N/A"}
+                element["mangaupdates_data"] = { "url":"http://mangaupdates.com", "rating":-1, "votes": 0, "last_updated":"N/A", "categories":[],"category_list":[]}
             }
         } else {
-            element["rating_data"] = { "url":"http://mangaupdates.com", "rating":-1, "votes": 0, "last_updated":"N/A"}
+            element["mangaupdates_data"] = { "url":"http://mangaupdates.com", "rating":-1, "votes": 0, "last_updated":"N/A", "categories":[],"category_list":[]}
         }
     });
+    db['manga_metadata']['0'].average_category_vote_count = global_avg_votes / valid_entries;
 };
 
 const AugmentMetadataWithLanguageSummary = (db) => {
@@ -116,8 +151,8 @@ const AugmentMetadataWithLanguageSummary = (db) => {
 const admin={
     "manga_metadata":a,
     "manga_data":b,
-    "ratings":ratings,
-    "ext_ratings":ext_ratings,
+    "mangaupdates":mangaupdates,
+    "ext_mangaupdates":ext_mangaupdates,
     "lang_summary":lang_summary,
     "user_data":user_data,
     "custom_lang_summary":custom_lang_summary,
@@ -125,7 +160,7 @@ const admin={
 }
 
 AugmentMetadataWithUserData(admin);
-AugmentMetadataWithRatings(admin);
+AugmentMetadataWithmangaupdates(admin);
 AugmentMetadataWithLanguageSummary(admin);
 if (admin['custom_lang_summary'] !== undefined) {
     AugmentMetadataWithCustomLanguageSummary(admin['manga_metadata'],admin['custom_lang_summary']);

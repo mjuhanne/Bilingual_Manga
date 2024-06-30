@@ -30,7 +30,19 @@ function onFilterChanged() {
         for (let m of manga_titles) {
             let val = undefined;
             if (fo.type == 'list') {
-                let values = m[ fo.field ];
+                let values = [];
+                if (fo.s != '') {
+                    // sort value is in sub-dictionary
+                    if (fo.s in m) {
+                        if (fo.field in m[fo.s]) {
+                            values = m[fo.s][ fo.field ];
+                        }
+                    }
+                } else {
+                    if (fo.field in m) {
+                        values = m[ fo.field ];
+                    }
+                }
                 for (val of values) {
                     if (filter_values.indexOf(val) == -1) {
                         filter_values.push(val);

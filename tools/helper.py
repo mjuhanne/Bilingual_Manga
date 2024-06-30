@@ -343,6 +343,9 @@ def is_hiragana(c):
 def is_hiragana_word(word):
     return all(is_hiragana(c) for c in word)
 
+def has_word_hiragana(word):
+    return any(is_hiragana(c) for c in word)
+
 hira_to_kata = dict()
 kata_to_hira = dict()
 for i in range(hira_start, hira_end+1):

@@ -398,7 +398,7 @@
     <div><a href="/manga/{manga.enid}?lang=en" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">{manga.jptit}</a></div>
     {/if}
     <div>{#if !hide_sort_columns.includes(sort_criteria)}{manga.sort_value}{/if}</div>
-    <div>{manga.rating_data.rating} ({manga.rating_data.votes})</div>
+    <div>{manga.mangaupdates_data.rating} ({manga.mangaupdates_data.votes})</div>
     <div>{manga.num_volumes}</div>
     <div>
         {#if manga.enid in manga_process_status}{manga_process_status[manga.enid]}{:else}{manga_repo_labels[manga.enid]??''}{/if}

@@ -6,12 +6,18 @@
     import AddMangaFilter from './AddMangaFilter.svelte';
     import { page } from '$app/stores';
     import { goto } from "$app/navigation";
-    import { showcase_sort_options, sortManga } from '$lib/MangaSorter.js';
+    import { showcase_sort_options, category_showcase_sort_options, sortManga } from '$lib/MangaSorter.js';
     import { available_filters, filterManga } from '$lib/MangaFilter.js';
 	import { onMount } from 'svelte';
     export let x;
     export let cdncdn;
     export let cdncdn1;
+    export let selected_category = '';
+    
+    let sort_options = showcase_sort_options;
+    if (selected_category != '') {
+        sort_options = category_showcase_sort_options;
+    }
 
     let user_filter_list = [];
 	onMount(() => {
@@ -33,7 +39,11 @@
     let sort_criteria=$page.url.searchParams.get('sort');
     let selected_label=$page.url.searchParams.get('label');
     if (sort_criteria === null) {
-        sort_criteria = 'Newly added';
+        if (selected_category == '') {
+            sort_criteria = 'Newly added';
+        } else {
+            sort_criteria = 'Category score';
+        }
     } else {
         sort_criteria = decodeURIComponent(sort_criteria); 
     }
@@ -45,7 +55,7 @@
     let sort_reverse=$page.url.searchParams.get('reverse') == "true" ? true : false;
 
     $: url_param = "ls=" + ls + "&sort=" + encodeURIComponent(sort_criteria) + "&reverse=" + (sort_reverse ? "true" : "false") + "&label=" + encodeURIComponent(selected_label);// + "&filters=" + encodeURIComponent(JSON.stringify(filters));
-    $: fx = filterManga(x, user_filter_list, showcase_sort_options);
+    $: fx = filterManga(x, user_filter_list, sort_options);
     $: sx = sortManga(fx, sort_criteria, sort_reverse, selected_label);
 
     let sx=[]; // sorted manga list (already sorted by 'Newly added' by default)
@@ -136,14 +146,14 @@ $: pii3=pii+1;
         </div>
         <div class="sortsel">
             <MangaSortDashboard {sort_criteria} {sort_reverse} 
-                sort_criteria_list={Object.keys(showcase_sort_options)} 
+                sort_criteria_list={Object.keys(sort_options)} 
                 on:SortCriteriaChanged={sortCriteriaChanged}
                 on:SortReverseChanged={sortReverseChanged}
             />
         </div>
         <div class="sortsel">
             <MangaLabelDashboard {selected_label}
-                label_list={Object.keys(showcase_sort_options)} 
+                label_list={Object.keys(sort_options)} 
                 on:LabelChanged={LabelChanged}
             />
         </div>
