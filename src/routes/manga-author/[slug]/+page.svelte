@@ -30,11 +30,15 @@
         return tempbol;
     }
 
+    let match2 = match.replaceAll(" ","-");
+    match2 = match2.replaceAll("'",'');
+    match2=match2.toLowerCase();
+
     x.forEach((el,i) => {
         
         
 
-        if(newslug(el,match)===true)
+        if(newslug(el,match2)===true)
         {
             y.push(el);
         }
