@@ -8,6 +8,7 @@ INVALID_VALUE = -1
 from helper import *
 
 summary_file = base_dir + "json/lang_summary.json"
+ext_summary_file = base_dir + "json/ext_lang_summary.json"
 
 volume_count_per_title = dict()
 
@@ -28,10 +29,14 @@ with open(manga_data_file,"r",encoding="utf-8") as f:
     data = f.read()
     manga_data = json.loads(data)
 
+ext_manga_data = []
+ext_manga_oids = []
 with open(ext_manga_data_file,"r",encoding="utf-8") as f:
     data = f.read()
     ext_manga_data = json.loads(data)
     manga_data += ext_manga_data
+    for m in ext_manga_data:
+        ext_manga_oids.append(m['_id']['$oid'])
 
 for m in manga_data:
     title_id = m['_id']['$oid']
@@ -194,12 +199,14 @@ def calculate_stats(title_data, calc, total=True):
 def save_summary():
 
     summary = dict()
+    ext_summary = dict()
 
     title_names = get_title_names()
     num_titles = len(title_names)
 
     total_pages = 0
     num_valid_titles = 0
+    num_valid_ext_titles = 0
     total_volumes = 0
 
     for title_id, title_name in title_names.items():
@@ -210,7 +217,7 @@ def save_summary():
         if not os.path.exists(title_filename):
             print("%s data file %s doesn't exist!" % (title_name,title_filename))
             continue
-        
+
         o_f = open(title_filename,"r",encoding="utf-8")
         title_data = json.loads(o_f.read())
         o_f.close()
@@ -223,7 +230,10 @@ def save_summary():
         title_data['num_virtual_volumes'] = round(title_data['num_pages'] / AVERAGE_PAGES_PER_VOLUME,2)
 
         if title_data['num_pages']>0:
-            num_valid_titles += 1
+            if title_id in ext_manga_oids:
+                num_valid_ext_titles += 1
+            else:
+                num_valid_titles += 1
             total_pages += title_data['num_pages']
             total_volumes += title_data['num_virtual_volumes']
 
@@ -255,8 +265,11 @@ def save_summary():
         title_data['total_statistics'] = total_calc
         title_data['unique_statistics'] = unique_calc
 
-        summary[title_id] = title_data
-    
+        if title_id in ext_manga_oids:
+            ext_summary[title_id] = title_data
+        else:
+            summary[title_id] = title_data
+
     single_value_fields = list(total_calc.keys())
     single_value_fields.remove('jlpt_word_level_pct')
     single_value_fields.remove('jlpt_word_level_per_v')
@@ -273,7 +286,7 @@ def save_summary():
             val = 0
             for title_id, title_data in summary.items():
                 val += title_data[calc_f][f]
-            val /= num_titles
+            val /= num_valid_titles
             if 'pct' in f or 'pts' in f:
                 val = round(val,1)
             else:
@@ -293,11 +306,11 @@ def save_summary():
                 jlpt_k_level_pct[i] += title_data[calc_f]['jlpt_kanji_level_pct'][i]
                 jlpt_k_level_per_v[i] += title_data[calc_f]['jlpt_kanji_level_per_v'][i]
         for i in range(7):
-            jlpt_w_level_pct[i] = round(jlpt_w_level_pct[i]/num_titles,1)
-            jlpt_w_level_per_v[i] = round(jlpt_w_level_per_v[i]/num_titles,1)
+            jlpt_w_level_pct[i] = round(jlpt_w_level_pct[i]/num_valid_titles,1)
+            jlpt_w_level_per_v[i] = round(jlpt_w_level_per_v[i]/num_valid_titles,1)
         for i in range(6):
-            jlpt_k_level_pct[i] = round(jlpt_k_level_pct[i]/num_titles,1)
-            jlpt_k_level_per_v[i] = round(jlpt_k_level_per_v[i]/num_titles,1)
+            jlpt_k_level_pct[i] = round(jlpt_k_level_pct[i]/num_valid_titles,1)
+            jlpt_k_level_per_v[i] = round(jlpt_k_level_per_v[i]/num_valid_titles,1)
 
         avg_calc[calc_f]['jlpt_word_level_pct'] = jlpt_w_level_pct
         avg_calc[calc_f]['jlpt_word_level_per_v'] = jlpt_w_level_per_v
@@ -307,10 +320,13 @@ def save_summary():
     summary['average'] = avg_calc
 
     avg_page_count = total_pages/total_volumes
-    print("Valid titles %d/%d with average page count %d / volume" 
-          % (num_valid_titles, len(title_names.keys()), avg_page_count))
+    print("Valid titles %d(+%d ext) / %d with average page count %d / volume" 
+          % (num_valid_titles, num_valid_ext_titles, len(title_names.keys()), avg_page_count))
 
     with open(summary_file,"w") as f:
         f.write(json.dumps(summary, ensure_ascii=False))
+    if len(ext_summary.keys())>0:
+        with open(ext_summary_file,"w") as f:
+            f.write(json.dumps(ext_summary, ensure_ascii=False))
 
 save_summary()

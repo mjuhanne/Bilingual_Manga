@@ -14,5 +14,6 @@
 !counter_word_ids*
 !ratings.json
 !mangaupdates.json
+!lang_summary.json
 /tools/__pycache__/
 /json/

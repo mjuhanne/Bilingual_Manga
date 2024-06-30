@@ -11,9 +11,6 @@ const b = await response1.json()
 const response_r = await fetch('http://localhost:3300/json/mangaupdates.json')
 const mangaupdates = await response_r.json()
 const response_l = await fetch('http://localhost:3300/json/lang_summary.json')
-if (!response_l.ok) {
-    throw new Error("lang_summary.json not found! Please unzip lang_summary.zip and restart the server")
-}
 const lang_summary = await response_l.json()
 
 
@@ -38,6 +35,12 @@ let ext_mangaupdates = {}
 const response_er = await fetch('http://localhost:3300/json/ext_mangaupdates.json')
 if (response_er.ok) {
     ext_mangaupdates = await response_er.json()
+}
+
+const response_el = await fetch('http://localhost:3300/json/ext_lang_summary.json')
+let ext_lang_summary = {}
+if (response_el.ok) {
+    ext_lang_summary = await response_el.json();
 }
 
 let custom_lang_summary = undefined
@@ -129,13 +132,19 @@ const AugmentMetadataWithmangaupdates = (db) => {
 const AugmentMetadataWithLanguageSummary = (db) => {
     let manga_titles = db['manga_metadata']['0'].manga_titles;
     let ls = db['lang_summary'];
-    console.log("Augment manga_metadata with language summary for " + Object.keys(ls).length + " titles");
+    let els = db['ext_lang_summary'];
+    console.log("Augment manga_metadata with language summary for " + Object.keys(ls).length + " titles and " + Object.keys(els).length + " external titles");
 
     manga_titles.forEach(element => {
         let id = element.enid;
 
         if (id in ls) {
             let l = ls[id];
+            for (let k of Object.keys(l)) {
+                element[k] = l[k];
+            }
+        } else if (id in els) {
+            let l = els[id];
             for (let k of Object.keys(l)) {
                 element[k] = l[k];
             }
@@ -154,6 +163,7 @@ const admin={
     "mangaupdates":mangaupdates,
     "ext_mangaupdates":ext_mangaupdates,
     "lang_summary":lang_summary,
+    "ext_lang_summary":ext_lang_summary,
     "user_data":user_data,
     "custom_lang_summary":custom_lang_summary,
     "user_set_words":user_set_words,
