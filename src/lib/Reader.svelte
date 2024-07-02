@@ -238,15 +238,15 @@
 
 	};
 	
-	const incdec=(op)=>{
+	const incdec=(op,pause_jp,pause_en)=>{
 		scrollon=true;
 		if(op)
 		{   
-			if(enp[0]==(imgs_eng.length-1) && !pauseen)
+			if(enp[0]==(imgs_eng.length-1) && !pause_en)
 			{
 				indicator.a=1;
 			}
-			if(jpp[0]==(imgs_jap.length-1) && !pausejp)
+			if(jpp[0]==(imgs_jap.length-1) && !pause_jp)
 			{
 				indicator.b=1;
 				
@@ -254,14 +254,14 @@
 
 			if(j<(imgs_jp.length-1))
 			{
-				if(!pauseen && lang=="EN")
+				if(!pause_en && lang=="EN")
 					{j=j+1;}
-				if(!pausejp && lang=="JP")
+				if(!pause_jp && lang=="JP")
 					{j=j+1;}
 
-				if(!pauseen)
+				if(!pause_en)
 				{enp[0]=enp[0]+1;}
-				if(!pausejp)
+				if(!pause_jp)
 				{jpp[0]=jpp[0]+1;}
 				twox(true);
 
@@ -271,11 +271,11 @@
 		}
 		else  if(!(op))
 		{	
-			if(enp[0]==0 && !pauseen)
+			if(enp[0]==0 && !pause_en)
 			{
 				indicator.a=2;
 			}
-			if(jpp[0]==0  && !pausejp)
+			if(jpp[0]==0  && !pause_jp)
 			{
 				indicator.b=2;
 				
@@ -284,13 +284,13 @@
 			if(j>0)
 			{
 				
-				if(!pauseen && lang=="EN")
+				if(!pause_en && lang=="EN")
 					{j=j-1;}
-				if(!pausejp && lang=="JP")
+				if(!pause_jp && lang=="JP")
 					{j=j-1;}
-				if(!pauseen)
+				if(!pause_en)
 				{enp[0]=enp[0]-1;}
-				if(!pausejp)
+				if(!pause_jp)
 				{jpp[0]=jpp[0]-1;}
 				twox(false);
 
@@ -329,11 +329,11 @@
 		let center = (document.getElementById("img_store").offsetWidth)/2;
 		if (e.x > center) 
 		{
-			incdec(true);
+			incdec(true,pausejp,pauseen);
 		}
 		else
 		{
-			incdec(false);
+			incdec(false,pausejp,pauseen);
 		}
 		}
 	}
@@ -446,11 +446,27 @@
 			let key = e.key;
 			if(key=="ArrowRight")
 			{
-				incdec(true);
+				incdec(true,pausejp,pauseen);
 			}
 			else if(key=="ArrowLeft")
 			{
-				incdec(false);
+				incdec(false,pausejp,pauseen);
+			}
+			else if(key=="a")
+			{
+				if (lang=="JP") {
+					incdec(false,false,true);
+				} else {
+					incdec(false,true,false);
+				}
+			}
+			else if(key=="d")
+			{
+				if (lang=="JP") {
+					incdec(true,false,true);
+				} else {
+					incdec(true,true,false);
+				}
 			}
 		}
 	}
