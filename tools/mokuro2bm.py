@@ -62,6 +62,7 @@ import requests
 import re
 import argparse
 import logging
+import unicodedata as ud
 logging.captureWarnings(True) # repress HTML certificate verification warnings
 
 default_mokuro_path = '/mnt/Your/Mokuro/Directory'
@@ -94,6 +95,7 @@ parser_remove = subparsers.add_parser('remove', help='Remove given title)')
 parser_remove.add_argument('title_id', type=str, default=None, help='Title id')
 
 parser_search = subparsers.add_parser('search', help='Search title/chapter_ids with given keyword')
+parser_search.add_argument('-v', '--verbose', action='store_true', help='Show all subdirectory OIDs as well')
 parser_search.add_argument('keyword', type=str, default=None, help='Keyword')
 
 parser_show = subparsers.add_parser('show', help='Show list of all imported manga')
@@ -116,20 +118,25 @@ if os.path.exists(target_ext_oid_path):
     for title,oid in ext_object_ids.items():
         oid_to_title[oid] = title
 
-def get_mokuro_id(text, create_new_if_not_found=True):
-    if text not in ext_object_ids:
-        if create_new_if_not_found:
-            oid = str(bson.objectid.ObjectId())
-            ext_object_ids[text] = oid
-            oid_to_title[oid] = text
-            print("\tNew OID [%s] %s" % (oid,text))
-            with open(target_ext_oid_path,'w',encoding="UTF-8") as oid_f:
-                oid_f.write(json.dumps(ext_object_ids))
-        else:
-            return None
+def get_mokuro_id(path_str, create_new_if_not_found=True):
+    # the path can be given in Unicode composed form (i.e. で)
+    # or decomposed (i.e. て　+　゙	 mark).  The strings are stored in composed form
+    path_str_composed = ud.normalize('NFC',path_str)
+    if path_str in ext_object_ids:
+        return ext_object_ids[path_str]
+    if path_str_composed in ext_object_ids:
+        return ext_object_ids[path_str_composed]
+
+    if create_new_if_not_found:
+        oid = str(bson.objectid.ObjectId())
+        ext_object_ids[path_str_composed] = oid
+        oid_to_title[oid] = path_str_composed
+        print("\tNew OID [%s] %s" % (oid,path_str_composed))
+        with open(target_ext_oid_path,'w',encoding="UTF-8") as oid_f:
+            oid_f.write(json.dumps(ext_object_ids, ensure_ascii=False))
+        return oid
     else:
-        oid = ext_object_ids[text]
-    return oid
+        return None
 
 j = 0
 manga_metadata_per_id = dict()
@@ -359,12 +366,7 @@ def scan(args):
                 t_data['syn_en'] = PLACEHOLDER
                 t_data['syn_jp'] = PLACEHOLDER
                 t_data['en_data'] = dict()
-                t_data['en_data']['vol_en'] = dict()
-                t_data['en_data']['ch_en'] = dict()
-
                 t_data['jp_data'] = dict()
-                t_data['jp_data']['vol_jp']= dict()
-                t_data['jp_data']['ch_jp'] = dict()
 
                 manga_data_per_id[title_id] = t_data 
             else:
@@ -401,6 +403,8 @@ def scan(args):
 
             t_data['en_data']['ch_naen'] = []
             t_data['en_data']['ch_enh'] = []
+            t_data['en_data']['vol_en'] = dict()
+            t_data['en_data']['ch_en'] = dict()
             ch_idx = 1
             vol_number = 1
 
@@ -513,6 +517,8 @@ def scan(args):
             # process jp volumes/chapters
             t_data['jp_data']['ch_najp'] = []
             t_data['jp_data']['ch_jph'] = []
+            t_data['jp_data']['vol_jp']= dict()
+            t_data['jp_data']['ch_jp'] = dict()
             vol_idx = 1
             for vol in jp_volumes:
 
@@ -639,9 +645,16 @@ def remove(args):
         print("Title id %s not found!" % args['title_id'])
 
 def search(args):
+    saved_oids = []
     for title, title_id in ext_object_ids.items():
         if args['keyword'].lower() in title.lower():
             print("[%s] %s" % (title_id,title))
+            if args['verbose']:
+                saved_oids.append(title_id)
+        if args['verbose']:
+            for oid in saved_oids:
+                if oid in title:
+                    print("[%s] -> [%s] %s" % (oid,title_id,title))
 
 def show(args):
     for title_id, mdata in manga_metadata_per_id.items():
