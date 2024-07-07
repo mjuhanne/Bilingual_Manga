@@ -3,6 +3,7 @@
   import { afterUpdate } from 'svelte';
   import { deserialize } from '$app/forms';
   import WordPopup from '$lib/WordPopup.svelte';
+  import AnkiCardDialog from '$lib/AnkiCardDialog.svelte';
   import { learning_stage_colors, STAGE, SOURCE } from '$lib/LearningData.js';
   import Edit_OCR_Dialog from '$lib/Edit_OCR_Dialog.svelte'
 
@@ -30,10 +31,18 @@
   let selected_block; // Selected OCR block number in current page
   let selected_item_id; // OCR item in selected block
   let selected_text; // Clicked item text
-  let showModal;
+  let selected_word; // back-propagated exact word from WordPopup dialog
+  let selected_word_readings; // back-propagated word readings from WordPopup dialog
+  let selected_word_glossary; // back-propagated word glossary from WordPopup dialog
+  let selected_block_content; // text from selected block
+  let showWordPopUpDialog;
+  let showEditOCRDialog;
   let hovered_block_id = -1;
-  export let edit_mode = false;
+  export let edit_mode = false; // signaled back to Reader to turn off keypress handling during textual editing
   let edited_ocr_block = [];
+  export let img_eng = ''
+  export let img_jap = ''
+  let openAnkiCardDialog;
 
   function hoverm(e) {
     let a = e.srcElement.children[0];
@@ -65,7 +74,7 @@
     for (let idx of word_id_index_list) {
       console.log(word_id_list[idx]);
     }
-    showModal = true;
+    showWordPopUpDialog = true;
   	}
 
   function updateWordDecorations() {
@@ -116,8 +125,8 @@
 
   function setWordPopupToElementPosition(elem) {
     var rect = elem.getBoundingClientRect();
-    ocr_root.querySelector('.popup-dialog').style.left = rect.left-70 + "px"; 
-    ocr_root.querySelector('.popup-dialog').style.top = rect.top-40 + "px";
+    ocr_root.querySelector('.popup-dialog').style.left = rect.left-220 + "px"; 
+    ocr_root.querySelector('.popup-dialog').style.top = rect.top-30 + "px";
   }
 
   function setClickEventListeners() {
@@ -126,9 +135,10 @@
       let word_id_index_list = getWordIdIndexList(elem);
       if (word_id_index_list.length > 0) {
         elem.addEventListener("click", (e) => {
-          if (!showModal) { // prevent numerous click events
+          if (!showWordPopUpDialog) { // prevent numerous click events
             setWordPopupToElementPosition(e.target);
-            let block_id = parseInt(elem.parentElement.parentElement.getAttribute("block_id"));
+            let block_element = elem.parentElement.parentElement;
+            let block_id = parseInt(block_element.getAttribute("block_id"));
             let item_id = parseInt(elem.getAttribute("ii"));
             clicked(elem.innerText,word_id_index_list, block_id, item_id);
           }
@@ -202,6 +212,14 @@
 
   const learningStageChangedFromPopUpDialog = (e) => {
     learningStageChanged(e.detail['word_id'], e.detail['stage'], selected_block);
+  }
+
+  const ShowAnkiCardDialog = (e) => {
+    selected_word = e.detail['word']
+    selected_word_glossary = e.detail['glossary']
+    selected_word_readings = e.detail['readings']
+    selected_block_content = ocrpage[selected_block]["og_lines"];
+    openAnkiCardDialog();
   }
 
   async function PriorityWordUpdatedManuallyFromPopUpDialog(e) {
@@ -292,7 +310,7 @@
             });
           console.log("EditHoveredBlock block_id" + edited_ocr_block);
           selected_block = block_id;
-          edit_mode = true;
+          showEditOCRDialog = true;
         }
       }
       console.log("EditHoveredBlock" + hovered_block_id);
@@ -483,8 +501,15 @@
 
 <div bind:this={ocr_root}>
 
-<WordPopup bind:word_id_index_list={selected_word_id_index_list} {word_id_list} {word_history} {word_learning_stages} bind:showModal on:learning_stage_changed={learningStageChangedFromPopUpDialog} on:priority_word_updated_manually={PriorityWordUpdatedManuallyFromPopUpDialog}/>
-<Edit_OCR_Dialog bind:ocr_block={edited_ocr_block} bind:showModal={edit_mode} on:ocr_block_updated={OCRBlockUpdated}/>
+<WordPopup bind:word_id_index_list={selected_word_id_index_list} 
+  {word_id_list} {word_history} {word_learning_stages} 
+  bind:showModal={showWordPopUpDialog} on:learning_stage_changed={learningStageChangedFromPopUpDialog}
+  on:priority_word_updated_manually={PriorityWordUpdatedManuallyFromPopUpDialog}
+  on:anki_button_clicked={ShowAnkiCardDialog}
+/>
+<Edit_OCR_Dialog bind:ocr_block={edited_ocr_block} bind:showModal={showEditOCRDialog} bind:edit_mode={edit_mode} on:ocr_block_updated={OCRBlockUpdated}/>
+<AnkiCardDialog bind:openDialog={openAnkiCardDialog} bind:edit_mode={edit_mode} word={selected_word} glossary={selected_word_glossary} readings={selected_word_readings} sentence_lines={selected_block_content} {img_jap} {img_eng}/>
+
 
 {#each tocr as tdi}
   <div class="ocrsp" on:mouseenter={hoverm} on:mouseleave={hovero}>

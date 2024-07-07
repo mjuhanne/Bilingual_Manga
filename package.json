@@ -17,6 +17,7 @@
   },
   "type": "module",
   "dependencies": {
+    "@novacbn/svelte-image-crop": "github:novacbn/svelte-image-crop",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",

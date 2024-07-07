@@ -1,7 +1,7 @@
 <script>
     import MangaMeta from '$lib/MangaMeta.svelte';
     import MangaChSel from '$lib/MangaChSel.svelte';
-    import MangaViewTabs from './MangaViewTabs.svelte';
+    import Tabs from './Tabs.svelte';
     import MangaLanguageAnalysis from './MangaLanguageAnalysis.svelte';
     import MangaSuggestPreread from './MangaSuggestPreread.svelte';
     export let data;    
@@ -32,7 +32,7 @@
 <div id="spreads" ></div>
 <div id="mainimagetitle">{title}</div>
 </div>
-<MangaViewTabs titles={['Series info','Volumes','Language analysis','Suggested preread']} lang={data.l} bind:selectedTab>
+<Tabs titles={['Series info','Volumes','Language analysis','Suggested preread']} lang={data.l} bind:selectedTab>
     {#if selectedTab==0}
         <MangaMeta meta={ll} {syn}/>
     {:else if selectedTab==1}
@@ -42,7 +42,7 @@
     {:else if selectedTab==3}
         <MangaSuggestPreread meta={ll} manga_data={data.manga_data}/>
     {/if}
-</MangaViewTabs>
+</Tabs>
 
 <style>
     #mainimage{

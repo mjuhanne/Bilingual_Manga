@@ -3,6 +3,7 @@ import Modal from './Modal.svelte';
 import { createEventDispatcher } from 'svelte';
 
 export let showModal = false;
+export let edit_mode;
 export let ocr_block = [];
 const dispatch = createEventDispatcher();
 let ocr_block_lines = ''
@@ -18,12 +19,22 @@ function saveStatus() {
 
 function modalOpened() {
     ocr_block_lines = ocr_block.join('\n')
+    edit_mode = true;
+}
+
+function modalClosed() {
+    edit_mode = false;
 }
 
 </script>
 
 
-<Modal bind:showModal buttons={['Save','Close']} on:buttonClicked={saveStatus} on:modalOpened={modalOpened}>
+<Modal bind:showModal 
+    buttons={['Save','Close']} 
+    on:buttonClicked={saveStatus} 
+    on:modalOpened={modalOpened}
+    on:modalClosed={modalClosed}
+    >
 	<h4 slot="header">
 		Update OCR block
 	</h4>

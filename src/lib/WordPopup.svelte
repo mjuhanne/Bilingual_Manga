@@ -5,6 +5,7 @@ import { STAGE, learning_stage_colors, source_to_name,
 } from '$lib/LearningData.js'
 import LearningStageButtons from '$lib/LearningStageButtons.svelte'
 import { deserialize } from '$app/forms';
+import WordHistoryDialog from './WordHistoryDialog.svelte';
 const dispatch = createEventDispatcher();
 let dialog; // HTMLDialogElement
 
@@ -15,6 +16,7 @@ let ready_seq_list = [];
 let detected_senses_by_seq = {};
 let selected_seq = -1;
 let show_update_priority_word_button = true;
+let showWordHistoryDialog = false;
 
 export let word_id_index_list;
 export let word_id_list;
@@ -26,7 +28,19 @@ let learning_stage_by_seq = {};
 let word_by_seq = {};
 $: word_info_by_seq = [];
 
-let wide_dialog = false;
+let wide_dialog = true;
+
+let selected_word_history = []
+let selected_word_id = ''
+let selected_word_id_index = 0
+let selected_index = -1
+$: {
+    if (selected_seq != -1) {
+        selected_word_id = selected_seq + ':' + word_by_seq[selected_seq];
+        selected_word_id_index = word_id_list.indexOf(selected_word_id);
+        console.log("widx",selected_word_id_index)
+    }
+}
 
 $: {
     if (dialog && showModal) {
@@ -51,14 +65,14 @@ $: {
             } else {
                 detected_senses_by_seq[seq].push(-1); // all senses were detected
             }
-            if (selected_seq == -1) {
-                selected_seq = seq;
-            }
             // Keep only the first seq entry occurrence (to avoid confusion when
             // multiple hiragana readings are detected (e.g. そうね / そうねえ))
             if (!(seq in learning_stage_by_seq)) {
                 learning_stage_by_seq[seq] = word_learning_stages[widx];
                 word_by_seq[seq] = word;
+            }
+            if (selected_seq == -1) {
+                selectedWord(seq,0);
             }
         }
         fetchWordInfo(seq_list);
@@ -83,8 +97,9 @@ const learningStageChanged = (e) => {
     }
 }
 
-function selectedWord(seq) {
+async function selectedWord(seq,index) {
     selected_seq = seq;
+    selected_index = index;
 }
 
 async function fetchWordInfo(seq_list) {
@@ -104,19 +119,36 @@ async function fetchWordInfo(seq_list) {
     //console.log(JSON.stringify(result))
 };
 
+
 async function set_priority_word_manually() {
-    let wid = selected_seq + ':' + word_by_seq[selected_seq];
-    let widx = word_id_list.indexOf(wid);
-    // Move the index of new seq to the beginning of word id index list
-    word_id_index_list.splice(word_id_index_list.indexOf(widx),1)
-    word_id_index_list.unshift(widx)
-    dispatch('priority_word_updated_manually', { 
-        'word_id': wid,
+    if (selected_index > 0) {
+        // Move the index of new seq to the beginning of word id index list
+        word_id_index_list.splice(word_id_index_list.indexOf(selected_word_id_index),1)
+        word_id_index_list.unshift(selected_word_id_index)
+        dispatch('priority_word_updated_manually', { 
+            'word_id': selected_word_id,
+        });
+        word_id_index_list = word_id_index_list; // Force update
+    }
+}
+
+async function history_button_clicked() {
+    selected_word_history = word_history[selected_word_id_index];
+    showWordHistoryDialog = true;
+}
+
+async function anki_button_clicked() {
+    showModal = false;
+    dispatch('anki_button_clicked', { 
+        'word': word_by_seq[selected_seq],
+        'glossary' : word_info_by_seq[selected_seq]['meanings'],
+        'readings' : word_info_by_seq[selected_seq]['readings']
     });
-    word_id_index_list = word_id_index_list; // Force update
 }
 
 </script>
+
+<WordHistoryDialog bind:showModal={showWordHistoryDialog} word={word_by_seq[selected_seq]} history={selected_word_history}/>
 
 <dialog id="popup-dialog" class="popup-dialog" class:wide-dialog={wide_dialog}
 	bind:this={dialog}
@@ -129,14 +161,19 @@ async function set_priority_word_manually() {
         <div class="first_meaning">{first_meaning}</div>
         <div class="enclosure">
             <div>
-            <LearningStageButtons bind:selected_stage={learning_stage_by_seq[selected_seq]} on:clicked={learningStageChanged}/>
-            {#if show_update_priority_word_button}
-            <button class="update_priority_word_button" on:click={() => set_priority_word_manually()}>Manually set correct meaning </button>
-            {/if}
+                <LearningStageButtons bind:selected_stage={learning_stage_by_seq[selected_seq]} on:clicked={learningStageChanged}/>
             </div>
             <div class="details">
-                    {#each ready_seq_list as seq}
-                    <table class="word_info_table" class:selected_seq={seq == selected_seq} on:click={()=>{selectedWord(seq)}}>
+                <div class="buttondiv">
+                    <button on:click={() => anki_button_clicked()}>Anki card</button>
+                    <button on:click={() => history_button_clicked()}>History</button>
+                    {#if show_update_priority_word_button}
+                    <button style="grid-column: 1 / span 2" class:disabled_button={selected_index<1} on:click={() => set_priority_word_manually()}>Manually set correct meaning </button>
+                    {/if}
+                </div>
+                <div id="seq_list" class="seq_list">
+                {#each ready_seq_list as seq,i}
+                    <table class="word_info_table" class:selected_seq={seq == selected_seq} on:click={()=>{selectedWord(seq,i)}}>
                         {#if word_info_by_seq[seq]['kanji_elements'].length>0}
                         <tr style="background:{learning_stage_colors[learning_stage_by_seq[seq]]}">
                             <td colspan=2>{word_info_by_seq[seq]['kanji_elements']}</td>
@@ -174,6 +211,7 @@ async function set_priority_word_manually() {
                         <tr style="height:3px"></tr>
                     </table>
                 {/each}
+                </div>
             </div>
         </div>
     </div>
@@ -199,18 +237,33 @@ async function set_priority_word_manually() {
         width: 100%;
         padding: 3px;
     }
-    .update_priority_word_button {
-        background-color: #55f;
-        color: #fff;
-        font-size: 0.4rem;
-        padding-bottom: 3px;
-        border-radius: 5px;
-        border:0;
+
+    .buttondiv {
+        margin: 0px;
+        padding: 0px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-gap: 0px;
+        
     }
-    .update_priority_word_button:hover {
-        background-color: #77f;
+    .disabled_button {
+        background-color: #bbb;
+    }
+    .disabled_button:hover {
+        background-color: #bbb;
     }
 
+    button {
+        background-color: #55f;
+        color: #fff;
+        font-size: 0.5rem;
+        border-radius: 2px;
+        border:0;
+        margin: 1px;
+    }
+    button:hover {
+        background-color: #77f;
+    }
     .selected_seq {
         background-color: #999;
         border-radius: 5px;
@@ -228,6 +281,12 @@ async function set_priority_word_manually() {
         margin-left: 4px;
         background-color: #555;
         border-radius: 3px;
+        position:relative;
+    }
+    .seq_list {
+        height: 200px;
+        box-sizing: border-box;
+        overflow: scroll;
     }
 
 	dialog {

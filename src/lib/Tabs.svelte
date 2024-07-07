@@ -3,7 +3,8 @@
 
 	export let titles;
 	export let selectedTab = $page.url.searchParams.has('tab') ? $page.url.searchParams.get('tab') : 0;
-	export let lang;
+	export let lang = "";
+
 	let lang_button_url;
 
 	const setTab = (tab) => {
@@ -76,12 +77,14 @@
 				</button>
 			{/each}
 		</div>
-		<div class="lang_div">
-			<a href="{lang_button_url}" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">
-				<button class="tab langbutton">{lang_button_text}
-				</button>
-			</a>
-		</div>
+		{#if lang != ""}
+			<div class="lang_div">
+				<a href="{lang_button_url}" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">
+					<button class="tab langbutton">{lang_button_text}
+					</button>
+				</a>
+			</div>
+		{/if}
 	</div>
 	<div class="tab-content">
 		<slot/>

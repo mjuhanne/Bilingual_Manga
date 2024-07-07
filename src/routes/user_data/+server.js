@@ -58,6 +58,10 @@ const updateLearningSettings = (settings) => {
 	AugmentMetadataWithUserData(db);
 }
 
+const updateAnkiSettings = (settings) => {
+    db['user_data']['anki_settings'] = settings
+	saveUserData(db);
+}
 
 const massSetChapterReadingStatus = (status_list) => {
     console.log("massSetChapterReadingStatus")
@@ -291,6 +295,9 @@ export async function POST({ request }) {
             success : true, 
             'replaced_last_entry' : updateManuallySetWordLearningStage(data.stage_data)
         };
+    } else if (data.func == 'update_anki_settings') {
+        updateAnkiSettings(data.settings);
+        ret= {success : true};
     }
     console.log("POST /user_data return: " + JSON.stringify(ret));
 	return json(ret);
