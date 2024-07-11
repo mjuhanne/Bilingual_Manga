@@ -7,7 +7,7 @@ CURRENT_PARSED_OCR_VERSION = 7
 CURRENT_OCR_SUMMARY_VERSION = 5
 CURRENT_METADATA_CACHE_VERSION = 2
 # .. whereas older language parser works but may not have parsed all the words as efficiently
-CURRENT_LANUGAGE_PARSER_VERSION = 8
+CURRENT_LANUGAGE_PARSER_VERSION = 9
 
 AVERAGE_PAGES_PER_VOLUME = 180
 
@@ -20,6 +20,7 @@ STAGE_KNOWN = 5
 STAGE_FORGOTTEN = 6
 STAGE_IGNORED = 7 # this is for words explicitely ignore by the user
 STAGE_KNOWN_OR_PRE_KNOWN = 8 # a composite stage for statistics, doesn't really exist in reading
+STAGE_UNKNOWN_OR_UNFAMILIAR = 9 # a composite stage for statistics, doesn't really exist in reading
 
 learning_stage_labels = {
     STAGE_UNKNOWN : 'unknown',
@@ -29,11 +30,13 @@ learning_stage_labels = {
     STAGE_KNOWN : 'known',
     STAGE_FORGOTTEN : 'forgotten',
     STAGE_IGNORED : 'ignored',
-    STAGE_KNOWN_OR_PRE_KNOWN : 'known_pre_known' 
+    STAGE_KNOWN_OR_PRE_KNOWN : 'known_pre_known',
+    STAGE_UNKNOWN_OR_UNFAMILIAR : 'unknown_unfamiliar' 
 }
 
 SOURCE_JLPT = 'jlpt'
 SOURCE_CUSTOM = 'cu'
+SOURCE_ANKI = 'a'
 SOURCE_LANGUAGE_REACTOR = 'lr'
 SOURCE_CHAPTER = 'ch'
 SOURCE_ENGINE = 'en'
@@ -46,6 +49,7 @@ source_labels = {
     SOURCE_CHAPTER  : 'Chapter',
     SOURCE_ENGINE   : 'Automatic engine event',
     SOURCE_USER     : 'User set word',
+    SOURCE_ANKI     : 'Anki',
 }
 
 ALL_SENSES = 100

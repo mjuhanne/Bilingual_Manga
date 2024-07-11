@@ -153,6 +153,8 @@ def read_dataset(data_set, item_type, learning_dataset, retain_changes=False,
 
         counter[STAGE_KNOWN_OR_PRE_KNOWN] = counter[STAGE_KNOWN] + counter[STAGE_PRE_KNOWN]
         post_read_counter[STAGE_KNOWN_OR_PRE_KNOWN] = post_read_counter[STAGE_KNOWN] + post_read_counter[STAGE_PRE_KNOWN]
+        counter[STAGE_UNKNOWN_OR_UNFAMILIAR] = counter[STAGE_UNKNOWN] + counter[STAGE_UNFAMILIAR]
+        post_read_counter[STAGE_UNKNOWN_OR_UNFAMILIAR] = post_read_counter[STAGE_UNKNOWN] + post_read_counter[STAGE_UNFAMILIAR]
 
         an['num_per_stage'] = dict()
         an['num_post_read_per_stage'] = dict()
@@ -317,30 +319,51 @@ def fetch_known_jlpt_levels(data, calc, total):
     calc['words']['jlpt_level_per_v'] = jlpt_w_level_per_v
 
     ### KANJIS
-    jlpt_kanji_count_per_level = [ 0 for i in range(6) ]
+    jlpt_known_kanji_count_per_level = [ 0 for i in range(6) ]
+    jlpt_unknown_kanji_count_per_level = [ 0 for i in range(6) ]
+    unknown_jlpt_kanji_set = set()
+    unknown_non_jlpt_kanji_set = set()
     for k,c in data['kanji_frequency'].items():
+        if k in jlpt_kanjis:
+            level = jlpt_kanjis[k]
+        else:
+            level = 0
+        known = False
         if k in learning_data['kanjis']:
             s = learning_data['kanjis'][k]['s']
             if s == STAGE_KNOWN or s == STAGE_PRE_KNOWN:
-                if k in jlpt_kanjis:
-                    level = jlpt_kanjis[k]
+                known = True
+        if known:
+            if total:
+                jlpt_known_kanji_count_per_level[level] += c
+            else:
+                jlpt_known_kanji_count_per_level[level] += 1
+        else:
+            if total:
+                jlpt_unknown_kanji_count_per_level[level] += c
+            else:
+                jlpt_unknown_kanji_count_per_level[level] += 1
+                if level == 0:
+                    unknown_non_jlpt_kanji_set.update([k])
                 else:
-                    level = 0
-                if total:
-                    jlpt_kanji_count_per_level[level] += c
-                else:
-                    jlpt_kanji_count_per_level[level] += 1
+                    unknown_jlpt_kanji_set.update([k])
+
 
     total_k = calc['kanjis']['num_all']
     if total_k > 0:
-        jlpt_k_level_pct = [ round(100*jlpt_kanji_count_per_level[i]/total_k,1) for i in range(6) ]
-        jlpt_k_level_per_v = [ round(jlpt_kanji_count_per_level[i]/data['num_virtual_volumes'],1) for i in range(6) ]
+        jlpt_k_level_pct = [ round(100*jlpt_known_kanji_count_per_level[i]/total_k,1) for i in range(6) ]
+        jlpt_k_level_per_v = [ round(jlpt_known_kanji_count_per_level[i]/data['num_virtual_volumes'],1) for i in range(6) ]
     else:
         jlpt_k_level_pct = [ 0 for i in range(6) ]
         jlpt_k_level_per_v = [ 0 for i in range(6) ]
     calc['kanjis']['jlpt_level_pct'] = jlpt_k_level_pct
     calc['kanjis']['jlpt_level_per_v'] = jlpt_k_level_per_v
-
+    calc['kanjis']['jlpt_num'] = sum([ jlpt_known_kanji_count_per_level[i] for i in range(1,6) ])
+    calc['kanjis']['jlpt_unknown_num'] = sum([ jlpt_unknown_kanji_count_per_level[i] for i in range(1,6) ])
+    calc['kanjis']['non_jlpt_unknown_num'] = jlpt_unknown_kanji_count_per_level[0]
+    if not total:
+        calc['kanjis']['jlpt_unknown_list'] = list(unknown_jlpt_kanji_set)
+        calc['kanjis']['non_jlpt_unknown_list'] = list(unknown_non_jlpt_kanji_set)
 
 def load_and_analyze_dataset(file_name):
     o_f = open(file_name,"r",encoding="utf-8")
@@ -454,6 +477,15 @@ def analyze_next_unread():
             continue
 
         chapter_analysis, chapter_data = load_and_analyze_dataset(chapter_filename)
+        chapter_analysis['unread_chapter'] = chapter
+
+        # Average tankobon volume page count is 180, but it might vary considerable by
+        # manga, so to make those statistics more comparable we calculate virtual volume
+        # count and use that for those variables that rely on # of volumes.
+        chapter_data['num_virtual_volumes'] = round(chapter_data['num_pages'] / AVERAGE_PAGES_PER_VOLUME,2)
+
+        fetch_known_jlpt_levels(chapter_data, chapter_analysis['total_statistics'], total=True)
+        fetch_known_jlpt_levels(chapter_data, chapter_analysis['unique_statistics'], total=False)
 
         analysis[title_id] = chapter_analysis
 

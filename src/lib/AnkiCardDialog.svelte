@@ -20,6 +20,7 @@ let image_blobs;
 let image_crops;
 let current_image_urls;
 let image_states;
+let include_images;
 
 let action;
 
@@ -32,7 +33,7 @@ async function updateCard() {
         if (image_blobs['eng']==undefined) {
             image_blobs['eng'] = await image_crops["eng"].get_cropped_blob()
         }
-        createNote(word,readings,edited_sentence,glossary,image_blobs);
+        createNote(word,readings,edited_sentence,glossary,image_blobs,include_images);
     } else if (existing_note_ids.length > 1) {
         alert(`More than one anki card for word ${word} found!`);
     } else {
@@ -42,7 +43,7 @@ async function updateCard() {
         if (image_blobs['eng']==undefined) {
             image_blobs['eng'] = await image_crops["eng"].get_cropped_blob()
         }
-        augmentNote(existing_note_ids[0],word,image_blobs,edited_sentence);
+        augmentNote(existing_note_ids[0],word,edited_sentence,image_blobs,include_images);
     }
     showModal = false;
 }
@@ -57,6 +58,7 @@ export function openDialog() {
     image_crops = {'eng':undefined,'jap':undefined}
     current_image_urls = {'eng':img_eng,'jap':img_jap}
     image_states = {'eng':CROP_STATE.default,'jap':CROP_STATE.default}
+    include_images = {'eng':true,'jap':true}
     showModal = true;
 }
 
@@ -64,10 +66,6 @@ export function openDialog() {
         image_blobs[lang] = await image_crops[lang].get_cropped_blob();
         if (current_image_urls[lang] !== default_image_urls[lang]) URL.revokeObjectURL(current_image_urls[lang]);
         current_image_urls[lang] = URL.createObjectURL(image_blobs[lang]);
-        image_crops[lang].reset();
-    }
-
-    function on_clear_click(lang) {
         image_crops[lang].reset();
     }
 
@@ -130,12 +128,10 @@ export function openDialog() {
                 </button>
                 <button
                     disabled={image_states["jap"] === CROP_STATE.default}
-                    on:click={()=>on_clear_click("jap")}>Clear
-                </button>
-                <button
-                    disabled={image_states["jap"] === CROP_STATE.default}
                     on:click={()=>on_commit_click("jap")}>Crop
                 </button>
+                <input id="include_jap" type=checkbox bind:checked={include_images['jap']}> 
+                <label for="include_jap">Include image</label>
             </div>
             <div>
                 <ImageCrop bind:this={image_crops["eng"]} src={current_image_urls["eng"]} on:state={on_eng_state} />
@@ -145,12 +141,10 @@ export function openDialog() {
                 </button>
                 <button
                     disabled={image_states["eng"] === CROP_STATE.default}
-                    on:click={()=>on_clear_click("eng")}>Clear
-                </button>
-                <button
-                    disabled={image_states["eng"] === CROP_STATE.default}
                     on:click={()=>on_commit_click("eng")}>Crop
                 </button>
+                <input id="include_eng" type=checkbox bind:checked={include_images['eng']}> 
+                <label for="include_eng">Include image</label>
             </div>
         </div>    
     {/if}

@@ -35,6 +35,7 @@ class LexicalItem:
     is_katakana = False
     is_hiragana = False
     explicitly_allow_conjugation = False
+    lemma_hiragana:str = ''
 
 mid_sentence_punctuation_marks = [
     '・',
@@ -563,6 +564,7 @@ explicit_word_changes = [
     [['いく','つ'],[noun_class,suffix_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
     [['要','は'],[noun_class,gp_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
     [['今','や'],[noun_class,gp_class],COND_NONE,TASK_MERGE,{'class':adverb_class}],
+    [['ま'],[aux_verb_class],COND_BLOCK_START|COND_END_OF_CLAUSE,TASK_MODIFY,{'class':adverb_class}],
 
     # auxiliary
     # remove だ ortho from なら and で
@@ -583,7 +585,12 @@ explicit_word_changes = [
     [['往'],[verb_class],COND_NONE,TASK_MODIFY,{'orthos':['往く']}],
     [['思い巡ら'],[verb_class],COND_NONE,TASK_MODIFY,{'orthos':['思い巡らす']}],
 
+
+    # suffix
+    [['ど','も'],[noun_class,gp_class],COND_AFTER_CLASS,TASK_MERGE,{'cond_class':noun_class,'class':suffix_class}],
+
     # particles
+    [['ぞ','い'],[gp_class,interjection_class],COND_END_OF_CLAUSE,TASK_MERGE,{'class':gp_class}],
     # TODO
     #[['な'],[aux_verb_class],COND_BLOCK_START,TASK_MODIFY,{'class':gp_class}],
 
@@ -602,6 +609,7 @@ explicit_word_changes = [
 
     [['ンな'],[rentaishi_class],COND_NONE,TASK_DIVIDE,{'parts':['ン','な'],'alt_forms':['ん',''],'classes':[noun_class,interjection_class]}],
     
+    [['と','はい','わん'],[gp_class,interjection_class,adverb_class],COND_NONE,TASK_REPLACE,{'parts':['と','は','いわん'],'classes':[gp_class,gp_class,verb_class],'orthos':['','','言う'],'alt_forms':['','','言わない'],'conjugation_roots':['','','言う']}],
 
 ]
 
@@ -791,6 +799,7 @@ word_id_score_adjustment = {
     '2774840:いたい' : -150,
     '1493770:ふたつ' : -10,
     '5132791:はしません' : -1000,
+    '5682011:あります' : -1000,
 
     # emphasize these jmndict entries
     '5555810:東大' : 50,

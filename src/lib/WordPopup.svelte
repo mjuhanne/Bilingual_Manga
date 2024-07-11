@@ -4,6 +4,7 @@ import { STAGE, learning_stage_colors, source_to_name,
     word_classes, timestamp2date 
 } from '$lib/LearningData.js'
 import LearningStageButtons from '$lib/LearningStageButtons.svelte'
+import PriorityWordScopeSelectionDialog from '$lib/PriorityWordScopeSelectionDialog.svelte';
 import { deserialize } from '$app/forms';
 import WordHistoryDialog from './WordHistoryDialog.svelte';
 const dispatch = createEventDispatcher();
@@ -15,8 +16,8 @@ let seq_list = [];
 let ready_seq_list = [];
 let detected_senses_by_seq = {};
 let selected_seq = -1;
-let show_update_priority_word_button = true;
 let showWordHistoryDialog = false;
+let showPriorityWordSelectionDialog = false;
 
 export let word_id_index_list;
 export let word_id_list;
@@ -120,16 +121,21 @@ async function fetchWordInfo(seq_list) {
 };
 
 
-async function set_priority_word_manually() {
+async function priority_word_button_clicked() {
     if (selected_index > 0) {
-        // Move the index of new seq to the beginning of word id index list
-        word_id_index_list.splice(word_id_index_list.indexOf(selected_word_id_index),1)
-        word_id_index_list.unshift(selected_word_id_index)
-        dispatch('priority_word_updated_manually', { 
-            'word_id': selected_word_id,
-        });
-        word_id_index_list = word_id_index_list; // Force update
+        showPriorityWordSelectionDialog = true;
     }
+}
+
+async function on_priority_word_scope_selected(e) {
+    // Move the index of new seq to the beginning of word id index list
+    word_id_index_list.splice(word_id_index_list.indexOf(selected_word_id_index),1)
+    word_id_index_list.unshift(selected_word_id_index)
+    dispatch('priority_word_updated_manually', { 
+        'word_id': selected_word_id,
+        'scope' : e.detail['scope']
+    });
+    word_id_index_list = word_id_index_list; // Force update
 }
 
 async function history_button_clicked() {
@@ -149,8 +155,9 @@ async function anki_button_clicked() {
 </script>
 
 <WordHistoryDialog bind:showModal={showWordHistoryDialog} word={word_by_seq[selected_seq]} history={selected_word_history}/>
+<PriorityWordScopeSelectionDialog bind:showModal={showPriorityWordSelectionDialog} on:priority_word_scope_selected={on_priority_word_scope_selected}/>
 
-<dialog id="popup-dialog" class="popup-dialog" class:wide-dialog={wide_dialog}
+<dialog id="popup-dialog" class="popup-dialog wide-dialog"
 	bind:this={dialog}
 	on:close={() => {showModal = false; wide_dialog = false;}}
 	on:click|self={() => dialog.close()}
@@ -167,20 +174,25 @@ async function anki_button_clicked() {
                 <div class="buttondiv">
                     <button on:click={() => anki_button_clicked()}>Anki card</button>
                     <button on:click={() => history_button_clicked()}>History</button>
-                    {#if show_update_priority_word_button}
-                    <button style="grid-column: 1 / span 2" class:disabled_button={selected_index<1} on:click={() => set_priority_word_manually()}>Manually set correct meaning </button>
-                    {/if}
+                    <button style="grid-column: 1 / span 2" class:disabled_button={selected_index<1} on:click={() => priority_word_button_clicked()}>Manually set correct meaning </button>
                 </div>
                 <div id="seq_list" class="seq_list">
                 {#each ready_seq_list as seq,i}
                     <table class="word_info_table" class:selected_seq={seq == selected_seq} on:click={()=>{selectedWord(seq,i)}}>
-                        {#if word_info_by_seq[seq]['kanji_elements'].length>0}
                         <tr style="background:{learning_stage_colors[learning_stage_by_seq[seq]]}">
-                            <td colspan=2>{word_info_by_seq[seq]['kanji_elements']}</td>
+                            <td>{seq}</td><td>PRI_T_C:{word_info_by_seq[seq]['priority_seq_title_count']}</td>
                         </tr>
-                        {/if}
                         <tr style="background:{learning_stage_colors[learning_stage_by_seq[seq]]}">
-                            <td>{word_info_by_seq[seq]['readings']}</td><td>{seq}</td>
+                            <td colspan=2>
+                                <ol class="element_list">
+                                {#each word_info_by_seq[seq]['kanji_elements'] as ke,i}
+                                    <li>{ke} ({word_info_by_seq[seq]['k_elem_freq'][i]} {word_info_by_seq[seq]['priority_tags'][ke]})</li>
+                                {/each}
+                                {#each word_info_by_seq[seq]['readings'] as reading,i}
+                                <li>{reading} ({word_info_by_seq[seq]['r_elem_freq'][i]} {word_info_by_seq[seq]['priority_tags'][reading]})</li>
+                                {/each}
+                                </ol>
+                            </td>
                         </tr>
                         <tr style="background:{learning_stage_colors[learning_stage_by_seq[seq]]}">
                             <td>PRI #{word_info_by_seq[seq]['priority_seq_order']}:{word_info_by_seq[seq]['priority_seq_count']}</td>
@@ -191,14 +203,6 @@ async function anki_button_clicked() {
                                 <td colspan=2>{word_info_by_seq[seq]['priority_tags'][0]}</td>
                             </tr>
                         {/if}
-                        <!--
-                        {#if (word_info_by_seq[seq]['kanji_element_only_priority_tags'][0].length>0) || (word_info_by_seq[seq]['reading_only_priority_tags'][0].length>0)}
-                            <tr style="background:{learning_stage_colors[learning_stage_by_seq[seq]]}">
-                                <td>{word_info_by_seq[seq]['kanji_element_only_priority_tags']}</td>
-                                <td>{word_info_by_seq[seq]['reading_only_priority_tags']}</td>
-                            </tr>
-                        {/if}
-                        -->
                         {#each word_info_by_seq[seq]['meanings'] as sense_meanings,i}
                         <tr style="background:{learning_stage_colors[learning_stage_by_seq[seq]]}">
                             <td class="meaning_td" colspan=2>{i+1}. 
@@ -296,6 +300,7 @@ async function anki_button_clicked() {
 		padding: 3px;
         background: #666;
         margin: 0;
+        position: absolute;
 	}
 
     .wide-dialog {
@@ -313,6 +318,13 @@ async function anki_button_clicked() {
     .meaning_td {
         text-align: left;
         padding-left: 8px;
+    }
+    .element_list {
+        list-style-type:none;
+        padding: 1px;
+        padding-left: 4px;
+        text-align: left;
+        margin: 0px;
     }
 
 </style>

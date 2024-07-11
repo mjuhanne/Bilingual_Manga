@@ -95,7 +95,7 @@ def get_chapter_info(event_metadata):
         comment += ' / page %d' % (event_metadata['p'])
     if 'comment' in event_metadata:
         comment += event_metadata['comment']
-    return comment
+    return comment, cid
 
 
 def get_word_id_stage_and_history(word_id):
@@ -107,7 +107,7 @@ def get_word_id_stage_and_history(word_id):
         stage = wd['s']
         history = wd['h']
         for h in history:
-            h['m']['comment'] = get_chapter_info(h['m'])
+            h['m']['comment'], h['m']['cid'] = get_chapter_info(h['m'])
         last_timestamp = history[-1]['t']
 
     last_history_from_user = False
@@ -120,7 +120,7 @@ def get_word_id_stage_and_history(word_id):
             stage = user_set_words[word_id][-1]['s']
             metadata = user_set_history[-1]['m']
             metadata['src'] = SOURCE_USER
-            metadata['comment'] = get_chapter_info(metadata)
+            metadata['comment'], metadata['cid'] = get_chapter_info(metadata)
             history = history + [user_set_history[-1]]
             last_history_from_user = True
     return stage, history, last_history_from_user

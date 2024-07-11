@@ -59,8 +59,10 @@ def parse(lines):
     for item in ud_items:
         pretty_print_lexical_item(item)
 
+    manually_set_priority_wids = []
+
     parse_with_jmdict(
-        ud_items, results,
+        ud_items, manually_set_priority_wids, results
     )
     jlines = reassemble_block(lines, ud_items, results['item_word_id_refs'])
     scores = reassemble_block_scores(lines, ud_items, results['item_word_id_scores'])

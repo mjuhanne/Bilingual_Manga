@@ -15,6 +15,7 @@
   export let ocrbor;
   export let ocroff = false;
   export let ocron = false;
+  export let img_id;
   let border_thickness = [];
 
   let interactive_ocr = false;
@@ -125,8 +126,18 @@
 
   function setWordPopupToElementPosition(elem) {
     var rect = elem.getBoundingClientRect();
-    ocr_root.querySelector('.popup-dialog').style.left = rect.left-220 + "px"; 
-    ocr_root.querySelector('.popup-dialog').style.top = rect.top-30 + "px";
+    var imgRect = document.getElementById(img_id).getBoundingClientRect();
+    // Try to fit the popup dialog nicely inside the image
+    if (rect.left-220 > imgRect.left) {
+      ocr_root.querySelector('.popup-dialog').style.left = rect.left-220 + "px"; 
+    } else {
+      ocr_root.querySelector('.popup-dialog').style.left = rect.right + 20 + "px"; 
+    }
+    if (rect.top + 270 < imgRect.bottom) {
+      ocr_root.querySelector('.popup-dialog').style.top = rect.top + window.scrollY -30 + "px";
+    } else {
+      ocr_root.querySelector('.popup-dialog').style.top = imgRect.bottom + window.scrollY -270 + "px";
+    }
   }
 
   function setClickEventListeners() {
@@ -224,10 +235,12 @@
 
   async function PriorityWordUpdatedManuallyFromPopUpDialog(e) {
     let wid = e.detail['word_id'];
-    console.log(`Update ${selected_text} priority word to ${wid}`)
-    let ocr_block = ocrpage[selected_block]["og_lines"];
-
-    let body = JSON.stringify({
+    let scope = e.detail['scope'];
+    console.log(`Update ${selected_text} priority word to ${wid} (scope ${scope})`)
+    let body;
+    if (scope == 'sentence') {
+      let ocr_block = ocrpage[selected_block]["og_lines"];
+      body = {
       'func' : 'update_manually_priority_word', 
       'cid' : cid,
       'word_data' : {
@@ -238,12 +251,41 @@
         'iid' : selected_item_id,
         'p' : page_jp,
         'pr' : page_ref,
-        },
-    });
+        }
+      };
+    } else if (scope == 'chapter') {
+      body = {
+        'func' : 'update_manually_priority_word', 
+        'cid' : cid,
+        'word_data' : {
+          'wid' : wid,
+          'pr' : 'ALL',
+        }
+      }
+    } else if (scope == 'title') {
+      body = {
+        'func' : 'update_manually_priority_word', 
+        'cid' : id,
+        'word_data' : {
+          'wid' : wid,
+          'pr' : 'ALL',
+        }
+      }
+    } else if (scope == 'all') {
+      body = {
+        'func' : 'update_manually_priority_word', 
+        'cid' : 'ALL',
+        'word_data' : {
+          'wid' : wid,
+          'pr' : 'ALL',
+        }
+      }
+    }
+
     const response = await fetch( "/ocr", {
         headers: {"Content-Type" : "application/json" },
         method: 'POST',
-        body: body,
+        body: JSON.stringify(body),
     });
     const result = deserialize(await response.text());
 
@@ -255,7 +297,7 @@
         let word_elements = b_elem.querySelectorAll(".ocrtext1 span");
         for (let elem of word_elements) {
           let item_id = elem.getAttribute("ii");
-          if (item_id == selected_item_id) {
+          if (item_id == selected_item_id || scope != 'sentence') {
             UpdateWordIdIndexList(elem, word_id_list.lastIndexOf(wid));
           }
         }

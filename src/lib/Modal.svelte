@@ -34,6 +34,8 @@
 			{#each buttons as b}
 				{#if b=='Close'}
 				<button autofocus on:click={() => dialog.close()}>Close</button>
+				{:else if b=='Cancel'}
+				<button autofocus on:click={() => dialog.close()}>Cancel</button>
 				{:else}
 				<button on:click={() => clicked(b)}>{b}</button>
 				{/if}

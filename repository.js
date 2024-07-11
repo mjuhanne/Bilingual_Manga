@@ -889,15 +889,17 @@ export async function fetchCoverImages() {
     let path_lists = [manga_tit[i].coveren, manga_tit[i].coverjp]
     for (let p_i in path_lists) {
       let pat = path_lists[p_i];
-      let pat1 = pat.split("/");
-      let pat2 = pat1.slice(0, pat1.length - 1).join("/");
-      if (!fs.existsSync(pat2)) {
-        fs.mkdirSync(pat2, { recursive: true });
-      }
-      if (!fs.existsSync(pat)) {
-        const temp1 = await fetch(`${cdn}/${pat}`);
-        pat = decodeURIComponent(decodeURIComponent(pat));
-        const temp2 = await temp1.body.pipe(fs.createWriteStream(pat));
+      if (pat != 'Placeholder') {
+        let pat1 = pat.split("/");
+        let pat2 = pat1.slice(0, pat1.length - 1).join("/");
+        if (!fs.existsSync(pat2)) {
+          fs.mkdirSync(pat2, { recursive: true });
+        }
+        if (!fs.existsSync(pat)) {
+          const temp1 = await fetch(`${cdn}/${pat}`);
+          pat = decodeURIComponent(decodeURIComponent(pat));
+          const temp2 = await temp1.body.pipe(fs.createWriteStream(pat));
+        }
       }
     }
   }
@@ -912,12 +914,30 @@ export function initRepository(send_event_callback_func) {
   manob["data"] = mdata;
   console.log("Loaded manga_data")
 
+  if (fs.existsSync("./json/ext.manga_data.json")) {
+    let data = fs.readFileSync("./json/ext.manga_data.json", "utf8");
+    let mdata = JSON.parse(data);
+    for (let ii in mdata) {
+      manob["data"].push(mdata[ii])
+    }
+    console.log("Loaded external manga_data")  
+  }
+
   data = fs.readFileSync("./json/BM_data.manga_metadata.json", "utf8");
   mdata = JSON.parse(data);
   let re1 = mdata[0];
   manob["meta"] = re1;
   cdn = re1["cdn"];
   console.log("Loaded manga_metadata")
+
+  if (fs.existsSync("./json/ext.manga_metadata.json")) {
+    let data = fs.readFileSync("./json/ext.manga_metadata.json", "utf8");
+    let mdata = JSON.parse(data);
+    for (let ii in mdata) {
+      manob["meta"]["manga_titles"].push(mdata[ii])
+    }
+    console.log("Loaded external manga_metadata")  
+  }
       
   data = fs.readFileSync("./json/dw.json", "utf8" );
   data = JSON.parse(data);

@@ -1916,6 +1916,12 @@
       {
         "Formal" : false, 
         "Negative" : true, 
+        "Suffix" : "ねば", 
+        "Tense" : "Provisional (archaic)"
+      },
+      {
+        "Formal" : false, 
+        "Negative" : true, 
         "Suffix" : "なかったり", 
         "Tense" : "Alternative"
       },

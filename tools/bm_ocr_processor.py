@@ -41,9 +41,7 @@ from jp_parser import (
     unidic_class_list, ignored_classes_for_freq
 )
 from bm_learning_engine_helper import read_user_settings
-
-user_settings = read_user_settings()
-chapter_comprehension = user_settings['chapter_reading_status']
+from ocr_processor_helper import *
 
 parsed_ocr_dir = base_dir + "parsed_ocr/"
 error_count = 0
@@ -52,22 +50,8 @@ processed_title_count = 0
 
 processed_titles = set()
 
-def is_chapter_read(cid):
-    for chapter_id, reading_data in chapter_comprehension.items():
-        if chapter_id == cid:
-            if reading_data['status'] == 'Read':
-                return True
-            if reading_data['status'] == 'Reading':
-                return True
-    return False
 
-def is_title_read(id):
-    chapter_ids = get_chapters_by_title_id(id)
-    for cid in chapter_ids:
-        if is_chapter_read(cid):
-            return True
-        
-def process_chapter(f_p, fo_p, chapter_data):
+def process_chapter(title_id, chapter_id, f_p, fo_p, chapter_data):
 
     k_c = 0
     c_c = 0
@@ -91,7 +75,7 @@ def process_chapter(f_p, fo_p, chapter_data):
         progress_bar_interval = 1
     for page_id,blocks in pages.items():
 
-        for block in blocks:
+        for i,block in enumerate(blocks):
             lines = block['lines']
 
             if any(len(l)>32 for l in lines):
@@ -100,6 +84,8 @@ def process_chapter(f_p, fo_p, chapter_data):
                 skipped_c += 1
                 block['jlines'] = []
             else:
+                lines = apply_ocr_correction(chapter_id,page_id,i,lines)
+
                 line = ''.join(lines)
                 kc, ud_items, mismatch = \
                     parse_block_with_unidic(lines, kanji_count)
@@ -110,8 +96,10 @@ def process_chapter(f_p, fo_p, chapter_data):
                 ud_items = \
                     post_process_unidic_particles(ud_items)
                 
+                priority_word_ids = get_manually_set_priority_word_ids(title_id,chapter_id,page_id,i)
+
                 parse_with_jmdict(
-                    ud_items, results,
+                    ud_items, priority_word_ids, results,
                 )
 
                 block['jlines'] = reassemble_block(lines, ud_items, results['item_word_id_refs'])
@@ -143,7 +131,6 @@ def process_chapter(f_p, fo_p, chapter_data):
     wid_to_unique_wid_dict = dict()
     for word_id, word_freq in \
         zip(results['priority_word_id_list'], results['priority_word_count']):
-        #zip(results['word_id_list'], results['word_count']):
         seq,senses,word = expand_word_id(word_id)
         word_id0 = str(seq) + ':' + word
         if word_id0 in unique_words_list:
@@ -273,7 +260,7 @@ def process_chapters(args):
                 print("[%d/%d] Scanning %s [%d : %s] " 
                     % (i, i_c, chapter_data['title'], chapter_data['chapter'], chapter_id),end='')
 
-                c_c, w_c, k_c, skipped_c = process_chapter(input_ocr_file, parsed_ocr_filename, chapter_data)
+                c_c, w_c, k_c, skipped_c = process_chapter(title_id, chapter_id, input_ocr_file, parsed_ocr_filename, chapter_data)
                 #except Exception as e:
                 #    print("Error scanning %s [%d]" % ( chapter_data['title'], chapter_data['chapter']))
                 #    print(e)
@@ -428,7 +415,7 @@ parser.add_argument('keyword', nargs='?', type=str, default=None, help='Title ha
 args = vars(parser.parse_args())
 
 #args['force'] = True
-#args['keyword'] = 'Error'
+#args['keyword'] = 'vagabond'
 #args['chapter'] = 4
 
 if not os.path.exists(title_analysis_dir):

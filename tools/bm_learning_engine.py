@@ -21,6 +21,7 @@ user_known_words_file = base_dir + 'lang/user/user_known_words.csv'
 user_known_kanjis_file = base_dir + 'lang/user/user_known_kanjis.csv'
 user_word_occurrence_file = base_dir + 'lang/user/user_word_occurrence.tsv'
 user_kanji_occurrence_file = base_dir + 'lang/user/user_kanji_occurrence.tsv'
+anki_kanjis_file = base_dir + 'lang/user/anki_kanjis.json'
 
 # output files
 learning_data_filename = base_dir + 'lang/user/learning_data.json'
@@ -277,7 +278,7 @@ def update_item_stage(item_type, item, stage, timestamp, metadata ):
                     event_history[item_type][item].append(new_event)
                 else:
                     last_event = event_history[item_type][item][-1]
-                    if last_event['s'] != new_event['s'] or last_event['m']['src'] != new_event['m']['src']:
+                    if last_event['s'] != new_event['s'] or last_event['m']['src'] != new_event['m']['src'] or new_event['s'] < STAGE_KNOWN:
                         event_history[item_type][item].append(new_event)
                     else:
                         # overwrite the last entry
@@ -297,8 +298,8 @@ def update_item_stage_by_frequency_and_class(item_type, item, freq, adjusted_fre
     stage = get_stage_by_frequency_and_class(item_type, learning_freq[item_type][item], class_list)
     update_item_stage(item_type, item, stage, timestamp, metadata)
 
-def do_get_num_items(history_set,stage,source,target_item):
-    num_items = 0
+def do_get_items(item_type, history_set,stage,source,target_item):
+    item_set = set()
     for item,history in history_set.items():
         h = history[-1]
         if stage is not None and h['s'] != stage:
@@ -306,19 +307,28 @@ def do_get_num_items(history_set,stage,source,target_item):
         if source is not None and h['m']['src'] != source:
             continue
         if target_item is not None and item != target_item:
-            seq,word = get_seq_and_word_from_word_id(item)
-            if word != target_item:
-               continue
-        num_items += 1
-    return num_items
+            if item_type == 'words':
+                seq,word = get_seq_and_word_from_word_id(item)
+                if word != target_item and str(seq) != target_item:
+                    continue
+            else:
+                continue
+        item_set.update([item])
+    return item_set
+
+def do_get_num_items(item_type, history_set,stage,source,target_item):
+    item_set = do_get_items(item_type, history_set,stage,source,target_item)
+    return len(item_set)
 
 def get_num_manually_set_items(item_type,stage=None,source=None,item=None):
     history_set = manual_events[item_type]
-    return do_get_num_items(history_set, stage, source, item)
+    return do_get_num_items(item_type, history_set, stage, source, item)
 
 def get_num_items(item_type,stage=None,source=None):
-    history_set = event_history[item_type]
-    return do_get_num_items(history_set, stage, source,None)
+    event_items = do_get_items(item_type, event_history[item_type], stage, source,None)
+    manual_event_items = do_get_items(item_type, manual_events[item_type], stage, source,None)
+    items = event_items.union(manual_event_items)
+    return len(items)
 
 def read_lang_list(filename, source, item_type, stage=None, timestamp=None):
     global learning_data
@@ -327,34 +337,47 @@ def read_lang_list(filename, source, item_type, stage=None, timestamp=None):
     if os.path.exists(filename):
         with open(filename,"r",encoding="utf-8") as f:
             if filename.split('.')[-1] == 'json':
-                assert item_type == 'words'
                 j = json.loads(f.read())
+                if item_type == 'words':
 
-                if 'seq_word_dict' in j:
-                    for word_id, data in j['seq_word_dict'].items():
-                        seq, word = get_seq_and_word_from_word_id(word_id)
-                        if trace_items is None or word in trace_items:
-                            if 's' not in data:
-                                raise Exception("Error in %s" % filename)
-                            if 't' not in data:
-                                raise Exception("Error in %s" % filename)
-                            if 'm' in data:
-                                metadata = data['m']
+                    if 'seq_word_dict' in j:
+                        for word_id, data in j['seq_word_dict'].items():
+                            seq, word = get_seq_and_word_from_word_id(word_id)
+                            if trace_items is None or word in trace_items or str(seq) in trace_items:
+                                if 's' not in data:
+                                    raise Exception("Error in %s" % filename)
+                                if 't' not in data:
+                                    raise Exception("Error in %s" % filename)
+                                if 'm' in data:
+                                    metadata = data['m']
+                                else:
+                                    metadata = {}
+                                metadata['src'] = source
+                                create_manual_event(item_type,word_id,data['s'], data['t'], metadata)
+                    elif 'seq_word_list' in j:
+                        assert stage is not None
+                        assert timestamp is not None
+                        metadata = {'src':source}
+                        for word_id in j['seq_word_list']:
+                            create_manual_event(item_type,word_id,stage, timestamp, metadata)
+                    else:
+                        raise Exception("Error in %s" % filename)
+                elif item_type == 'kanjis':
+                    if 'item_learning_stages' in j:
+                        if timestamp is None:
+                            if 'timestamp' in j:
+                                timestamp = j['timestamp']
                             else:
-                                metadata = {}
-                            metadata['src'] = source
-                            create_manual_event(item_type,word_id,data['s'], data['t'], metadata)
-                elif 'seq_word_list' in j:
-                    assert stage is not None
-                    assert timestamp is not None
-                    for word_id in j['seq_word_list']:
-                        create_manual_event(item_type,word_id,stage, timestamp, {})
-                else:
-                    raise Exception("Error in %s" % filename)
-                    
+                                raise Exception("No timestamp in %s" % filename)
+                                
+                        metadata = {'src':source}
+                        for kanji,stage in j['item_learning_stages'].items():
+                            if trace_items is None or kanji in trace_items:
+                                create_manual_event(item_type,kanji,stage,timestamp,metadata)
+                    else:
+                        raise Exception("Error in %s" % filename)
             else:
                 assert timestamp != None
-                assert source == 'kanjis'
                 csv = True
                 if filename.split('.')[-1] == 'tsv':
                     csv = False
@@ -456,6 +479,10 @@ def update(args):
     read_lang_list(user_known_words_file, SOURCE_CUSTOM, 'words', stage=STAGE_KNOWN, timestamp=learning_settings['learned_custom_timestamp'] )
     read_lang_list(user_known_kanjis_file, SOURCE_CUSTOM, 'kanjis', stage=STAGE_KNOWN, timestamp=learning_settings['learned_custom_timestamp'] )
 
+    # custom list containing a list of known kanjis and words (from Anki)
+    #read_lang_list(anki_known_words_file, SOURCE_ANKI, 'words', stage=STAGE_KNOWN, timestamp=learning_settings['learned_custom_timestamp'] )
+    read_lang_list(anki_kanjis_file, SOURCE_ANKI, 'kanjis')
+
     learning_data['num_unique_known_words_custom'] = get_num_manually_set_items('words',STAGE_KNOWN, SOURCE_CUSTOM)
     learning_data['num_unique_learning_words_custom'] = get_num_manually_set_items('words',STAGE_LEARNING, SOURCE_CUSTOM)
     learning_data['num_unique_known_kanjis_custom'] = get_num_manually_set_items('kanjis',STAGE_KNOWN, SOURCE_CUSTOM)
@@ -477,8 +504,9 @@ def update(args):
     ## load manually set words and their learning stages
     for word_id, history in user_set_words.items():
         sw = word_id.split(':')
+        seq = sw[0]
         word = sw[1]
-        if trace_items is None or word in trace_items:
+        if trace_items is None or word in trace_items or seq in trace_items:
             for entry in history:
                 entry['m']['src'] = SOURCE_USER
 
@@ -558,8 +586,9 @@ def update(args):
                 for word_id, freq, classes in \
                     zip(chapter_data['word_id_list'], chapter_data['word_frequency'], chapter_data['word_class_list']):
                     sw = word_id.split(':')
+                    seq = sw[0]
                     word = sw[1]
-                    if trace_items is None or word in trace_items:
+                    if trace_items is None or word in trace_items or seq in trace_items:
                         adjusted_freq = adjust_and_cap_frequency(freq, comprehension)
                         update_item_stage_by_frequency_and_class('words',word_id,freq,adjusted_freq,classes, timestamp,word_metadata)
 

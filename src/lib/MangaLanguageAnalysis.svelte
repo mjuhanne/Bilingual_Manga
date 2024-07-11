@@ -215,7 +215,7 @@ const colorizeDifference = (a,b) => {
             <tr>
                 <th>Your statistics</th>
                 <th>Whole series</th>
-                <th>Next unread volume(chapter)</th>
+                <th>Next unread volume/chapter (#{meta.unread_chapter})</th>
             </tr>
             
             <tr>
@@ -234,14 +234,50 @@ const colorizeDifference = (a,b) => {
                 <td>{current_set.pct_known_words_next_ch}</td>
             </tr>
             <tr>
-                <th>Unknown words</th>
+                <th>Unknown/unfamiliar words</th>
                 <td>{current_set.num_unknown_words}</td>
                 <td>{current_set.num_unknown_words_next_ch}</td>
             </tr>
             <tr>
-                <th>Unknown kanjis</th>
+                <th>Unknown/unfamiliar kanjis</th>
                 <td>{current_set.num_unknown_kanjis}</td>
                 <td>{current_set.num_unknown_kanjis_next_ch}</td>
+            </tr>
+            <tr>
+                <th>Num unknown/unfamiliar JLPT kanjis</th>
+                <td>{current_set.num_unknown_jlpt_kanjis}</td>
+                <td>{current_set.num_unknown_jlpt_kanjis_next_ch}</td>
+            </tr>
+            <tr>
+                <th>Unknown/unfamiliar JLPT kanjis</th>
+                {#if meta.unique_statistics.num_unknown_jlpt_kanjis > 10}
+                    <td>Many</td>
+                {:else}
+                    <td>{meta.unknown_jlpt_kanjis.join(' ')}</td>
+                {/if}
+                {#if meta.unique_statistics.unknown_jlpt_kanjis_next_ch > 10}
+                    <td>Many</td>
+                {:else}
+                    <td>{meta.unknown_jlpt_kanjis_next_ch.join(' ')}</td>
+                {/if}
+            </tr>
+            <tr>
+                <th>Num unknown/unfamiliar non-JLPT kanjis</th>
+                <td>{current_set.num_unknown_non_jlpt_kanjis}</td>
+                <td>{current_set.num_unknown_non_jlpt_kanjis_next_ch}</td>
+            </tr>
+            <tr>
+                <th>Unknown/unfamiliar non-JLPT kanjis</th>
+                {#if meta.unique_statistics.num_unknown_non_jlpt_kanjis > 10}
+                    <td>Many</td>
+                {:else}
+                    <td>{meta.unknown_non_jlpt_kanjis.join(' ')}</td>
+                {/if}
+                {#if meta.unique_statistics.unknown_non_jlpt_kanjis_next_ch > 10}
+                    <td>Many</td>
+                {:else}
+                    <td>{meta.unknown_non_jlpt_kanjis_next_ch.join(' ')}</td>
+                {/if}
             </tr>
         </table>
         {/if}

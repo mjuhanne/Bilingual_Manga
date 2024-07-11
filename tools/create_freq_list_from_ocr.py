@@ -15,9 +15,10 @@ processed_title_count = 0
 
 seq_count = dict()
 priority_seq_count = dict()
+priority_seq_titles = dict()
 
-def process_chapter(fo_p):
-    global seq_count, priority_seq_count
+def process_chapter(fo_p, title_id):
+    global seq_count, priority_seq_count, priority_seq_titles
 
     if not os.path.exists(fo_p):
         return
@@ -57,10 +58,10 @@ def process_chapter(fo_p):
             for seq in priority_seqs:
                 if seq not in priority_seq_count:
                     priority_seq_count[seq] = 1
+                    priority_seq_titles[seq] = set([title_id])
                 else:
                     priority_seq_count[seq] += 1
-        
-
+                    priority_seq_titles[seq].update([title_id])
         pass
 
     f.close()
@@ -91,14 +92,22 @@ def process_chapters():
             print("[%d/%d] Scanning %s [%d] " 
                 % (i, i_c, chapter_data['title'], chapter_data['chapter']))
 
-            process_chapter(parsed_ocr_filename)
+            process_chapter(parsed_ocr_filename,title_id)
 
         sorted_seqs = dict(sorted(seq_count.items(), key=lambda x:x[1], reverse=True))
         sorted_seqs = list(sorted_seqs.keys())  
 
         sorted_priority_seqs = dict(sorted(priority_seq_count.items(), key=lambda x:x[1], reverse=True))
-        sorted_priority_seqs = list(sorted_priority_seqs.keys())  
-        d = {'priority_seq_count':priority_seq_count,'seq_count':seq_count,'sorted_priority_freq_list':sorted_priority_seqs,'sorted_freq_list':sorted_seqs}
+        sorted_priority_seqs = list(sorted_priority_seqs.keys())
+
+        priority_seq_title_count = {seq:len(title_ids) for seq,title_ids in priority_seq_titles.items()}
+        d = {
+            'priority_seq_count':priority_seq_count,
+            'priority_seq_title_count':priority_seq_title_count,
+            'seq_count':seq_count,
+            'sorted_priority_freq_list':sorted_priority_seqs,
+            'sorted_freq_list':sorted_seqs
+        }
         o_f = open("lang/seq_count.json","w",encoding="utf-8")
         json_data = json.dumps(d,  ensure_ascii = False)
         o_f.write(json_data)

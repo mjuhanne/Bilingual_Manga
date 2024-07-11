@@ -351,7 +351,7 @@ def brute_force_scan_for_verbs(pos,items):
     return seqs
 
 
-def check_verbs(pos,items): 
+def check_verbs(pos,items):
     if items[pos].is_conjugated:
         # do not re-conjugate even if reprocessing
         return
@@ -367,6 +367,12 @@ def check_verbs(pos,items):
         if ortho == txt[0] + 'ずる':
             ortho = txt[0] + 'じる'
             items[pos].ortho = ortho
+
+    # add hiragana form lemma as alt for verbs
+    lemma_hiragana = items[pos].lemma_hiragana
+    if lemma_hiragana != ortho and lemma_hiragana != txt and lemma_hiragana not in items[pos].alt_forms and lemma_hiragana != lemma:
+        items[pos].alt_forms.append(lemma_hiragana)
+        items[pos].alt_scores[lemma_hiragana] = 0.5
 
     # First try to get the JMDict entry in order to find the right verb conjugation (v5r etc)
     seqs = search_sequences_by_word(ortho)

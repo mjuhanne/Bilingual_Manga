@@ -17,11 +17,13 @@ let common_sort_options = {
     'Kanji/word': { s:'total_statistics', field: 'k_per_w_pct',  type:'val', subheading_template:'Kanjis/word _ %', rev:true },
     'Comp input pct': { s:'', field: 'comprehensible_input_pct',  type:'val', subheading_template:'CI _ %', rev:true },
     'Comp input next ch pct': { s:'', field: 'comprehensible_input_pct_next_ch',  type:'val', subheading_template:'CI _ %', rev:true },
-    'Opt Comp input': { s:'', field: 'opt_comprehensible_input_pts',  type:'val', subheading_template:'OPT CI _', rev:true },
-    'Opt Comp input next ch': { s:'', field: 'opt_comprehensible_input_pts_next_ch',  type:'val', subheading_template:'OPT CI _', rev:true },
+    'Opt Comp input': { s:'', field: 'comprehensible_input_score',  type:'val', subheading_template:'OPT CI _', rev:true },
+    'Opt Comp input next ch': { s:'', field: 'comprehensible_input_score_next_ch',  type:'val', subheading_template:'OPT CI _', rev:true },
     'Known w %': { s:'total_statistics', field: 'pct_known_words',  type:'val', subheading_template:'Known w _ %', rev:true },
     'Next chp comp': { s:'total_statistics', field: 'pct_known_words_next_ch',  type:'val', subheading_template:'Next chapter comp _ %', rev:true },
     'Next chp unkn words': { s:'unique_statistics', field: 'num_unknown_words_next_ch',  type:'val', subheading_template:'_ unk w in next chp', rev:true },
+    'Unkn JLPT kanjis': { s:'unique_statistics', field: 'num_unknown_jlpt_kanjis',  type:'val', subheading_template:'_ unk JLPT kanjis', rev:true },
+    'Unkn JLPT kanjis next ch': { s:'unique_statistics', field: 'num_unknown_jlpt_kanjis_next_ch',  type:'val', subheading_template:'_ unk JLPT kanjis', rev:true },
     'JLPT improvement': { s:'', field: 'jlpt_improvement_pts',  type:'val', subheading_template:'_ pts', rev:true },
 };
 

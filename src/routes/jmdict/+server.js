@@ -13,6 +13,10 @@ let r_elem_freq = {};
 let pri_tags = {};
 let seq_frequency = {};
 
+function freq2str(freq) {
+    return Math.ceil(parseInt(freq)*0.5).toString() + 'K';
+}
+
 function loadJMDict() {
     console.log("Loading JMDict");
     let data = fs.readFileSync("lang/JMdict_e_m.tsv", "utf8");
@@ -23,10 +27,15 @@ function loadJMDict() {
         try {
             let items = line.split('\t');
             let seq = parseInt(items[0]);
-            kanji_elements[seq] = items[1].split(',');
-            k_elem_freq[seq] = items[4].split(',');
+            if (items[1] != '') {
+                kanji_elements[seq] = items[1].split(',');
+                k_elem_freq[seq] = items[4].split(',').map((freq) => freq2str(freq));
+            } else {
+                kanji_elements[seq] = []
+                k_elem_freq[seq] = ""
+            }
             readings[seq] = items[2].split(',');
-            r_elem_freq[seq] = items[5].split(',');
+            r_elem_freq[seq] = items[5].split(',').map((freq) => freq2str(freq));
             pri_tags[seq] = JSON.parse(items[6]);
             meanings[seq] = JSON.parse(items[7]);
         } catch (e) {
@@ -46,9 +55,14 @@ function loadJMDict() {
         try {
             let items = line.split('\t');
             let seq = parseInt(items[0]);
-            kanji_elements[seq] = items[1].split(',');
+            if (items[1] != '') {
+                kanji_elements[seq] = items[1].split(',');
+                k_elem_freq[seq] = freq2str(items[3]);
+            } else {
+                kanji_elements[seq] = []
+                k_elem_freq[seq] = ""
+            }
             readings[seq] = items[2].split(',');
-            k_elem_freq[seq] = parseInt(items[3]);
             r_elem_freq[seq] = k_elem_freq[seq]
             pri_tags[seq] = []
             meanings[seq] = [[items[4]]];
@@ -93,10 +107,11 @@ function get_word_info(seq_list) {
         selected_info[seq]['priority_tags'] = pri_tags[seq];
 
         selected_info[seq]['k_elem_freq'] = k_elem_freq[seq]
-        selected_info[seq]['r_elem_freq'] = k_elem_freq[seq]
+        selected_info[seq]['r_elem_freq'] = r_elem_freq[seq]
 
         selected_info[seq]['seq_order'] = seq_frequency['sorted_freq_list'].indexOf(seq_int);
         selected_info[seq]['seq_count'] = seq_frequency['seq_count'][seq];
+        selected_info[seq]['priority_seq_title_count'] = seq_frequency['priority_seq_title_count'][seq];
         selected_info[seq]['priority_seq_order'] = seq_frequency['sorted_priority_freq_list'].indexOf(seq_int);
         selected_info[seq]['priority_seq_count'] = seq_frequency['priority_seq_count'][seq];
         console.log(seq + ": "+JSON.stringify(selected_info[seq]));

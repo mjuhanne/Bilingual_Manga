@@ -12,6 +12,8 @@ jmdict_noun_pos_list = []
 jmdict_verb_pos_list = []
 custom_word_id_score_adjustment = dict()
 
+parser_settings = {'word_id_list_has_sense':False}
+
 def ADD_LOG_MESSAGE(pos,msg):
     global messages
     if msg not in messages[pos]:
@@ -292,6 +294,11 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
                         # 幼な + じみ
                         valid_senses[i].update([s_idx])
                         valid_senses[i+1].update([s_idx])
+                    if adjective_class in unidic_classes and noun_class in next_word_classes:
+                        # allow adjective + noun as noun
+                        # 幼 + 友達
+                        valid_senses[i].update([s_idx])
+                        valid_senses[i+1].update([s_idx])
                     if pronoun_class in unidic_classes and suffix_class in next_word_classes:
                         # allow prounoun + suffix as noun
                         #　俺 + たち
@@ -538,6 +545,8 @@ def add_matched_sense_reference(original_word, chunk, base_score, chunk_len, pos
                 scan_results['item_word_id_score'][(word_id,pos+j)] = score
 
             # add to word id list and word_class (parts of speech) list
+            if not parser_settings['word_id_list_has_sense']:
+                word_id = seq_word
             try:
                 w_idx = scan_results['word_id_list'].index(word_id)
                 scan_results['word_count'][w_idx] += 1
@@ -720,7 +729,7 @@ def init_scan_results():
     return scan_results
 
 
-def parse_with_jmdict(unidic_items, scan_results):
+def parse_with_jmdict(unidic_items, manually_set_priority_wids, scan_results):
     global messages
     if not _parser_initialized:
         raise Exception("Not yet initialized!")
@@ -728,6 +737,8 @@ def parse_with_jmdict(unidic_items, scan_results):
     def add_to_priority_word_list(word_id):
         priority_wid_list = scan_results['priority_word_id_list']
         priority_wid_count = scan_results['priority_word_count']
+        if not parser_settings['word_id_list_has_sense']:
+            word_id = strip_sense_from_word_id(word_id)
         if word_id in priority_wid_list:
             idx = priority_wid_list.index(word_id)
             priority_wid_count[idx] += 1
@@ -892,7 +903,7 @@ def parse_with_jmdict(unidic_items, scan_results):
         scan_results['item_word_ids'][i] = word_ids
         scan_results['item_longest_common_word_id'].append(longest_common_word_id)
 
-    best_score, best_combination = calculate_best_phrase_combination(unidic_items,scan_results)
+    best_score, best_combination = calculate_best_phrase_combination(unidic_items,scan_results,manually_set_priority_wids)
     scan_results['score'] = best_score
 
     sentence = []
@@ -935,6 +946,8 @@ def parse_with_jmdict(unidic_items, scan_results):
 
             # reference the word_id as index number in word_id_list
             for word_id in word_ids:
+                if not parser_settings['word_id_list_has_sense']:
+                    word_id = strip_sense_from_word_id(word_id)
                 w_idx = scan_results['word_id_list'].index(word_id)
                 refs.append(w_idx)
         scan_results['item_word_id_refs'].append(refs)
@@ -950,6 +963,8 @@ def parse_with_jmdict(unidic_items, scan_results):
                 ref_pos = scan_results['item_word_id_ref_pos'][(best_word_id,i)]
                 if ref_pos == 0:
                     # add item only when processing the first lexical item of a multi-item phrase/word
+                    if not parser_settings['word_id_list_has_sense']:
+                        best_word_id = strip_sense_from_word_id(best_word_id)
                     best_w_idx = scan_results['word_id_list'].index(best_word_id)
                     sentence.append(best_w_idx)
 
@@ -965,7 +980,7 @@ def parse_with_jmdict(unidic_items, scan_results):
 
 
 iter_count = 0
-def calculate_best_phrase_combination(items,scan_results):
+def calculate_best_phrase_combination(items,scan_results,manually_set_priority_wids):
     global iter_count
     best_score = 0
     best_permutation = []
@@ -973,7 +988,7 @@ def calculate_best_phrase_combination(items,scan_results):
     while pos < len(items):
         iter_count = 0
         best_chunk_score, best_chunk_permutation, rec_fail = \
-            do_calculate_best_phrase_combination(pos,items,scan_results)
+            do_calculate_best_phrase_combination(pos,items,scan_results,manually_set_priority_wids)
         LOG(1,"Chunk permutation score : %d %s" % (best_score, best_permutation))
         if len(best_chunk_permutation)>0:
             best_score += best_chunk_score
@@ -986,7 +1001,7 @@ def calculate_best_phrase_combination(items,scan_results):
     LOG(1,"Best phrase permutation: %d %s" % (best_score, best_permutation))
     return best_score, best_permutation
 
-def do_calculate_best_phrase_combination(pos,items,scan_results, rec_level=0):
+def do_calculate_best_phrase_combination(pos,items,scan_results,manually_set_priority_wids,rec_level=0):
     global iter_count
     best_score = -500
     best_combination = []
@@ -1014,7 +1029,13 @@ def do_calculate_best_phrase_combination(pos,items,scan_results, rec_level=0):
     
     if scan_results['item_longest_common_word_id'][pos]==1:
         # this lexical item references only words that are not shared by other items
-        # so we can return the first score/word_id in the list (it's already sorted)
+        # so we can return the first score/word_id in the list (it's already sorted).
+
+        # .. though first check for manually set priority word ids
+        for wid in scan_results['item_word_ids'][pos]:
+            if wid in manually_set_priority_wids:
+                return 10000, [wid], False
+        # return the first item
         return scan_results['item_word_id_scores'][pos][0], [scan_results['item_word_ids'][pos][0]], False
 
     _word_ids = scan_results['item_word_ids'][pos]
@@ -1024,6 +1045,9 @@ def do_calculate_best_phrase_combination(pos,items,scan_results, rec_level=0):
     #processed_words = set()
     processed_step_lengths = set()
     for word_id,score in zip(word_ids,word_id_scores):
+        if word_id in manually_set_priority_wids:
+            # the manually set word_id always gets the highest score 
+            score = max(word_id_scores) + 10000 # add extra points to make sure none of the longer (but erroneously selected) multi-lexical item constructs are not selected
         iter_count += 1
         print_prefix = "\t"*pos
         if word_id != '':
@@ -1048,7 +1072,7 @@ def do_calculate_best_phrase_combination(pos,items,scan_results, rec_level=0):
                 print_prefix += "  "
                 if pos + ref_steps < len(items):
                     #print(print_prefix,pos,"Trying sub-items at pos %d" % (pos+ref_steps), scan_results['item_word_ids'][pos+ref_steps])
-                    best_sub_score, best_sub_combination, fail_rec = do_calculate_best_phrase_combination(pos+ref_steps,items,scan_results, rec_level+1)
+                    best_sub_score, best_sub_combination, fail_rec = do_calculate_best_phrase_combination(pos+ref_steps,items,scan_results,manually_set_priority_wids, rec_level+1)
 
                     score += best_sub_score
                     combination += best_sub_combination

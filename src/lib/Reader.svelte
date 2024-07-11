@@ -344,7 +344,7 @@
 	
 	const img_wid=(e)=>{
 		let srce = e.srcElement.src;
-		e.srcElement.alt = `Error loading this image.Try Reloading The Page after a few seconds...`
+		e.srcElement.alt = `[${srce}]Error loading this image.Try Reloading The Page after a few seconds...`
 	};
 	
 	const setImage =(element_id, url) => {
@@ -522,12 +522,12 @@ for(let ixxx=0;ixxx<=prel;ixxx++)
 	<div id="twoxholder" style="display:flex;justify-content:center;margin:auto;max-height:100vh;max-width:95vw;">
 	<span>
 	<img id="ch-i1" src="/loader.svg" alt="ch-i1" style="margin-left:auto;max-width:47vw;" on:load={img_wid1} on:error={img_wid}/>
-	<Ocr {id} {cid} bind:edit_mode={edit_mode} bind:page_jp={jpp[0]} img_jap={imgs_jap[jpp[0]]}
+	<Ocr img_id="ch-i1" {id} {cid} bind:edit_mode={edit_mode} bind:page_jp={jpp[0]} img_jap={imgs_jap[jpp[0]]}
 		img_eng={imgs_eng[enp[0]]} ocr1={ocr} src={src_o1} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
 	</span>
 	<span>
 	<img id="ch-i" src="/loader.svg" alt="ch-i" style="margin-right:auto;max-width:47vw;" on:load={img_wid1} on:error={img_wid}/>
-	<Ocr {id} {cid} bind:edit_mode={edit_mode} bind:page_jp={jpp[0]} img_jap={imgs_jap[jpp[0]]}
+	<Ocr img_id="ch-i" {id} {cid} bind:edit_mode={edit_mode} bind:page_jp={jpp[0]} img_jap={imgs_jap[jpp[0]]}
 		img_eng={imgs_eng[enp[0]]} ocr1={ocr} src={src_o} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
 	</span>
 	</div>
@@ -535,19 +535,19 @@ for(let ixxx=0;ixxx<=prel;ixxx++)
 	<div id="twoxholder" style="display:flex;justify-content:center;margin:auto;max-height:100vh;max-width:95vw;">
 		<span>
 		<img id="ch-i" src="/loader.svg" alt="ch-i" style="margin-right:auto;max-width:47vw;" on:load={img_wid1} on:error={img_wid}/>
-		<Ocr {id} {cid} bind:edit_mode={edit_mode} bind:page_jp={jpp[0]} img_jap={imgs_jap[jpp[0]]}
+		<Ocr img_id="ch-i" {id} {cid} bind:edit_mode={edit_mode} bind:page_jp={jpp[0]} img_jap={imgs_jap[jpp[0]]}
 			img_eng={imgs_eng[enp[0]]} ocr1={ocr} src={src_o} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
 		</span>
 		<span>
 		<img id="ch-i1" src="/loader.svg" alt="ch-i1" style="margin-left:auto;max-width:47vw;" on:load={img_wid1} on:error={img_wid}/>
-		<Ocr {id} {cid} bind:edit_mode={edit_mode} bind:page_jp={jpp[0]} img_jap={imgs_jap[jpp[0]]}
+		<Ocr img_id="ch-i1" {id} {cid} bind:edit_mode={edit_mode} bind:page_jp={jpp[0]} img_jap={imgs_jap[jpp[0]]}
 			img_eng={imgs_eng[enp[0]]} ocr1={ocr} src={src_o1} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
 		</span>
 		</div>
 	{/if}	
 	{:else}
 	<img id="ch-i" src="/loader.svg" alt="ch-i" style="margin:auto;" on:load={img_wid1} on:error={img_wid}/>
-	<Ocr {id} {cid} bind:edit_mode={edit_mode}  ocr1={ocr} img_jap={imgs_jap[jpp[0]]}
+	<Ocr img_id="ch-i" {id} {cid} bind:edit_mode={edit_mode}  ocr1={ocr} img_jap={imgs_jap[jpp[0]]}
 		img_eng={imgs_eng[enp[0]]} bind:page_jp={jpp[0]} src={src_o} bind:ocrbor={ocrbor} bind:ocroff={ocroff} bind:ocron={ocron}/>
 	{/if}
 </div>

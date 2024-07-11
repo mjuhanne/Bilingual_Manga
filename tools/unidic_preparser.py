@@ -106,6 +106,9 @@ def parse_line_with_unidic(line, kanji_count):
             elif is_hiragana_word(w):
                 item.is_hiragana = True
 
+            if len(details)>=7:
+                item.lemma_hiragana = katakana_to_hiragana(details[6])
+
             #if lemma != '' and lemma != word:
             #    item.alt_forms.append(lemma)
             #    item.alt_scores[lemma] = 0.5

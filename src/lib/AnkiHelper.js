@@ -91,7 +91,7 @@ const blobToBase64 = async blob => {
     })
   }
 
-export async function augmentNote(noteId, word, images, sentence) {
+export async function augmentNote(noteId, word, sentence, images, include_images ) {
     let params = {
             "note" : {
                 "id" : noteId,
@@ -140,7 +140,7 @@ function glossaryList2Html(glossary_list) {
     return html;
 }
 
-export async function createNote(word,readings,sentence,glossary,images) {
+export async function createNote(word,readings,sentence,glossary,images,include_images) {
     let params = {
             "note" : {
                 "deckName" : anki_settings['output']['deck'],
@@ -155,7 +155,7 @@ export async function createNote(word,readings,sentence,glossary,images) {
         let field_type = anki_settings['output']['fields'][field];
         if (field_type == ANKI_FIELD_TYPES.SENTENCE) {
             params["note"]["fields"][ field ] = sentence;
-        } else if (field_type == ANKI_FIELD_TYPES.JAP_PIC) {
+        } else if (field_type == ANKI_FIELD_TYPES.JAP_PIC && include_images['jap']) {
             // clear the previous image field
             params["note"]["fields"][ field] = ""
             params["note"]["picture"].push(
@@ -165,7 +165,7 @@ export async function createNote(word,readings,sentence,glossary,images) {
                     "fields":[field]
                 },
             );
-        } else if (field_type == ANKI_FIELD_TYPES.ENG_PIC) {
+        } else if (field_type == ANKI_FIELD_TYPES.ENG_PIC && include_images['eng']) {
             // clear the previous image field
             params["note"]["fields"][ field] = ""
             params["note"]["picture"].push(
@@ -183,7 +183,6 @@ export async function createNote(word,readings,sentence,glossary,images) {
             params["note"]["fields"][field] = word; 
         }
     }
-    //console.log(JSON.stringify(params));
     return await anki_invoke(anki_settings['address'], 'addNote', 6, params);
 }
 
