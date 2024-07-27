@@ -6,8 +6,11 @@ export const EVENT_TYPE = {
     UPDATING_ANALYSIS   : "Updating analysis",
     UPDATED_STATS       : "Statistics updated",
     UPDATED_ANALYSIS    : "Analysis updated",
+    UPDATED_SUGGESTED_PREREAD : "Suggested pre-read updated",
     ANALYSIS_WARNING    : "Warning during language engine processing",
     ANALYSIS_ERROR      : "Error during language engine processing",
+    SUGGESTED_PREREAD_PROGRESS : "Suggested Preread Progress",
+    ANALYSIS_PROGRESS   : "Analysis progress"
 }
 
 const empty_reading_status = {

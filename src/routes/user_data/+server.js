@@ -3,6 +3,7 @@ import db from "$lib/db";
 import { AugmentMetadataWithUserData, AugmentMetadataWithCustomLanguageSummary, saveUserData, saveUserSetWords, EVENT_TYPE } from "$lib/UserDataTools.js";
 import fs from "fs";
 import {exec} from "node:child_process";
+import child_process from "node:child_process";
 import util from "node:util";
 const execSync = util.promisify(exec);
 import { EventEmitter } from 'node:events';
@@ -17,6 +18,8 @@ const ANALYZER_TOOL = `bm_analyze.py`
 let clients = [];
 let update_process_lock = false;
 let redo_process = false;
+
+let suggest_preread_lock = new Set();
 
 let analysis_status_msg = '';
 
@@ -55,7 +58,6 @@ const updateLearningSettings = (settings) => {
     db['user_data']['timestamp'] = Date.now();
 	saveUserData(db);
     updateCustomLanguageAnalysis();
-	AugmentMetadataWithUserData(db);
 }
 
 const updateAnkiSettings = (settings) => {
@@ -86,7 +88,6 @@ const massSetChapterReadingStatus = (status_list) => {
     db['user_data']['timestamp'] = Date.now();
     saveUserData(db);
     updateCustomLanguageAnalysis();
-	AugmentMetadataWithUserData(db);
 }
 
 
@@ -99,60 +100,84 @@ async function updateCustomLanguageAnalysis() {
     }
     update_process_lock = true;
     broadcastEvent(EVENT_TYPE.UPDATING_STATS);
-    do {
-        if (redo_process) {
-            console.log("updateCustomLanguageAnalysis - redo process");
-            redo_process=false; 
-        }
 
-        let res = await LaunchLanguageTool(LEARNING_ENGINE_TOOL,'update');
-        analysis_status_msg = res.msg;
-        if (res.status == 'warning') {
-            console.log("updateCustomLanguageAnalysis - warning")
-            broadcastEvent(EVENT_TYPE.ANALYSIS_WARNING);
-        } else if (res.status == 'error'){
-            console.log("updateCustomLanguageAnalysis - error")
-            broadcastEvent(EVENT_TYPE.ANALYSIS_ERROR);
-            update_process_lock = false;
-            return;
-        }
-        broadcastEvent(EVENT_TYPE.UPDATED_STATS);
+    LaunchLanguageTool_Spawn(LEARNING_ENGINE_TOOL,["update"],
+        (exit_code) => {
+            if (exit_code == 0) {
 
-        broadcastEvent(EVENT_TYPE.UPDATING_ANALYSIS);
-        res = await LaunchLanguageTool(ANALYZER_TOOL,'analyze');
-        analysis_status_msg = res.msg;
-        if (res.status == 'warning') {
-            console.log("updateCustomLanguageAnalysis - warning")
-            broadcastEvent(EVENT_TYPE.ANALYSIS_WARNING);
-        } else if (res.status == 'error'){
-            console.log("updateCustomLanguageAnalysis - error")
-            broadcastEvent(EVENT_TYPE.ANALYSIS_ERROR);
-            update_process_lock = false;
-            return;
+                broadcastEvent(EVENT_TYPE.UPDATING_ANALYSIS);
+                LaunchLanguageTool_Spawn(ANALYZER_TOOL,['analyze','--progress-output'],
+                    (exit_code) => {
+                        update_process_lock = false;
+                        if (exit_code == 0) {
+                            if (redo_process) {
+                                redo_process = false;
+                                console.log("updateCustomLanguageAnalysis - redo process");
+                                updateCustomLanguageAnalysis();
+                            } else {
+                                console.log("updateCustomLanguageAnalysis - analysis done")
+                                updateMetadata();
+                                AugmentMetadataWithUserData(db);
+                                broadcastEvent(EVENT_TYPE.UPDATED_ANALYSIS);
+                            }
+                            broadcastEvent(EVENT_TYPE.UPDATED_SUGGESTED_PREREAD,"")
+                        } else {
+                            broadcastEvent(EVENT_TYPE.ANALYSIS_ERROR, `Learning engine tool exited with exit code ${exit_code}`);
+                        }
+                    },
+                    (progress_msg) => {
+                        console.log("progress:",progress_msg);
+                        broadcastEvent(EVENT_TYPE.ANALYSIS_PROGRESS,progress_msg)
+                    },
+                    (error_msg) => {
+                        console.log("err:",error_msg);
+                        broadcastEvent(EVENT_TYPE.ANALYSIS_WARNING,error_msg)
+                    }
+                );    
+        
+            } else {
+                broadcastEvent(EVENT_TYPE.ANALYSIS_ERROR, `Learning engine tool exited with exit code ${exit_code}`);
+                update_process_lock = false;
+            }
+        },
+        (progress_msg) => {
+            console.log("progress:",progress_msg);
+            //broadcastEvent(EVENT_TYPE.SUGGESTED_PREREAD_PROGRESS,progress_msg)
+        },
+        (error_msg) => {
+            console.log("err:",error_msg);
+            broadcastEvent(EVENT_TYPE.ANALYSIS_WARNING,error_msg)
         }
-    } while(redo_process);
-    console.log("updateCustomLanguageAnalysis - analysis done")
-    updateMetadata();
-    broadcastEvent(EVENT_TYPE.UPDATED_ANALYSIS);
-    update_process_lock = false;
+    );
 }
 
-async function LaunchLanguageTool(cmd, argument) {
-    let exec_cmd = `python tools/${cmd} ${argument}`
-    let warning_msg = ''
-    try {
-        const { stdout, stderr } = await execSync(exec_cmd);
-        warning_msg = stderr;
-    } catch (error) {
-        console.log("LaunchLanguageTool ERROR: " + error.stderr);
-        return {'status':'error','msg':error.stderr};
-    }
-    if (warning_msg != '') {
-        console.log("LaunchLanguageTool WARNING: " + warning_msg)
-        return {'status':'warning','msg':warning_msg}
-    }
-    return {'status':'ok'}
+
+function LaunchLanguageTool_Spawn(cmd, args, exit_cb, progress_cb, error_cb) {
+    console.log("Starting Process.");
+    var spawn_args = [`tools/${cmd}`].concat(args);
+    var child = child_process.spawn("python", spawn_args);
+
+    child.on('error', (err) => {
+        console.error('Failed to start subprocess.',JSON.stringify(err));
+      });    
+
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', function(data) {
+        //console.log('stdout: ' + data);
+        progress_cb(data.toString());
+    });
+
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', function(data) {
+        console.log('stderr: ' + data);
+        error_cb(data.toString());
+    });
+
+    child.on('close', function(code) {
+        exit_cb(code);
+    });
 }
+
 
 async function getSuggestedPreread(manga_id) {
     if (!('timestamp' in db['user_data'])) {
@@ -166,40 +191,52 @@ async function getSuggestedPreread(manga_id) {
     if (!fs.existsSync(preread_dir)) {
         fs.mkdirSync(preread_dir, { recursive: true });
     }
-
-    while (update_process_lock) {
-        await delay(1000);
-    }
     
     let filename = preread_dir + manga_id + '.json';
-    let json_data;
-    let stale = true;
     if (fs.existsSync(filename)) {
         let data = fs.readFileSync(filename, "utf8");
-        json_data = JSON.parse(data);
+        let json_data = JSON.parse(data);
         console.log(`existing timestamp ${json_data.timestamp}`);
-        if (json_data.timestamp < db['user_data']['timestamp']) {
-            console.log("Recalculating suggested preread")
-        } else {
+        if (json_data.timestamp > db['user_data']['timestamp']) {
             console.log("Suggested preread already up to date")
-            stale = false;
-        }
+            return {
+                success : true,
+                'suggested_preread' : json_data.analysis,
+            }
+        } 
     }
 
-    if (stale) {
-        let res = await LaunchLanguageTool(ANALYZER_TOOL,`suggest_preread ${manga_id}`)
-        if (res.status != 'ok') {
-            return {
-                success : false,
-                error_message : res.msg,
-            }    
-        }
-        let data = fs.readFileSync(filename, "utf8");
-        json_data = JSON.parse(data);
+    if (suggest_preread_lock.has(manga_id)) {
+        return {
+            success : false,
+            error_message : "Already analyzing..",
+        }    
     }
+    suggest_preread_lock.add(manga_id);
+
+    console.log("Recalculating suggested preread")
+
+    LaunchLanguageTool_Spawn(ANALYZER_TOOL,["suggest_preread",manga_id,'--progress-output'],
+        (exit_code) => {
+            console.log("exit code:",exit_code);
+            suggest_preread_lock.delete(manga_id);
+            if (exit_code == 0) {
+                broadcastEvent(EVENT_TYPE.UPDATED_SUGGESTED_PREREAD,"")
+            }
+        },
+        (progress_msg) => {
+            console.log("progress:",progress_msg);
+            broadcastEvent(EVENT_TYPE.SUGGESTED_PREREAD_PROGRESS,progress_msg)
+        },
+        (error_msg) => {
+            console.log("err:",error_msg);
+            broadcastEvent(EVENT_TYPE.ANALYSIS_ERROR,error_msg)
+        }
+    );
+
     return {
-        success : true,
-        'suggested_preread' : json_data.analysis,
+        success : false,
+        error_message : "Starting to recalculate..",
     }
 }
 
@@ -228,10 +265,10 @@ const updateManuallySetWordLearningStage = (data) => {
     return replaced_last_entry;
 }
 
-function broadcastEvent(event_type) {
-    console.log("broadcastEvent " + event_type);
+function broadcastEvent(event_type, msg) {
+    console.log(`broadcastEvent ${event_type}: ${msg}`);
     for (const client of clients) {
-        client.emit('event',event_type);
+        client.emit('event',{'event_type':event_type,'msg':msg});
     }
 }
 
@@ -249,10 +286,10 @@ export async function GET({ request }) {
             console.log(`${client.clientId} New user_data connection`);
             let data = JSON.stringify({'event_type':EVENT_TYPE.CONNECTED});
             controller.enqueue(`event: message\ndata:${data}\n\n`);
-			client.on('event', (event_type) => {
+			client.on('event', (event) => {
                 let data;
-                console.log(`sending updated event '${event_type}' to ${client.clientId}`)
-                data = JSON.stringify({'event_type':event_type,'msg':analysis_status_msg});
+                //console.log(`sending updated event '${event.event_type}' to ${client.clientId}`)
+                data = JSON.stringify(event);
 				controller.enqueue(`event: message\ndata:${data}\n\n`);
 			});
 		},

@@ -4,6 +4,7 @@ import {obj} from '$lib/store.js';
 //import { deserialize } from '$app/forms';
 import MangaSortDashboard from '$lib/MangaSortDashboard.svelte';
 import { suggested_preread_sort_options, sortManga } from '$lib/MangaSorter.js';
+import { EVENT_TYPE } from "$lib/UserDataTools.js";
 
 let all_meta_data;
 obj.subscribe(value => { all_meta_data=value[0].manga_titles;});
@@ -13,7 +14,36 @@ let sort_reverse=false;
 
 $: custom_analysis_available = 'pct_known_words' in meta.total_statistics;
 
-let message = 'Analyzing.. (might take up to a minute)'
+let message = ''
+
+let eventSource;
+
+onMount( () => {
+        eventSource = new EventSource('/user_data');
+        eventSource.onmessage = (event) => {
+            const parsedData = JSON.parse(event.data);
+            let event_type = parsedData.event_type;
+            if (event_type== EVENT_TYPE.ANALYSIS_ERROR) {
+                message = `Error while analyzing: ${parsedData.msg}`
+                //alert(`Error: ${parsedData.msg}`)
+            } else if (event_type == EVENT_TYPE.CONNECTED) {
+            } else if (event_type == EVENT_TYPE.UPDATED_SUGGESTED_PREREAD) {
+                fetchData(all_meta_data);
+            } else {
+                message = `${parsedData.msg}`
+            }
+        };
+        eventSource.onerror = (event) => {
+            console.log("error: " + JSON.stringify(event));
+        };
+        return () => {
+            if (eventSource.readyState === 1) {
+                eventSource.close();
+            }
+        };
+    });
+
+
 
 export let meta;
 export let manga_data;

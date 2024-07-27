@@ -86,6 +86,8 @@
             } else if (status_msg== EVENT_TYPE.ANALYSIS_ERROR) {
                 status_msg = "Error while updating"
                 alert(`Error: ${parsedData.msg}`)
+            } else if (status_msg== EVENT_TYPE.ANALYSIS_PROGRESS) {
+                status_msg = parsedData.msg;
             } else if (status_msg == EVENT_TYPE.CONNECTED) {
                 if (!custom_analysis_available) {
                     status_msg = "Please check the settings and update the analysis"

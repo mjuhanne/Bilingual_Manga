@@ -42,8 +42,30 @@ CI_UNKNOWN_IS_F50K_WORD = 4
 CI_UNKNOWN_IS_LOW_FREQ_WORD = 5
 CI_MORE_THAN_2_UNKNOWN_WORDS = 6
 
-
+progress_output = False
 learning_data = dict()
+summary_data = dict()
+ext_summary_data = dict()
+old_analysis = dict()
+
+last_progress = 0
+def reset_progress():
+    global last_progress
+    last_progress = 0
+
+def print_progress(i,title_count,msg):
+    global last_progress
+    p = int(100*i/title_count)
+    if p != last_progress:
+        print("%s (%d%%)  " % (msg,p), flush=True)
+        last_progress = p
+
+def get_summary(title_id):
+    if title_id in summary_data:
+        return summary_data[title_id]
+    elif title_id in ext_summary_data:
+        return ext_summary_data[title_id] 
+    raise Exception("%s [%s] has no summary!" % (get_title_names()['title_id'],title_id))
 
 # Read a data set of words/kanjis (a title or a chapter) and gather statistics 
 # (number of unique word or kanjis per learning stage. Statistics are gathered pre- and post-read)
@@ -393,29 +415,43 @@ def load_and_analyze_dataset(file_name):
 # Analyze all titles
 def analyze_titles():
 
-    print("Analyzing comprehension for all manga titles")
+    if not progress_output:
+        print("Analyzing comprehension for titles")
+    else:
+        reset_progress()
 
     avg_ci_sentence_count = [0] * 7
 
     analysis = dict()
 
-    for title_id, title_name in get_title_names().items():
+    title_count = len(get_title_names().keys())
+    reset_progress()
+    for i, (title_id, title_name) in enumerate(get_title_names().items()):
 
-        title_filename = title_analysis_dir + title_id + ".json"
+        if 'series_analysis' in old_analysis and title_id in old_analysis['series_analysis']:
+            title_analysis = old_analysis['series_analysis']['title_id']
+        else:
+            # recalculate analysis
 
-        if not os.path.exists(title_filename):
-            print("Title %s datafile %s not found!" % (title_name,title_filename))
-            continue
+            if progress_output:
+                print_progress(i,title_count,"Analyzing comprehension for all manga titles")
 
-        title_analysis, title_data = load_and_analyze_dataset(title_filename)
-        
-        # Average tankobon volume page count is 180, but it might vary considerable by
-        # manga, so to make those statistics more comparable we calculate virtual volume
-        # count and use that for those variables that rely on # of volumes.
-        title_data['num_virtual_volumes'] = round(title_data['num_pages'] / AVERAGE_PAGES_PER_VOLUME,2)
+            title_filename = title_analysis_dir + title_id + ".json"
 
-        fetch_known_jlpt_levels(title_data, title_analysis['total_statistics'], total=True)
-        fetch_known_jlpt_levels(title_data, title_analysis['unique_statistics'], total=False)
+            if not os.path.exists(title_filename):
+                if not progress_output:
+                    print("Title %s datafile %s not found!" % (title_name,title_filename))
+                continue
+
+            title_analysis, title_data = load_and_analyze_dataset(title_filename)
+            
+            # Average tankobon volume page count is 180, but it might vary considerable by
+            # manga, so to make those statistics more comparable we calculate virtual volume
+            # count and use that for those variables that rely on # of volumes.
+            title_data['num_virtual_volumes'] = round(title_data['num_pages'] / AVERAGE_PAGES_PER_VOLUME,2)
+
+            fetch_known_jlpt_levels(title_data, title_analysis['total_statistics'], total=True)
+            fetch_known_jlpt_levels(title_data, title_analysis['unique_statistics'], total=False)
 
         # aggregate ci sentence grading
         for i in range(7):
@@ -456,36 +492,49 @@ def get_next_unread_chapter(title_id):
 
 def analyze_next_unread():
 
-    print("Analyzing comprehension for the next unread chapters/volumes")
+    if not progress_output:
+        print("Analyzing comprehension for the next unread chapters/volumes")
     analysis = dict()
     next_unread_chapter = dict()
 
-    for title_id, title_name in get_title_names().items():
+    title_count = len(get_title_names().keys())
+    reset_progress()
+    for i, (title_id, title_name) in enumerate(get_title_names().items()):
 
-        chapter_id = get_next_unread_chapter(title_id)
-        if chapter_id is None:
-            print(" * %s already read" % title_name)
-            continue
+        if 'next_unread_chapter_analysis' in old_analysis and title_id in old_analysis['next_unread_chapter_analysis']:
+            chapter_analysis = old_analysis['next_unread_chapter_analysis']['title_id']
+        else:
+            # recalculate analysis
 
-        chapter = get_chapter_number_by_chapter_id(chapter_id)
-        next_unread_chapter[title_id] = chapter
+            if progress_output:
+                print_progress(i,title_count,"Analyzing comprehension for the next unread chapters/volumes")
 
-        chapter_filename = chapter_analysis_dir + chapter_id + ".json"
+            chapter_id = get_next_unread_chapter(title_id)
+            if chapter_id is None:
+                if not progress_output:
+                    print(" * %s already read" % title_name)
+                continue
 
-        if not os.path.exists(chapter_filename):
-            print("%s chapter %d not found! [%s]" % (title_name, chapter, chapter_filename))
-            continue
+            chapter = get_chapter_number_by_chapter_id(chapter_id)
+            next_unread_chapter[title_id] = chapter
 
-        chapter_analysis, chapter_data = load_and_analyze_dataset(chapter_filename)
-        chapter_analysis['unread_chapter'] = chapter
+            chapter_filename = chapter_analysis_dir + chapter_id + ".json"
 
-        # Average tankobon volume page count is 180, but it might vary considerable by
-        # manga, so to make those statistics more comparable we calculate virtual volume
-        # count and use that for those variables that rely on # of volumes.
-        chapter_data['num_virtual_volumes'] = round(chapter_data['num_pages'] / AVERAGE_PAGES_PER_VOLUME,2)
+            if not os.path.exists(chapter_filename):
+                if not progress_output:
+                    print("%s chapter %d not found! [%s]" % (title_name, chapter, chapter_filename))
+                continue
 
-        fetch_known_jlpt_levels(chapter_data, chapter_analysis['total_statistics'], total=True)
-        fetch_known_jlpt_levels(chapter_data, chapter_analysis['unique_statistics'], total=False)
+            chapter_analysis, chapter_data = load_and_analyze_dataset(chapter_filename)
+            chapter_analysis['unread_chapter'] = chapter
+
+            # Average tankobon volume page count is 180, but it might vary considerable by
+            # manga, so to make those statistics more comparable we calculate virtual volume
+            # count and use that for those variables that rely on # of volumes.
+            chapter_data['num_virtual_volumes'] = round(chapter_data['num_pages'] / AVERAGE_PAGES_PER_VOLUME,2)
+
+            fetch_known_jlpt_levels(chapter_data, chapter_analysis['total_statistics'], total=True)
+            fetch_known_jlpt_levels(chapter_data, chapter_analysis['unique_statistics'], total=False)
 
         analysis[title_id] = chapter_analysis
 
@@ -497,7 +546,8 @@ def suggest_preread(args):
     target_title_id = get_title_id(args['title'])
     read_whole_titles = False
 
-    print("Analyzing suggested pre-reading for " + get_title_by_id(target_title_id))
+    if not progress_output:
+        print("Analyzing suggested pre-reading for " + get_title_by_id(target_title_id))
 
     if read_whole_titles:
         index_title_filename = title_analysis_dir + target_title_id + ".json"
@@ -529,7 +579,12 @@ def suggest_preread(args):
 
     analysis = dict()
 
-    for title_id, title_name in get_title_names().items():
+    title_count = len(get_title_names().keys())
+    reset_progress()
+    for i, (title_id, title_name) in enumerate(get_title_names().items()):
+
+        if progress_output:
+            print_progress(i,title_count,"Analyzing")
 
         # TODO: optimize
         this_session_learning_data = copy.deepcopy(learning_data)
@@ -540,12 +595,14 @@ def suggest_preread(args):
         else:
             chapter_id = get_next_unread_chapter(title_id)
             if chapter_id is None:
-                print("Skipping %s because already read all chapters" % (title_name))
+                if not progress_output:
+                    print("Skipping %s because already read all chapters" % (title_name))
                 continue
             chapter = str(get_chapter_number_by_chapter_id(chapter_id))
             candidate_filename = chapter_analysis_dir + chapter_id + ".json"
         if not os.path.exists(candidate_filename):
-            print("Skipping %s because data file %s not found" % (title_name,candidate_filename))
+            if not progress_output:
+                print("Skipping %s because data file %s not found" % (title_name,candidate_filename))
             continue
 
         o_f = open(candidate_filename,"r",encoding="utf-8")
@@ -564,12 +621,14 @@ def suggest_preread(args):
         candidate_word_analysis = w_an['total_statistics']
         candidate_pct_known = candidate_word_analysis['pct_known_pre_known']
         if candidate_pct_known < target_pct_known - 2:
-            print("Skipping %s with comprehension %.1f" % (title_name,candidate_pct_known))
+            if not progress_output:
+                print("Skipping %s with comprehension %.1f" % (title_name,candidate_pct_known))
             continue
         read_sentences(candidate_data, this_session_learning_data, w_an)
         candicate_pct_ci = w_an['comprehensible_input_pct']
         if candicate_pct_ci < target_pct_ci:
-            print("Skipping %s with comprehensible input %.1f" % (title_name,candicate_pct_ci))
+            if not progress_output:
+                print("Skipping %s with comprehensible input %.1f" % (title_name,candicate_pct_ci))
             continue
 
         # calculate number of common unique weak (unfamiliar or learning) words
@@ -634,95 +693,113 @@ def suggest_preread(args):
 
 def series_analysis_for_jlpt():
 
-    print("Analyzing suggested reading for JLPT")
+    print("Analyzing suggested reading for JLPT",flush=True)
 
     analysis = dict()
 
     count = 0
     for title_id, title_name in get_title_names().items():
 
-        title_filename = title_analysis_dir + title_id + ".json"
-        if not os.path.exists(title_filename):
-            print("Title %s datafile %s not found!" % (title_name,title_filename))
-            continue
-
-        o_f = open(title_filename,"r",encoding="utf-8")
-        title_data = json.loads(o_f.read())
-        o_f.close()
-
-        # first read the candidate and save the words learned from this session
-        # while analyzing how difficult this candidate series is..
-        title_analysis = dict()
-        w_an = read_dataset(title_data, "words", learning_data, save_changes_for_these_stages=[STAGE_KNOWN, STAGE_PRE_KNOWN, STAGE_LEARNING], save_items_for_these_stages=[STAGE_LEARNING])
-        title_analysis['words'] = w_an['total_statistics']
-        k_an = read_dataset(title_data, "kanjis", learning_data, save_changes_for_these_stages=[STAGE_KNOWN,STAGE_PRE_KNOWN, STAGE_LEARNING], save_items_for_these_stages=[STAGE_LEARNING])
-        title_analysis['kanjis'] = k_an['total_statistics']
-        candidate_pct_known = title_analysis['words']['pct_known_pre_known']
-
-        num_pages = title_data['num_pages']
-        num_words = title_data['num_words']
-
-        # .. then calculate how many new JLPT words/kanjis we would have learned
-        new_known_word_ids = w_an['saved_changes'][STAGE_KNOWN]
-        new_known_word_ids += w_an['saved_changes'][STAGE_PRE_KNOWN]
-        new_learning_word_ids = w_an['saved_changes'][STAGE_LEARNING]
-        new_known_kanjis = k_an['saved_changes'][STAGE_KNOWN]
-        new_known_kanjis += k_an['saved_changes'][STAGE_PRE_KNOWN]
-        new_learning_kanjis = k_an['saved_changes'][STAGE_LEARNING]
-
-        jlpt_points = 0
-        # Give points for every new known/pre-known JLPT word..
-        # Prioritize beginner level (from JLPT5 downwards) words by giving 2 points per level
-        # E.g. 10 points per every new known JLPT5 leve
-        for wid in new_known_word_ids:
-            level = 0
-            seq, w = get_seq_and_word_from_word_id(wid)
-            if w in jlpt_word_levels:
-                level = jlpt_word_levels[w]
-            else:
-                if w in jlpt_word_reading_levels:
-                    level = jlpt_word_reading_levels[w]
-            jlpt_points += level*2
-
-        # .. and for learning stage JLPT words give half amount of points
-        for wid in new_learning_word_ids:
-            level = 0
-            seq, w = get_seq_and_word_from_word_id(wid)
-            if w in jlpt_word_levels:
-                level = jlpt_word_levels[w]
-            else:
-                if w in jlpt_word_reading_levels:
-                    level = jlpt_word_reading_levels[w]
-            jlpt_points += level
-
-        if num_pages > 0:
-            # how many new JLPT words learned in regards to pages and words read
-            divider = num_words + num_pages*30
-            points = 10000*jlpt_points / divider
-            # and modify the value depending on how difficult reading this candidate actually was
-            # (2 is easy, 0.5 is hard)
-            if candidate_pct_known > 95:
-                difficulty_modifier = 2
-            elif candidate_pct_known < 80:
-                difficulty_modifier = 0.5
-            else:
-                difficulty_modifier = (candidate_pct_known - 80)/(95-80)*(2-0.5) + 0.5
-            points *= difficulty_modifier
+        if 'series_analysis_for_jlpt' in old_analysis and title_id in old_analysis['series_analysis_for_jlpt']:
+            title_analysis = old_analysis['series_analysis_for_jlpt']['title_id']
         else:
-            points = -1
+            # recalculate analysis
 
-        title_analysis['relative_points'] = round(points,1)
-        title_analysis['absolute_points'] = jlpt_points
-        title_analysis['num_new_known_words'] = len(new_known_word_ids)
-        title_analysis['num_new_known_kanjis'] = len(new_known_kanjis)
-        title_analysis['num_new_learning_words'] = len(new_learning_word_ids)
-        title_analysis['num_new_learning_kanjis'] = len(new_learning_kanjis)
+            title_filename = title_analysis_dir + title_id + ".json"
+            if not os.path.exists(title_filename):
+                print("Title %s datafile %s not found!" % (title_name,title_filename))
+                continue
+
+            o_f = open(title_filename,"r",encoding="utf-8")
+            title_data = json.loads(o_f.read())
+            o_f.close()
+
+            # first read the candidate and save the words learned from this session
+            # while analyzing how difficult this candidate series is..
+            title_analysis = dict()
+            w_an = read_dataset(title_data, "words", learning_data, save_changes_for_these_stages=[STAGE_KNOWN, STAGE_PRE_KNOWN, STAGE_LEARNING], save_items_for_these_stages=[STAGE_LEARNING])
+            title_analysis['words'] = w_an['total_statistics']
+            k_an = read_dataset(title_data, "kanjis", learning_data, save_changes_for_these_stages=[STAGE_KNOWN,STAGE_PRE_KNOWN, STAGE_LEARNING], save_items_for_these_stages=[STAGE_LEARNING])
+            title_analysis['kanjis'] = k_an['total_statistics']
+            candidate_pct_known = title_analysis['words']['pct_known_pre_known']
+
+            num_pages = title_data['num_pages']
+            num_words = title_data['num_words']
+
+            # .. then calculate how many new JLPT words/kanjis we would have learned
+            new_known_word_ids = w_an['saved_changes'][STAGE_KNOWN]
+            new_known_word_ids += w_an['saved_changes'][STAGE_PRE_KNOWN]
+            new_learning_word_ids = w_an['saved_changes'][STAGE_LEARNING]
+            new_known_kanjis = k_an['saved_changes'][STAGE_KNOWN]
+            new_known_kanjis += k_an['saved_changes'][STAGE_PRE_KNOWN]
+            new_learning_kanjis = k_an['saved_changes'][STAGE_LEARNING]
+
+            jlpt_points = 0
+            # Give points for every new known/pre-known JLPT word..
+            # Prioritize beginner level (from JLPT5 downwards) words by giving 2 points per level
+            # E.g. 10 points per every new known JLPT5 leve
+            for wid in new_known_word_ids:
+                level = 0
+                seq, w = get_seq_and_word_from_word_id(wid)
+                if w in jlpt_word_levels:
+                    level = jlpt_word_levels[w]
+                else:
+                    if w in jlpt_word_reading_levels:
+                        level = jlpt_word_reading_levels[w]
+                jlpt_points += level*2
+
+            # .. and for learning stage JLPT words give half amount of points
+            for wid in new_learning_word_ids:
+                level = 0
+                seq, w = get_seq_and_word_from_word_id(wid)
+                if w in jlpt_word_levels:
+                    level = jlpt_word_levels[w]
+                else:
+                    if w in jlpt_word_reading_levels:
+                        level = jlpt_word_reading_levels[w]
+                jlpt_points += level
+
+            if num_pages > 0:
+                # how many new JLPT words learned in regards to pages and words read
+                divider = num_words + num_pages*30
+                points = 10000*jlpt_points / divider
+                # and modify the value depending on how difficult reading this candidate actually was
+                # (2 is easy, 0.5 is hard)
+                if candidate_pct_known > 95:
+                    difficulty_modifier = 2
+                elif candidate_pct_known < 80:
+                    difficulty_modifier = 0.5
+                else:
+                    difficulty_modifier = (candidate_pct_known - 80)/(95-80)*(2-0.5) + 0.5
+                points *= difficulty_modifier
+            else:
+                points = -1
+
+            title_analysis['relative_points'] = round(points,1)
+            title_analysis['absolute_points'] = jlpt_points
+            title_analysis['num_new_known_words'] = len(new_known_word_ids)
+            title_analysis['num_new_known_kanjis'] = len(new_known_kanjis)
+            title_analysis['num_new_learning_words'] = len(new_learning_word_ids)
+            title_analysis['num_new_learning_kanjis'] = len(new_learning_kanjis)
+
         analysis[title_id] = title_analysis
 
     return analysis
 
 
 def analyze(args):
+    global old_analysis
+
+    if os.path.exists(output_analysis_file):
+        with open(output_analysis_file,"r",encoding="utf-8") as f:
+            d = json.loads(f.read())
+            if d['timestamp'] > learning_data['timestamp']:
+                if 'version' in d and d['version'] == CURRENT_OCR_SUMMARY_VERSION:
+                    if 'parser_version' in d and d['parser_version'] == CURRENT_LANUGAGE_PARSER_VERSION:
+                        print("Loaded previous up-to-date analysis")
+                        old_analysis = d['analysis']
+            if len(old_analysis)==0:
+                print("Omitting stale previous analysis")
 
     d = dict()
     d['series_analysis'] = analyze_titles()
@@ -738,6 +815,14 @@ def analyze(args):
 
 
 #################### Read input files #################################
+
+if os.path.exists(summary_file):
+    with open(summary_file,"r") as f:
+        summary_data = json.loads(f.read())
+
+if os.path.exists(ext_summary_file):
+    with open(ext_summary_file,"r") as f:
+        ext_summary_data = json.loads(f.read())
 
 needed_paths = [ chapter_analysis_dir, title_analysis_dir, jlpt_kanjis_file, jlpt_vocab_file, user_data_file]
 for path in needed_paths:
@@ -758,9 +843,32 @@ try:
 except Exception as e:
     print("Learning data not set! Update!")
 
+
+parser = argparse.ArgumentParser(
+    prog="bm_analyze",
+    description="Bilingual Manga Language Analyzing Tool",
+)
+
+subparsers = parser.add_subparsers(help='', dest='command')
+parser_analyze = subparsers.add_parser('analyze', help='Do comprehension analysis per title')
+parser_analyze.add_argument('--progress-output', '-po', action='store_true', help='Output only progress')
+
+parser_suggest_preread = subparsers.add_parser('suggest_preread', help='Analyze given title and then suggest beneficial pre-read titles which increase comprehension')
+parser_suggest_preread.add_argument('title', type=str, help='Target manga title')
+parser_suggest_preread.add_argument('--progress-output', '-po', action='store_true', help='Output only progress')
+
+args = vars(parser.parse_args())
+
+#args = {'command':'analyze','progress_output':False}
+
+cmd = args.pop('command')
+progress_output = False
+if 'progress_output' in args:
+    progress_output = args['progress_output']
+
 read_manga_data()
 read_manga_metadata()
-load_jmdict()
+load_jmdict(verbose=not progress_output)
 
 user_set_words = get_user_set_words()
 user_settings = read_user_settings()
@@ -777,28 +885,14 @@ if initial_remembering_period > 0:
 learning_settings['learned_jlpt_timestamp'] /= 1000
 learning_settings['learned_custom_timestamp'] /= 1000
 
-parser = argparse.ArgumentParser(
-    prog="bm_analyze",
-    description="Bilingual Manga Analyzing Tool",
-)
-
-subparsers = parser.add_subparsers(help='', dest='command')
-parser_analyze = subparsers.add_parser('analyze', help='Do comprehension analysis per title')
-
-parser_suggest_preread = subparsers.add_parser('suggest_preread', help='Analyze given title and then suggest beneficial pre-read titles which increase comprehension')
-parser_suggest_preread.add_argument('title', type=str, help='Target manga title')
-
-args = vars(parser.parse_args())
-cmd = args.pop('command')
-
-#analyze({'title'})
+#analyze({'title':''})
 #analyze_next_unread()
 #suggest_preread({'title':'Detective Conan'})
 
 if cmd is not None:
-    try:
-        locals()[cmd](args)
-    except Exception as e:
-        print(e, file=sys.stderr)
-        exit(-1)
+    #try:
+    locals()[cmd](args)
+    #except Exception as e:
+    #    print(e, file=sys.stderr)
+    #    exit(-1)
 
