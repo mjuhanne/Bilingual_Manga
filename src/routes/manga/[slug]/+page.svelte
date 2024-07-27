@@ -71,7 +71,7 @@ if("img_data" in data.manga_data)
 {#if ((data.chen!=null&&data.chen!=undefined&&data.chen.length > 0&&parseInt(data.chen)>=0)||(data.chjp!=null&&data.chjp!=undefined&&data.chjp.length > 0&&parseInt(data.chjp)>=0))}
 
 {@html meta[0].inhtml['ad-up']}
-<MangaApp manga_id={manga_id} delayml={delayml} prel={prel} ipfsgate={data.ipfs} cdncdn={cdncdn} cdncdn1={cdncdn1} cheng={parseInt(chengt)} chjpn={parseInt(chjpt)} enp={[parseInt(enp)]} jpp={[parseInt(jpp)]} lang={langt} endata={imgs_darr.en_data} jpdata={imgs_darr.jp_data} chaptersen={chaptersen} chaptersjp={chaptersjp} volumesen={volumesen} volumesjp={volumesjp} imgdata={imgdata}/>
+<MangaApp metadata={ll} manga_id={manga_id} delayml={delayml} prel={prel} ipfsgate={data.ipfs} cdncdn={cdncdn} cdncdn1={cdncdn1} cheng={parseInt(chengt)} chjpn={parseInt(chjpt)} enp={[parseInt(enp)]} jpp={[parseInt(jpp)]} lang={langt} endata={imgs_darr.en_data} jpdata={imgs_darr.jp_data} chaptersen={chaptersen} chaptersjp={chaptersjp} volumesen={volumesen} volumesjp={volumesjp} imgdata={imgdata}/>
 {@html meta[0].inhtml['ad-down']}
 {:else}
 <MangaView ll={ll} data={data} cdncdn1={cdncdn1}/>

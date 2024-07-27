@@ -468,6 +468,11 @@ def analyze_titles():
 
 def get_next_unread_chapter(title_id):
 
+    title_chapters = get_chapters_by_title_id(title_id)
+    if len(title_chapters) == 0:
+        return None
+
+    # find next unread chapter
     highest_read_chapter = 0
     highest_read_chapter_id = None
     for chapter_id, _ in chapter_comprehension.items():
@@ -478,13 +483,29 @@ def get_next_unread_chapter(title_id):
                 highest_read_chapter = chapter
                 highest_read_chapter_id = chapter_id
 
-    title_chapters = get_chapters_by_title_id(title_id)
+    # skip chapters which have missing chapter data files or too few content (i.e. indexes)
+    valid_found = False
+    while not valid_found and highest_read_chapter < len(title_chapters):
+        chapter_filename = chapter_analysis_dir + chapter_id + ".json"
+        if os.path.exists(chapter_filename):
+            if not is_book(title_id):
+                # assume every manga chapter/volume has enough content
+                valid_found = True
+            else:
+                summary = get_summary(title_id)
+                if 100*summary['num_sentences_per_ch'][highest_read_chapter]/summary['num_sentences'] < 1:
+                    # this chapter has less than 1% of total sentences. Most likely a index chapter, so skip it
+                    highest_read_chapter += 1
+                else:
+                    valid_found = True
+
+    if highest_read_chapter == len(title_chapters):
+        # all read
+        return None
+
     if highest_read_chapter == 0:
         highest_read_chapter_id = title_chapters[0]
     else:
-        if highest_read_chapter == len(title_chapters):
-            # all read
-            return None
         highest_read_chapter_id = title_chapters[highest_read_chapter]
 
     return highest_read_chapter_id

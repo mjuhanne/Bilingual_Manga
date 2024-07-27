@@ -95,7 +95,7 @@ function update_manually_priority_word(cid, new_word_data) {
     } else {
         let new_change_list = []
         for (let change of corrections['word_id_errata'][cid]) {
-            if ( (change['pr'] == new_word_data['pr']) && 
+            if ( (change['pr'] == new_word_data['pr']) && (change['pr'] != 'ALL') &&
                 (change['bid']==new_word_data['bid']) && 
                 (change['iid']==new_word_data['iid'])
             ) {

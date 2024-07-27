@@ -6,6 +6,7 @@
   import AnkiCardDialog from '$lib/AnkiCardDialog.svelte';
   import { learning_stage_colors, STAGE, SOURCE } from '$lib/LearningData.js';
   import Edit_OCR_Dialog from '$lib/Edit_OCR_Dialog.svelte'
+  import { getWordIdIndexList, UpdatePriorityWordManually, updateWordDecorations, setWordPopupToElementPosition, learningStageChanged } from '$lib/WordPopupHelper.js'
 
   export let id; // manga id
   export let cid; // chapter id
@@ -78,67 +79,6 @@
     showWordPopUpDialog = true;
   	}
 
-  function updateWordDecorations() {
-    if (!colorize)
-      return;
-    let block_elements = ocr_root.querySelectorAll(".ocrtext");
-    for (let b_elem of block_elements) {
-      let block_id = parseInt(b_elem.getAttribute("block_id"));
-      let word_elements = b_elem.querySelectorAll(".ocrtext1 span");
-      let highest_stage = 0;
-      let all_known = true;
-
-      for (let elem of word_elements) {
-        let stage = STAGE.NONE;
-        // TODO: show the learning stage of other (than first) references by
-        // changing the border color
-        let word_id_index_list = getWordIdIndexList(elem);
-        if (word_id_index_list.length > 0) {
-          let widx = word_id_index_list[0];
-          stage = word_learning_stages[widx];
-          if (stage==STAGE.FORGOTTEN) {
-            console.log("Forgot" + word_id_list[widx] + ":" + elem.getAttribute("wil"));
-          }
-          if ( (stage != STAGE.NONE) && (stage != STAGE.IGNORED) ) {
-            if (stage != STAGE.KNOWN) {
-              all_known = false;
-              if (stage > highest_stage) {
-                highest_stage = stage;
-              }
-            }
-          }
-        }
-        let col = learning_stage_colors[stage];
-        elem.setAttribute("style",`border-radius: 3px; background-color:${col}`);
-      }
-
-      // colorize the border with highest learning stage (FORGOTTEN > PRE_KNOWN > LEARNING > UNFAMILIAR)
-      // or hide it if all the words are known (or ignored)
-      if (ocrbor == 'colorize') {
-        if (all_known) {
-          b_elem.style.border = `none`
-        } else {
-          b_elem.style.border = `solid ${border_thickness[block_id]}px ${learning_stage_colors[highest_stage]}`
-        }
-      }
-    }
-  }
-
-  function setWordPopupToElementPosition(elem) {
-    var rect = elem.getBoundingClientRect();
-    var imgRect = document.getElementById(img_id).getBoundingClientRect();
-    // Try to fit the popup dialog nicely inside the image
-    if (rect.left-220 > imgRect.left) {
-      ocr_root.querySelector('.popup-dialog').style.left = rect.left-220 + "px"; 
-    } else {
-      ocr_root.querySelector('.popup-dialog').style.left = rect.right + 20 + "px"; 
-    }
-    if (rect.top + 270 < imgRect.bottom) {
-      ocr_root.querySelector('.popup-dialog').style.top = rect.top + window.scrollY -30 + "px";
-    } else {
-      ocr_root.querySelector('.popup-dialog').style.top = imgRect.bottom + window.scrollY -270 + "px";
-    }
-  }
 
   function setClickEventListeners() {
     let word_elements = ocr_root.querySelectorAll(".ocrtext1 span");
@@ -147,7 +87,7 @@
       if (word_id_index_list.length > 0) {
         elem.addEventListener("click", (e) => {
           if (!showWordPopUpDialog) { // prevent numerous click events
-            setWordPopupToElementPosition(e.target);
+            setWordPopupToElementPosition(e.target, document.getElementById(img_id), ocr_root);
             let block_element = elem.parentElement.parentElement;
             let block_id = parseInt(block_element.getAttribute("block_id"));
             let item_id = parseInt(elem.getAttribute("ii"));
@@ -157,29 +97,6 @@
       }
     }
   }
-
-  async function sendChangedLearningStage(word_id, block_id, learning_stage) {
-    let body = JSON.stringify({
-      'func' : 'update_manually_set_word_learning_stage', 
-      'stage_data' : {
-        'word_id' : word_id,
-        'stage' : learning_stage,
-        'metadata' : {
-            //'id' : manga_id,
-            'cid' : cid,
-            'p' : page_jp,
-            'b' : block_id,
-            'pr' : page_ref,
-        },
-      }
-    });
-    const response = await fetch( "/user_data", {
-        headers: {"Content-Type" : "application/json" },
-        method: 'POST',
-        body: body,
-    });
-    const result = deserialize(await response.text());
-  };
 
 
   async function sendChangedOCRBlock(old_block,new_block,block_id) {
@@ -202,27 +119,12 @@
     const result = deserialize(await response.text());
   };
 
-  const learningStageChanged = (word_id,new_learning_stage,block_id) => {
-    sendChangedLearningStage(word_id, block_id, new_learning_stage);
-    // change the learning stage for all the word senses. This is just
-    // a temporary measure until the page changes and OCR file is reloaded and
-    // filled with the saved stage
-    for (let word_idx in word_id_list) {
-      let wid = word_id_list[word_idx];
-      let ws = wid.split(':')
-      let ss = ws[0].split('/')
-      let wid0 = ss[0] + ':' + ws[1];
-      if (wid0 == word_id) {
-        let old_stage = word_learning_stages[word_idx];
-        word_learning_stages[word_idx] = new_learning_stage;
-        console.log("learningStageChanged " + wid + " " + old_stage + " > " + new_learning_stage)
-      }
-    }
-    updateWordDecorations();
-  }
 
   const learningStageChangedFromPopUpDialog = (e) => {
-    learningStageChanged(e.detail['word_id'], e.detail['stage'], selected_block);
+    learningStageChanged(word_id_list, word_learning_stages, e.detail['word_id'], e.detail['stage'], selected_block, cid, page_jp, page_ref);
+    if (colorize) {
+      updateWordDecorations(ocr_root, word_id_list, word_learning_stages, ocrbor, border_thickness, learning_stage_colors);
+    }
   }
 
   const ShowAnkiCardDialog = (e) => {
@@ -234,108 +136,21 @@
   }
 
   async function PriorityWordUpdatedManuallyFromPopUpDialog(e) {
-    let wid = e.detail['word_id'];
-    let scope = e.detail['scope'];
-    console.log(`Update ${selected_text} priority word to ${wid} (scope ${scope})`)
-    let body;
-    if (scope == 'sentence') {
-      let ocr_block = ocrpage[selected_block]["og_lines"];
-      body = {
-      'func' : 'update_manually_priority_word', 
-      'cid' : cid,
-      'word_data' : {
-        'w' : selected_text,
-        'wid' : wid,
-        'block' : ocr_block,
-        'bid' : selected_block,
-        'iid' : selected_item_id,
-        'p' : page_jp,
-        'pr' : page_ref,
-        }
-      };
-    } else if (scope == 'chapter') {
-      body = {
-        'func' : 'update_manually_priority_word', 
-        'cid' : cid,
-        'word_data' : {
-          'wid' : wid,
-          'pr' : 'ALL',
-        }
-      }
-    } else if (scope == 'title') {
-      body = {
-        'func' : 'update_manually_priority_word', 
-        'cid' : id,
-        'word_data' : {
-          'wid' : wid,
-          'pr' : 'ALL',
-        }
-      }
-    } else if (scope == 'all') {
-      body = {
-        'func' : 'update_manually_priority_word', 
-        'cid' : 'ALL',
-        'word_data' : {
-          'wid' : wid,
-          'pr' : 'ALL',
-        }
-      }
+    let ocr_block = ocrpage[selected_block]["og_lines"];
+    UpdatePriorityWordManually(
+      ocr_root, id, cid, e.detail['word_id'], e.detail['scope'], ocr_block, 
+      selected_text, selected_block, selected_item_id, page_jp, page_ref, word_id_list
+    )
+    if (colorize) {
+      updateWordDecorations(ocr_root, word_id_list, word_learning_stages, ocrbor, border_thickness, learning_stage_colors);
     }
-
-    const response = await fetch( "/ocr", {
-        headers: {"Content-Type" : "application/json" },
-        method: 'POST',
-        body: JSON.stringify(body),
-    });
-    const result = deserialize(await response.text());
-
-    // Update current page to avoid total page refresh
-    let block_elements = ocr_root.querySelectorAll(".ocrtext");
-    for (let b_elem of block_elements) {
-      let block_id = parseInt(b_elem.getAttribute("block_id"));
-      if (block_id == selected_block) {
-        let word_elements = b_elem.querySelectorAll(".ocrtext1 span");
-        for (let elem of word_elements) {
-          let item_id = elem.getAttribute("ii");
-          if (item_id == selected_item_id || scope != 'sentence') {
-            UpdateWordIdIndexList(elem, word_id_list.lastIndexOf(wid));
-          }
-        }
-      }
-    }
-    updateWordDecorations();
   }
-  
 
   const OCRBlockUpdated = (e) => {
     let new_ocr_block = e.detail['ocr_block'];
     sendChangedOCRBlock(ocrpage[selected_block]["og_lines"], new_ocr_block, selected_block );
     ocrpage[selected_block]["lines"] = new_ocr_block;
     //selected_block);
-  }
-
-  const getWordIdIndexList = (elem) => {
-    let widx_list = elem.getAttribute("wil").split(',');
-    if (widx_list[0] == "") {
-      return [];
-    }
-    let wil = [];
-    for (let wi of widx_list) {
-      wil.push(parseInt(wi))
-    }
-    return wil
-  }
-
-  const UpdateWordIdIndexList = (elem, priority_widx) => {
-    let widx_list = elem.getAttribute("wil").split(',');
-    let wil = [priority_widx];
-    for (let wi of widx_list) {
-      if (wi != priority_widx) {
-        wil.push(parseInt(wi))
-      }
-    }
-    let wil_str = wil.join(',')
-    elem.setAttribute("wil",wil_str)
   }
 
 
@@ -383,7 +198,10 @@
               if (stage != STAGE.KNOWN) {
                 if (all_stages || (stage == STAGE.PRE_KNOWN) || (stage == STAGE.FORGOTTEN)) {
                   console.log(`Setting learning stage of ${particle} (${wid0}) to KNOWN`);
-                  learningStageChanged(wid0,STAGE.KNOWN,block_id);
+                  learningStageChanged(word_id_list, word_learning_stages, wid0, STAGE.KNOWN, block_id, cid, page_jp, page_ref);
+                  if (colorize) {
+                    updateWordDecorations(ocr_root, word_id_list, word_learning_stages, ocrbor, border_thickness, learning_stage_colors);
+                  }
                 }
               }
             }
@@ -446,7 +264,9 @@
   afterUpdate(() => {
     if (mounted) {
       if (interactive_ocr) {
-        updateWordDecorations();
+        if (colorize) {
+          updateWordDecorations(ocr_root, word_id_list, word_learning_stages, ocrbor, border_thickness, learning_stage_colors);
+        }
         setClickEventListeners();
         document.addEventListener('keydown', keyPressListener, false);
       }

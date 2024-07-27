@@ -5,8 +5,10 @@
 
 	import { browser } from '$app/environment';	
     import {onMount} from 'svelte'
+	import BookReader from "./BookReader.svelte";
 
 	export let mounted = false;
+	export let metadata;
 
     onMount( () => {
 		mounted = true;
@@ -286,19 +288,20 @@ if(imgs_jpo[Object.keys(imgs_jpo)[0]]!=undefined && jj>=0)
 
 	if (mounted) {
 		current_chapter_id = cid[(cid.length-seljs)];
-		fetch( "/ocr", {
-            headers: {"Content-Type" : "application/json" },
-            method: 'POST',
-            body: JSON.stringify({'func': 'fetch_ocr', 'chapter_id':current_chapter_id}),
-        }).then(response => response.json()).then(
-			(response) => {
-			if (response.success) {
-				jp_ocr = response.ocr;
-			} else {
-				jp_ocr = {};
-			}
-		})
-
+		if (!metadata.is_book) {
+			fetch( "/ocr", {
+				headers: {"Content-Type" : "application/json" },
+				method: 'POST',
+				body: JSON.stringify({'func': 'fetch_ocr', 'chapter_id':current_chapter_id}),
+			}).then(response => response.json()).then(
+				(response) => {
+				if (response.success) {
+					jp_ocr = response.ocr;
+				} else {
+					jp_ocr = {};
+				}
+			})
+		}
 	}
 
 	
@@ -352,8 +355,16 @@ $:{
 
 </script>
 {#if browser}
-<Reader id={manga_id} cid={current_chapter_id} delayml={delayml} prel={prel} bind:imgs_jap={imgs_jap} bind:imgs_eng={imgs_eng} bind:eng_ocr={eng_ocr} bind:jp_ocr={jp_ocr} bind:lang={lang} bind:enp={enp} bind:jpp={jpp} bind:indicator={indicator} bind:chaptersen={chaptersen} bind:iii={iii} bind:chaptersjp={chaptersjp} bind:jjj={jjj} 
-bind:volumesen={volumesen} bind:volumesjp={volumesjp} bind:vi={vi} bind:vj={vj} bind:check={check} imgdata={imgdata}></Reader>
+	{#if metadata.is_book}
+		<BookReader id={manga_id} cid={current_chapter_id} bind:lang={lang} bind:enp={enp} bind:jpp={jpp} bind:chaptersen={chaptersen} bind:iii={iii} bind:chaptersjp={chaptersjp} bind:jjj={jjj}
+			bind:volumesen={volumesen} bind:volumesjp={volumesjp} bind:vi={vi} bind:vj={vj}
+			{endata} {jpdata}
+			{ipfsgate}
+		/>
+	{:else}
+		<Reader id={manga_id} cid={current_chapter_id} delayml={delayml} prel={prel} bind:imgs_jap={imgs_jap} bind:imgs_eng={imgs_eng} bind:eng_ocr={eng_ocr} bind:jp_ocr={jp_ocr} bind:lang={lang} bind:enp={enp} bind:jpp={jpp} bind:indicator={indicator} bind:chaptersen={chaptersen} bind:iii={iii} bind:chaptersjp={chaptersjp} bind:jjj={jjj} 
+		bind:volumesen={volumesen} bind:volumesjp={volumesjp} bind:vi={vi} bind:vj={vj} bind:check={check} imgdata={imgdata}></Reader>
+	{/if}
 {/if}
 <style>
 

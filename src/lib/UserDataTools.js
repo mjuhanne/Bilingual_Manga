@@ -195,6 +195,14 @@ export const AugmentMetadataWithUserData = (db) => {
             }
             element.jp_data.vol_jp[vol].chapter_ids = vol_chapters;
         };
+
+        // Add en chapter id lookup table
+        chapter_ids = [];
+        for (let ch of element.en_data.ch_enh) {
+            let chapter_id = ch.split('/')[0];
+            chapter_ids.push(chapter_id);
+        }
+        element.en_data.chapter_ids = chapter_ids;
     });
 
     // Augment manga_metadata with favourites and percentage of read chapters

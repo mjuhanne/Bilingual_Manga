@@ -6,8 +6,15 @@ if (!response.ok) {
     throw new Error("BM_data.manga_metadata.json not found! Please install the metadata files and restart the server")
 }
 const a = await response.json()
+a[0]['manga_titles'].forEach(element => {
+    element.is_book = false;
+});
 const response1 = await fetch('http://localhost:3300/json/BM_data.manga_data.json')
 const b = await response1.json()
+b.forEach(element => {
+    element.external = false;
+    element.is_book = false;
+});
 const response_r = await fetch('http://localhost:3300/json/mangaupdates.json')
 const mangaupdates = await response_r.json()
 const response_l = await fetch('http://localhost:3300/json/lang_summary.json')
@@ -18,6 +25,9 @@ const response_emmd = await fetch('http://localhost:3300/json/ext.manga_metadata
 if (response_emmd.ok) {
     const ext_mangametadata = await response_emmd.json()
     ext_mangametadata.forEach(element => {
+        if (!("is_book" in element)) {
+            element.is_book = false;
+        }
         a[0]['manga_titles'].unshift(element)
     });
 }
@@ -26,7 +36,10 @@ const response_emd = await fetch('http://localhost:3300/json/ext.manga_data.json
 if (response_emd.ok) {
     const ext_mangadata = await response_emd.json()
     ext_mangadata.forEach(element => {
-        //console.log(element)
+        if (!("is_book" in element)) {
+            element.is_book = false;
+        }
+        element.external = true;
         b.unshift(element)
     });
 }

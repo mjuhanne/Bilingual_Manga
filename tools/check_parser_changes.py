@@ -49,13 +49,14 @@ def process_chapter(title_id, chapter_id, f_p, fo_p, chapter_data):
     k_c = 0
     c_c = 0
     skipped_c = 0
+    mismatch_this_chapter = False
 
     results = init_scan_results()
     kanji_count = dict()
 
     if not os.path.exists(f_p):
         print("%s does not exist! Skipping.." % f_p)
-        return 0,0,0,0
+        return 0,0,0,0,0
     f = open(f_p, "r", encoding="utf-8")
     f_data = f.read()
     f.close()
@@ -70,7 +71,7 @@ def process_chapter(title_id, chapter_id, f_p, fo_p, chapter_data):
         for i,block in enumerate(blocks):
             lines = block['lines']
 
-            if any(len(l)>32 for l in lines):
+            if not is_ocr_verified(title_id) and any(len(l)>32 for l in lines):
                 # Blocks with any number of very long lines have usually been 
                 # incorrectly recognized so ignore these
                 skipped_c += 1
@@ -79,9 +80,6 @@ def process_chapter(title_id, chapter_id, f_p, fo_p, chapter_data):
                 lines = apply_ocr_correction(chapter_id,page_id,i,lines)
 
                 line = ''.join(lines)
-
-                if '飲まさ' in line:
-                    pass
 
                 #for line in lines:
                 kc, ud_items, mismatch = \
@@ -188,6 +186,7 @@ def process_chapter(title_id, chapter_id, f_p, fo_p, chapter_data):
                         mismatched_new_elems.append((new_p,new_wid))
 
             if mismatch:
+                mismatch_this_chapter = True
                 if mismatch_elems in all_mismatches:
                     for m in mismatched_new_elems:
                         if m not in mismatch_count:
@@ -269,7 +268,7 @@ def process_chapter(title_id, chapter_id, f_p, fo_p, chapter_data):
                     pass
     f.close()
 
-    return c_c, w_c, k_c, skipped_c
+    return c_c, w_c, k_c, skipped_c, mismatch_this_chapter
 
 def check_chapters(args):
     
@@ -279,37 +278,45 @@ def check_chapters(args):
     i_c = len(title_names)
     for title_id, title_name in title_names.items():
 
-      if args['keyword'] is None or args['keyword'].lower() in title_name.lower():
+        if args['book'] and not is_book(title_id):
+            continue
 
-        load_manga_specific_adjustments(title_name)
+        if args['keyword'] is None or args['keyword'].lower() in title_name.lower():
 
-        i += 1
-        chapters = get_chapters_by_title_id(title_id)
+            load_manga_specific_adjustments(title_name)
 
-        for chapter_id in chapters:
+            i += 1
+            chapters = get_chapters_by_title_id(title_id)
 
+            mismatch_last_chapter = False
 
-            input_ocr_file = ocr_dir + str(chapter_id) + '.json'
+            for i,chapter_id in enumerate(chapters):
 
-            chapter_data = dict()
-            chapter_data['title'] = get_title_by_id(title_id)
-            chapter_data['chapter'] = get_chapter_number_by_chapter_id(chapter_id)
-            chapter_data['num_pages'] =  get_chapter_page_count(chapter_id)
-            chapter_data['title_id'] = title_id
+                input_ocr_file = ocr_dir + str(chapter_id) + '.json'
 
-            if args['read'] and not is_chapter_read(chapter_id):
-                continue
+                chapter_data = dict()
+                chapter_data['title'] = get_title_by_id(title_id)
+                chapter_data['chapter'] = get_chapter_number_by_chapter_id(chapter_id)
+                chapter_data['num_pages'] =  get_chapter_page_count(chapter_id)
+                chapter_data['title_id'] = title_id
 
-            if args['chapter'] is not None and chapter_data['chapter'] != args['chapter']:
-                continue
+                if args['read'] and not is_chapter_read(chapter_id):
+                    continue
 
-            parsed_ocr_filename = parsed_ocr_dir + chapter_id + ".json"
-            
-            #try:
-            print("[%d/%d] Scanning %s [%d] " 
-                % (i, i_c, chapter_data['title'], chapter_data['chapter']),end='')
+                if args['chapter'] is not None and chapter_data['chapter'] != args['chapter']:
+                    continue
 
-            c_c, w_c, k_c, skipped_c = process_chapter(title_id, chapter_id, input_ocr_file, parsed_ocr_filename, chapter_data)
+                parsed_ocr_filename = parsed_ocr_dir + chapter_id + ".json"
+                
+                #try:
+                if mismatch_last_chapter or i==0:
+                    print("\n[%d/%d] Scanning %s [%d] " 
+                        % (i, i_c, chapter_data['title'], chapter_data['chapter']),end='')
+                else:
+                    print("[%d]" 
+                        % ( chapter_data['chapter']),end='')
+
+                c_c, w_c, k_c, skipped_c, mismatch_last_chapter = process_chapter(title_id, chapter_id, input_ocr_file, parsed_ocr_filename, chapter_data)
 
 
 read_manga_metadata()
@@ -324,6 +331,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument('keyword', nargs='?', type=str, default=None, help='Title has to (partially) match the keyword in order to processed')
 parser.add_argument('--read', '-r', action='store_true', help='Process only read chapters')
 parser.add_argument('--chapter', '-ch',  nargs='?', type=int, default=None, help='Chapter')
+parser.add_argument('--book', '-b',  action='store_true', help='Check books only')
 
 args = vars(parser.parse_args())
 

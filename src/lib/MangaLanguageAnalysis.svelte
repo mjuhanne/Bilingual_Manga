@@ -39,6 +39,7 @@ const table_fields = [
     ['Total # of words in series','num_words'],
     ['Non-JLPT words in series','num_non_jlpt_words'],
     ['Non-JLPT words per volume','num_non_jlpt_words_per_v'],
+    ['Total # of characters in series','num_characters'],
     ['',''],
     ['JLPT kanji content (%)','jlpt_kanji_content_pct'],
     ['Kanjis per page','k_per_p'],

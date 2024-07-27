@@ -40,6 +40,28 @@ export const learning_stage_colors = {
     [STAGE.IGNORED] : '#aaa',
 }
 
+export const book_learning_stage_colors_day = {
+    [STAGE.NONE] : '#ccc',
+    [STAGE.UNKNOWN] : '#dbd',
+    [STAGE.UNFAMILIAR] : '#bbf',
+    [STAGE.LEARNING] :  '#F8C471',
+    [STAGE.PRE_KNOWN] : '#7f7',
+    [STAGE.KNOWN] : "#f5f5f0",
+    [STAGE.FORGOTTEN] : "#F977CB",
+    [STAGE.IGNORED] : '#f5f5f0',
+}
+
+export const book_learning_stage_colors_night = {
+    [STAGE.NONE] : '#ccc',
+    [STAGE.UNKNOWN] : '#dbd',
+    [STAGE.UNFAMILIAR] : '#bbf',
+    [STAGE.LEARNING] :  '#F8C471',
+    [STAGE.PRE_KNOWN] : '#7f7',
+    [STAGE.KNOWN] : "#1b1b1a",
+    [STAGE.FORGOTTEN] : "#F977CB",
+    [STAGE.IGNORED] : '#1b1b1a',
+}
+
 export const SOURCE = {
     JLPT    : 'jlpt',
     CUSTOM  : 'cu',

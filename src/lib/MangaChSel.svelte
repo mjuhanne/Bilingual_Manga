@@ -12,15 +12,19 @@ let url1=""
 
 let ch_page_count = [];
 let i=0;
-if (la=='jp') {
-    for (let key in manga_data.jp_data.ch_jp ){
-        ch_page_count[i] = manga_data.jp_data.ch_jp[key].length;
-        i++;
-    }
+if (manga_data.is_book) {
+    ch_page_count = manga_data.jp_data.virtual_chapter_page_count;
 } else {
-    for (let key in manga_data.en_data.ch_en) {
-        ch_page_count[i] = manga_data.en_data.ch_en[key].length;
-        i++;
+    if (la=='jp') {
+        for (let key in manga_data.jp_data.ch_jp ){
+            ch_page_count[i] = manga_data.jp_data.ch_jp[key].length;
+            i++;
+        }
+    } else {
+        for (let key in manga_data.en_data.ch_en) {
+            ch_page_count[i] = manga_data.en_data.ch_en[key].length;
+            i++;
+        }
     }
 }
 

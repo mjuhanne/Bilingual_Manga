@@ -115,7 +115,7 @@ function cleanFileNames(manga_data) {
         let aa2 = await aa1.json()
         let pm = aa2["pm"]
 
-        if(pm.includes(id))
+        if(pm.includes(id) || arr[0].external)
         {
             ipfsss=meta['0'].ipfsgate1
             cleanFileNames(arr[0]);

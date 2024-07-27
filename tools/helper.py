@@ -4,10 +4,10 @@ import hashlib
 
 # Other tools depend on the right format of the parsed OCR and summary files..
 CURRENT_PARSED_OCR_VERSION = 7
-CURRENT_OCR_SUMMARY_VERSION = 5
+CURRENT_OCR_SUMMARY_VERSION = 6
 CURRENT_METADATA_CACHE_VERSION = 2
 # .. whereas older language parser works but may not have parsed all the words as efficiently
-CURRENT_LANUGAGE_PARSER_VERSION = 9
+CURRENT_LANUGAGE_PARSER_VERSION = 11
 
 AVERAGE_PAGES_PER_VOLUME = 180
 
@@ -66,12 +66,13 @@ user_data_file = base_dir + 'json/user_data.json'
 user_set_words_file__old = base_dir + 'json/user_set_words.json'  # deprecated
 user_set_word_ids_file = base_dir + 'json/user_set_word_ids.json'
 
+summary_file = base_dir + "json/lang_summary.json"
+ext_summary_file = base_dir + "json/ext_lang_summary.json"
 
 manga_metadata_file = base_dir + "json/BM_data.manga_metadata.json"
 manga_data_file = base_dir + "json/BM_data.manga_data.json"
 ext_manga_data_file = 'json/ext.manga_data.json'
 ext_manga_metadata_file = 'json/ext.manga_metadata.json'
-
 
 jlpt_kanjis_file = base_dir + "lang/jlpt/jlpt_kanjis.json"
 jlpt_vocab_with_waller_kanji_restrictions_path_= base_dir + "lang/jlpt-vocab/data_with_waller_restricted_kanji/"
@@ -86,18 +87,23 @@ _title_name_to_id = dict()
 _chapter_id_to_title_id = dict()
 _chapter_id_to_chapter_number = dict()
 _chapter_id_to_chapter_name = dict()
+_chapter_id_to_chapter_files = dict()
 _title_chapters = dict()
 _chapter_page_count = dict()
+_virtual_ch_page_count = dict()
 
 _jlpt_word_jmdict_references = None
 _jlpt_word_levels = None
 _jlpt_word_reading_levels = None
 
+_verified_ocr = dict()
+_is_book = dict()
+
 _manga_data = dict()
 
 full_width_alpha_characters = "ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ％"
 full_width_numeric_characters = "０１２３４５６７８９"
-numerics = list('一二三四五六七八九十百万億') + list(full_width_numeric_characters)
+numerics = list('〇一二三四五六七八九十百万億') + list(full_width_numeric_characters)
 
 class bcolors:
     HEADER = '\033[95m'
@@ -144,16 +150,37 @@ def get_chapters_by_title_id(id):
     return _title_chapters[id]
 
 def get_chapter_page_count(id):
+    title_id = get_title_id_by_chapter_id(id)
+    if is_book(title_id):
+        chapter = get_chapter_number_by_chapter_id(id)
+        return _virtual_ch_page_count[title_id][chapter-1]
     return _chapter_page_count[id]
 
+def is_ocr_verified(id):
+    return _verified_ocr[id]
+
+def is_book(id):
+    return _is_book[id]
+
+def get_chapter_files_by_chapter_id(id):
+    return _chapter_id_to_chapter_files[id]
+
 def read_manga_metadata():
-    global _title_names, _title_name_to_id
+    global _title_names, _title_name_to_id, _verified_ocr, _is_book
     def process_manga_metadata(manga_titles):
         for t in manga_titles:
             title_id = t['enid']
             title_name = t['entit']
             _title_names[title_id] = title_name
             _title_name_to_id[title_name] = title_id
+            if 'verified_ocr' in t:
+                _verified_ocr[title_id] = t['verified_ocr']
+            else:
+                _verified_ocr[title_id] = False
+            if 'is_book' in t:
+                _is_book[title_id] = t['is_book']
+            else:
+                _is_book[title_id] = False
 
     with open(ext_manga_metadata_file,"r",encoding="utf-8") as f:
         data = f.read()
@@ -167,10 +194,10 @@ def read_manga_metadata():
         process_manga_metadata(manga_titles)
 
 
-def read_manga_data():
+def read_manga_data(read_chapter_files=False):
     global _manga_data
     global _chapter_id_to_title_id, _chapter_id_to_chapter_number, _chapter_id_to_chapter_name
-    global _chapter_page_count, _title_chapters
+    global _chapter_page_count, _title_chapters, _virtual_ch_page_count
     with open(manga_data_file,"r",encoding="utf-8") as f:
         data = f.read()
         _manga_data = json.loads(data)
@@ -199,7 +226,13 @@ def read_manga_data():
             _chapter_id_to_chapter_number[cid] = chapter_number
             _chapter_id_to_chapter_name[cid] = chapter_names[chapter_number-1]
             _chapter_page_count[cid] = len(pages[str(chapter_number)])
+            if read_chapter_files:
+                _chapter_id_to_chapter_files[cid] = pages[str(chapter_number)]
             chapter_number += 1
+
+        if 'virtual_chapter_page_count' in m['jp_data']:
+            _virtual_ch_page_count[title_id] = m['jp_data']['virtual_chapter_page_count']
+
 
 def get_manga_data():
     return _manga_data

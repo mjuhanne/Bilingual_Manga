@@ -39,7 +39,7 @@ $: {
     if (selected_seq != -1) {
         selected_word_id = selected_seq + ':' + word_by_seq[selected_seq];
         selected_word_id_index = word_id_list.indexOf(selected_word_id);
-        console.log("widx",selected_word_id_index)
+        console.log("Selected",word_id_list[selected_word_id_index],"widx",selected_word_id_index)
     }
 }
 
@@ -115,7 +115,9 @@ async function fetchWordInfo(seq_list) {
     });
     const result = deserialize(await response.text());
     word_info_by_seq = result.word_info;
-    first_meaning=word_info_by_seq[selected_seq]['meanings'][0]
+    if ('meanings' in word_info_by_seq[selected_seq]) {
+        first_meaning=word_info_by_seq[selected_seq]['meanings'][0]
+    }
     ready_seq_list = seq_list;
     //console.log(JSON.stringify(result))
 };
@@ -224,17 +226,17 @@ async function anki_button_clicked() {
 <style>
     .word {
         color: white;
-        font-size: 0.8rem;
+        font-size: 0.9rem;
         padding-bottom: 3px;
     }
     .word_class {
         color: rgb(8, 249, 229);
-        font-size: 0.6rem;
+        font-size: 0.7rem;
         padding-bottom: 3px;
     }
     .first_meaning {
         color: #bbb;
-        font-size: 0.5rem;
+        font-size: 0.6rem;
         padding-bottom: 3px;
     }
     .word_info_table {
@@ -260,7 +262,7 @@ async function anki_button_clicked() {
     button {
         background-color: #55f;
         color: #fff;
-        font-size: 0.5rem;
+        font-size: 0.6rem;
         border-radius: 2px;
         border:0;
         margin: 1px;
@@ -304,15 +306,15 @@ async function anki_button_clicked() {
 	}
 
     .wide-dialog {
-        width: 200px;
+        width: 220px;
     }
 
     th {
-        font-size: 0.5rem;
+        font-size: 0.6rem;
         color: white;
     }
     td {
-        font-size: 0.5rem;
+        font-size: 0.6rem;
         color: black;
     }
     .meaning_td {
