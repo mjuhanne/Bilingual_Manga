@@ -65,7 +65,7 @@ function loadJMDict() {
             readings[seq] = items[2].split(',');
             r_elem_freq[seq] = k_elem_freq[seq]
             pri_tags[seq] = []
-            meanings[seq] = [[items[4]]];
+            meanings[seq] = [JSON.parse(items[4])];
         } catch (e) {
             console.log(`Error in line ${line_count} : '${line}' `);
         }

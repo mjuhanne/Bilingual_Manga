@@ -59,14 +59,15 @@ for elem in entries:
             else:
                 print("Unknown priority element %s on seq %s" % (pr,ent_seq))
 
-    trans_det = ''
-    trans_elems = elem.findall('trans')
-    for trans_elem in trans_elems:
-        trans_det_elem = trans_elem.find('trans_det')
-        trans_det = trans_det_elem.text
+    trans_det = []
+    trans_elem = elem.find('trans')
+    trans_det_elems = trans_elem.findall('trans_det')
+    for trans_det_elem in trans_det_elems:
+        trans_det.append(trans_det_elem.text)
+    trans_det_str = json.dumps(trans_det)
 
     row = "%s\t%s\t%s\t%s\t%s\n" % \
-        (ent_seq, ','.join(kanji_elements), ','.join(readings), freq,trans_det)
+        (ent_seq, ','.join(kanji_elements), ','.join(readings), freq,trans_det_str)
 
     o_f.write(row)
 o_f.close()

@@ -398,7 +398,7 @@ def jmdict_add_custom_word(seq,k_elem,r_elem,meaning,cl,freq):
     _readings_by_seq[seq] = [r_elem]
 
 
-def load_jmdict(load_meanings=False, load_jmnedict=True):
+def load_jmdict(load_meanings=False, load_jmnedict=True, verbose=True):
     global _kanji_elements_set_by_len, _kanji_element_seq, _max_kanji_element_len
     global _readings_set_by_len, _reading_seq, _max_reading_len
     global _elem_freq
@@ -408,7 +408,8 @@ def load_jmdict(load_meanings=False, load_jmnedict=True):
     global _pri_tags
     global _single_kanji_verbs, _single_kanji_adjectives
 
-    print("Loading JMdict..")
+    if verbose:
+        print("Loading JMdict..")
     if load_meanings:
         o_f = open(jmdict_with_meanings_file,"r",encoding="utf-8")
     else:
@@ -481,7 +482,8 @@ def load_jmdict(load_meanings=False, load_jmnedict=True):
             _meaning_per_sense[seq] = json.loads(d[7])
 
     if load_jmnedict:
-        print("Loading JMnedict..")
+        if verbose:
+            print("Loading JMnedict..")
         o_f = open(jmnedict_file,"r",encoding="utf-8")
         lines = o_f.readlines()
         o_f.close()
@@ -528,7 +530,7 @@ def load_jmdict(load_meanings=False, load_jmnedict=True):
                 _readings_by_seq[seq].append(r_elem)
                 _elem_freq[seq][r_elem] = int(freq)
 
-            _meaning_per_sense[seq] = [[d[4]]]
+            _meaning_per_sense[seq] = [json.loads(d[4])] # jmnedict contains only 1 sense
 
     # make sure every length has at least empty entry. 
     # Also create sets consisting of just a word for faster lookup
@@ -541,7 +543,8 @@ def load_jmdict(load_meanings=False, load_jmnedict=True):
             _reading_seq[l] = dict()
         _readings_set_by_len[l] = set(_reading_seq[l].keys())
 
-    print("Read %d JMdict entries" % len(lines))
+    if verbose:
+        print("Read %d JMdict entries" % len(lines))
 
 
 # Expand the word id reference into a tuple of  seq + sense list + word: (seq,[senses],word)
