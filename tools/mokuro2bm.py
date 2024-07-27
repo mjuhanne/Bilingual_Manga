@@ -91,6 +91,9 @@ parser_fetch_metadata = subparsers.add_parser('fetch_metadata', help='Scan and i
 parser_fetch_metadata.add_argument('--force', '-f', action='store_true', help='Force update')
 parser_fetch_metadata.add_argument('keyword', nargs='?', type=str, default=None, help='Title has to (partially) match the keyword in order to processed')
 
+parser_mark_downloaded = subparsers.add_parser('mark_downloaded', help='Mark the manga as downloaded so Bilingual Manga can fetch it from the local server')
+parser_mark_downloaded.add_argument('keyword', type=str, help='Title has to (partially) match the keyword in order to processed')
+
 parser_remove = subparsers.add_parser('remove', help='Remove given title)')
 parser_remove.add_argument('title_id', type=str, default=None, help='Title id')
 
@@ -325,6 +328,18 @@ def save_metadata_files():
     target_f.write(json.dumps(list(manga_metadata_per_id.values())))
     target_f.close()
 
+def mark_title_as_downloaded(title_id):
+    dw_f = open(dw_file_path,'r',encoding="UTF-8")
+    dw = json.loads(dw_f.read())
+    dw_f.close()
+    if title_id not in dw['pm']:
+        print("Adding title_id [%s] to dw.json" % (title_id))
+        dw['pm'].append(title_id)
+        dw_f = open(dw_file_path,'w',encoding="UTF-8")
+        dw_f.write(json.dumps(dw))
+        dw_f.close()
+
+
 def scan(args):
     for title in titles:
 
@@ -421,15 +436,7 @@ def scan(args):
                         t_metadata['coveren'] = target_img_path + target_img_name
 
             if args['copy_images']:
-                dw_f = open(dw_file_path,'r',encoding="UTF-8")
-                dw = json.loads(dw_f.read())
-                dw_f.close()
-                if title_id not in dw['pm']:
-                    print("Adding title_id [%s] to dw.json" % (title_id))
-                    dw['pm'].append(title_id)
-                    dw_f = open(dw_file_path,'w',encoding="UTF-8")
-                    dw_f.write(json.dumps(dw))
-                    dw_f.close()
+                mark_title_as_downloaded(title_id)
 
             # process english volumes/chapters
             for vol in en_volumes:
@@ -665,6 +672,12 @@ def show(args):
                 if entit.lower() != title.lower():
                     mark = '*'
                 print("%s [%s] %s\t%s" % (mark,title_id,title.ljust(20),mdata['entit']))
+
+def mark_downloaded(args):
+    for title_id, mdata in manga_metadata_per_id.items():
+        entit = mdata['entit']
+        if args['keyword'].lower() in entit.lower():
+            mark_title_as_downloaded(title_id)
 
 #FOR DEBUGGING
 #fetch_metadata({'keyword':None,'force':False})
