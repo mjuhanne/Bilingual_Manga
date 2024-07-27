@@ -5,6 +5,7 @@ from jp_parser_helper import *
 from conjugation import *
 from parser_logging import *
 from unidic_preparser import *
+import math
 
 _parser_initialized = False
 
@@ -186,11 +187,14 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
         #if word in alternative_classes:
         #    unidic_classes.update(alternative_classes[word])
         is_last = (i==num_scanned_items-1)
-        next_word = None
-        next_word_classes = set()
+        next_item = None
+        next_item_classes = set()
         if not is_last:
-            next_word = items[pos+i+1].txt
-            next_word_classes = set(items[pos+i+1].classes)
+            next_item = items[pos+i+1].txt
+            next_item_classes = set(items[pos+i+1].classes)
+        next_word = None
+        if pos+num_scanned_items < len(items):
+            next_word = items[pos+num_scanned_items].txt
 
         for s_idx, scanned_word_jmd_cl_list in enumerate(scanned_word_jmd_cl_list_per_sense):
             for jmd_cl in scanned_word_jmd_cl_list:
@@ -214,12 +218,12 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
 
                 if jmd_cl == jmdict_adverb_class:
                     if adjectival_noun_class in unidic_classes or noun_class in unidic_classes:
-                        if next_word == 'に':
+                        if next_item == 'に':
                             # (adjectival) noun + に can be adverb
                             valid_senses[i].update([s_idx])
                             valid_senses[i+1].update([s_idx])
                     if adverb_class in unidic_classes:
-                        if verb_class in next_word_classes or gp_class in next_word_classes:
+                        if verb_class in next_item_classes or gp_class in next_item_classes:
                             # Allow adverbs to stay as adverbs when followed by 
                             # a verb or a grammatical particle
                             # どう + して,  もし + も、、少し + ずつ
@@ -231,18 +235,18 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
 
                 if jmd_cl == jmdict_pronoun_class:
                     if pronoun_class in unidic_classes:
-                        if next_word == 'か':
+                        if next_item == 'か':
                             # pronoun + か can still be pronoun (誰か).
                             valid_senses[i].update([s_idx])
                             valid_senses[i+1].update([s_idx])
                     if pronoun_class in unidic_classes or noun_class in unidic_classes:
-                        if next_word == 'ら' and suffix_class in next_word_classes:
+                        if next_item == 'ら' and suffix_class in next_item_classes:
                             # noun or pronoun + ら can still be pronoun (奴ら/お前ら).
                             valid_senses[i].update([s_idx])
                             valid_senses[i+1].update([s_idx])
 
                     if pronoun_class in unidic_classes:
-                        if suffix_class in next_word_classes:
+                        if suffix_class in next_item_classes:
                             # pronoun + suffix can still be pronoun (私共).
                             valid_senses[i].update([s_idx])
                             valid_senses[i+1].update([s_idx])
@@ -270,12 +274,14 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
                         if items[pos].is_masu:
                             # allow masu-stem verb as noun
                             # e.g.　作り
-                            valid_senses[i].update([s_idx])
-                            if sw_len == 1:
-                                score_modifiers[s_idx] = 0.5
-                            elif sw_len == 2:
-                                score_modifiers[s_idx] = 0.8
-                        elif noun_class in next_word_classes:
+                            if next_word != '、' or (next_word ==  '、' and not is_last):
+                                # give lower preference to the verb if the masu isn't before comma
+                                valid_senses[i].update([s_idx])
+                                if sw_len == 1:
+                                    score_modifiers[s_idx] = 0.5
+                                elif sw_len == 2:
+                                    score_modifiers[s_idx] = 0.8
+                        elif noun_class in next_item_classes:
                             valid_senses[i].update([s_idx])
                             if sw_len == 1:
                                 score_modifiers[s_idx] = 0.5
@@ -284,39 +290,39 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
                             else:
                                 score_modifiers[s_idx] = 0.8
 
-                    if rentaishi_class in unidic_classes and noun_class in next_word_classes:
+                    if rentaishi_class in unidic_classes and noun_class in next_item_classes:
                         # many nouns consist of rentaishi class + noun
                         # e.g. そのまま, その日
                         valid_senses[i].update([s_idx])
 
-                    if adjective_class in unidic_classes and suffix_class in next_word_classes:
+                    if adjective_class in unidic_classes and suffix_class in next_item_classes:
                         # allow adjective + suffix as noun
                         # 幼な + じみ
                         valid_senses[i].update([s_idx])
                         valid_senses[i+1].update([s_idx])
-                    if adjective_class in unidic_classes and noun_class in next_word_classes:
+                    if adjective_class in unidic_classes and noun_class in next_item_classes:
                         # allow adjective + noun as noun
                         # 幼 + 友達
                         valid_senses[i].update([s_idx])
                         valid_senses[i+1].update([s_idx])
-                    if pronoun_class in unidic_classes and suffix_class in next_word_classes:
+                    if pronoun_class in unidic_classes and suffix_class in next_item_classes:
                         # allow prounoun + suffix as noun
                         #　俺 + たち
                         valid_senses[i].update([s_idx])
                         valid_senses[i+1].update([s_idx])
 
                 if jmd_cl == jmdict_conjunction_class:
-                    if noun_class in unidic_classes and next_word == 'に':
+                    if noun_class in unidic_classes and next_item == 'に':
                         # 癖に
                         valid_senses[i].update([s_idx])
                         valid_senses[i+1].update([s_idx])
 
                 if jmd_cl in jmdict_verb_pos_list:
-                    if noun_class in unidic_classes and verb_class in next_word_classes:
+                    if noun_class in unidic_classes and verb_class in next_item_classes:
                         # sometimes item detected as noun precede a verb:
                         # 風邪ひく, ご覧なさる, 旅する, 役立つ...
                         valid_senses[i].update([s_idx])
-                    if noun_class in unidic_classes and suffix_class in next_word_classes:
+                    if noun_class in unidic_classes and suffix_class in next_item_classes:
                         # Same case as above but the verb is detected as suffix
                         # 不審がる -> 不審 (noun) + がる (suffix)
                         valid_senses[i].update([s_idx])
@@ -324,19 +330,19 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
 
                 if jmd_cl == jmdict_adjectival_noun_class:
                     if (noun_class in unidic_classes or adjectival_noun_class in unidic_classes) \
-                          and suffix_class in next_word_classes:
+                          and suffix_class in next_item_classes:
                         # (adjectival) noun + suffix can act as adjectival noun:
                         # 感傷 + 的
                         # 大々 + 的
                         valid_senses[i].update([s_idx])
                         valid_senses[i+1].update([s_idx])
-                    if verb_class in unidic_classes and suffix_class in next_word_classes:
+                    if verb_class in unidic_classes and suffix_class in next_item_classes:
                         if items[pos].is_masu:
                             # verb in masu-stem + suffix can act as adjectival noun
                             # あり + がち
                             valid_senses[i].update([s_idx])
                             valid_senses[i+1].update([s_idx])
-                    if (noun_class in next_word_classes or adjectival_noun_class in next_word_classes) \
+                    if (noun_class in next_item_classes or adjectival_noun_class in next_item_classes) \
                           and prefix_class in unidic_classes:
                         # prefix + (adjectival) noun can act as adjectival noun:
                         # 多 + 目的
@@ -344,16 +350,17 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
                         valid_senses[i+1].update([s_idx])
 
                 if jmd_cl == jmdict_adj_i_class:
-                    if noun_class in unidic_classes and adjective_class in next_word_classes:
+                    if noun_class in unidic_classes and adjective_class in next_item_classes:
                         # noun + adjective can act as adjective:
                         # 辛抱 + 強い or 男 + らしい
                         valid_senses[i].update([s_idx])
                         valid_senses[i+1].update([s_idx])
 
-                if jmd_cl == jmdict_counter_class:
+                if jmd_cl == jmdict_counter_class or jmd_cl == jmdict_suffix_class:
                     if noun_class in unidic_classes:
                         if pos > 0 and numeric_pseudoclass in items[pos-1].classes:
                             valid_senses[i].update([s_idx])
+                            score_modifiers[s_idx] = 1.5
 
 
                 def get_binding_score_modifier(unidic_classes,bindings):
@@ -489,8 +496,8 @@ def add_matched_sense_reference(original_word, chunk, base_score, chunk_len, pos
         freq = get_frequency_by_seq_and_word(seq,chunk)
         freq = 100-freq
         pos_score = max(0,6-pos)*20
+        #raw_score = (len(chunk)*60*math.sqrt(len(original_word)) + base_score*30 + freq + pos_score)*chunk_len
         raw_score = (len(chunk)*60 + base_score*30 + freq + pos_score)*chunk_len
-        #raw_score = (len(original_word)*50 + base_score*30 + freq + pos_score)*chunk_len
         score = int(raw_score*score_mod)
         unadj_score = score
         if is_jmnedict(seq):
@@ -905,6 +912,7 @@ def parse_with_jmdict(unidic_items, manually_set_priority_wids, scan_results):
 
     best_score, best_combination = calculate_best_phrase_combination(unidic_items,scan_results,manually_set_priority_wids)
     scan_results['score'] = best_score
+    scan_results['best_phrase_failed_pos'] = best_phrase_failed_pos
 
     sentence = []
 
@@ -980,11 +988,13 @@ def parse_with_jmdict(unidic_items, manually_set_priority_wids, scan_results):
 
 
 iter_count = 0
+best_phrase_failed_pos = -1
 def calculate_best_phrase_combination(items,scan_results,manually_set_priority_wids):
-    global iter_count
+    global iter_count, failed_best_phrase_pos
     best_score = 0
     best_permutation = []
     pos = 0
+    best_phrase_failed_pos = -1
     while pos < len(items):
         iter_count = 0
         best_chunk_score, best_chunk_permutation, rec_fail = \
@@ -1002,13 +1012,14 @@ def calculate_best_phrase_combination(items,scan_results,manually_set_priority_w
     return best_score, best_permutation
 
 def do_calculate_best_phrase_combination(pos,items,scan_results,manually_set_priority_wids,rec_level=0):
-    global iter_count
+    global iter_count, best_phrase_failed_pos
     best_score = -500
     best_combination = []
 
     if rec_level >= 16:
         # too many recursion levels so just return the first score/word_id in the list (it's already sorted)
         # and continue from the next word with level 0
+        best_phrase_failed_pos = pos
         LOG(-1,"Calc best phrase failed at rec_level %d, pos %d after %d iter" % (rec_level,pos,iter_count),items,only_log_items=False)
         if len(scan_results['item_word_id_scores'][pos])>0:
             return scan_results['item_word_id_scores'][pos][0], [scan_results['item_word_ids'][pos][0]], True
@@ -1018,6 +1029,7 @@ def do_calculate_best_phrase_combination(pos,items,scan_results,manually_set_pri
     if iter_count >= 2048:
         # too many iterations with this chunk so just return the first score/word_id in the list (it's already sorted)
         # and continue from the next word with level 0
+        best_phrase_failed_pos = pos
         LOG(-1,"Calc best phrase failed at rec_level %d, pos %d after %d iter" % (rec_level,pos,iter_count),items,only_log_items=False)
         if len(scan_results['item_word_id_scores'][pos])>0:
             return scan_results['item_word_id_scores'][pos][0], [scan_results['item_word_ids'][pos][0]], True
@@ -1229,7 +1241,7 @@ def reassemble_block(original_lines, unidic_items, item_word_ref): #, item_word_
         next_new_line_str = ''
         next_new_line = []
         #next_new_line_scores = []
-        while line not in new_line_str:
+        while line not in new_line_str and i<len(unidic_items):
             w = unidic_items[i].txt
             refs = item_word_ref[i]
             #scores = item_word_scores[i]
@@ -1253,6 +1265,12 @@ def reassemble_block(original_lines, unidic_items, item_word_ref): #, item_word_
 
         block_word_ref.append(new_line)
         #block_word_scores.append(new_line_scores)
+
+    # sanity check
+    for og_line,line_word_ref in zip(original_lines, block_word_ref):
+        new_line = ''.join([next(iter(item_ref_tuple)) for item_ref_tuple in line_word_ref])
+        if new_line != og_line:
+            raise Exception("Mismatch in input [%s] and output [%s] lines!" % (og_line,new_line))
     
     return block_word_ref #, block_word_scores
 

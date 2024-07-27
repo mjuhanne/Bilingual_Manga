@@ -443,8 +443,12 @@ def check_verbs(pos,items):
         return
     
     if aux_verb_class in items[pos+1].classes:
-        LOG(1,"Remaining aux verb %s/%s found after conjugation. Adding verb status.." % (items[pos+1].txt, items[pos+1].ortho),items)
-        items[pos+1].classes.append(verb_class)
+        if items[pos+1].ortho == 'らしい':
+            LOG(1,"Remaining aux verb %s/%s found after conjugation. Adding adjective status.." % (items[pos+1].txt, items[pos+1].ortho),items)
+            items[pos+1].classes.append(adjective_class)
+        else:
+            LOG(1,"Remaining aux verb %s/%s found after conjugation. Adding verb status.." % (items[pos+1].txt, items[pos+1].ortho),items)
+            items[pos+1].classes.append(verb_class)
 
         # merge the emphatetic ん after conjugations 
         if items[pos+1].txt == 'ん':

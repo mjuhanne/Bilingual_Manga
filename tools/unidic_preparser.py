@@ -37,14 +37,18 @@ def parse_line_with_unidic(line, kanji_count):
     res = parse_with_fugashi(line)
     if len(res)==0 and len(line)>0:
         raise Exception("Couldn't parse '%s'" % line)
-    
+
     k_c = 0
     items = []
     collected_particles = ''
     previous_cl = -1
+    line_idx = 0
     for (wr,lemma,orth_base,pron_base,details) in res:
         w = wr[0]
         class_name = wr[1]
+
+        if class_name == '空白':
+            class_name = '補助記号'
 
         try:
             cl = unidic_class_list.index(class_name)
@@ -70,6 +74,24 @@ def parse_line_with_unidic(line, kanji_count):
                 if word == '':
                     # empty base form for some reason. Use the parsed form
                     word = w
+
+        # restore possible white space characters before an alphabet/punctuation string
+        # (Unidict removes them during parsing)
+        white_space = [' ','\n','\t']
+        if line[line_idx] in white_space:
+            if cl <= lumped_class:
+                while line[line_idx] in white_space:
+                    collected_particles += line[line_idx]
+                    line_idx += 1
+            else:
+                # white space between kanji words.. lump them together and add as extra item
+                collected_particles = ''
+                while line[line_idx] in white_space:
+                    collected_particles += line[line_idx]
+                    line_idx += 1
+                items.append(LexicalItem(collected_particles,'',[non_jp_char_pseudoclass]))
+                collected_particles = ''
+        line_idx += len(w)
             
         if previous_cl != cl and previous_cl <= lumped_class:
             # word class changed so save previously collected word
@@ -82,6 +104,12 @@ def parse_line_with_unidic(line, kanji_count):
             # in sequence we don't want to save them separately
             # but instead lump them together
             collected_particles += w
+
+            # restore possible spaces after an alphabet/punctuation string
+            while line_idx < len(line) and line[line_idx] in white_space:
+                collected_particles += line[line_idx]
+                line_idx += 1
+
         else:
             item = LexicalItem(w,word,[cl],details=details,lemma=lemma, base_score=get_class_base_score(cl))
             if '連用形' in details[5]:
@@ -106,6 +134,10 @@ def parse_line_with_unidic(line, kanji_count):
             elif is_hiragana_word(w):
                 item.is_hiragana = True
 
+            if is_numerical(w) and numeric_pseudoclass not in item.classes:
+                # add numeric pseudoclass also for kanji type numbers
+                item.classes.append(numeric_pseudoclass)
+
             if len(details)>=7:
                 item.lemma_hiragana = katakana_to_hiragana(details[6])
 
@@ -118,6 +150,15 @@ def parse_line_with_unidic(line, kanji_count):
 
     if collected_particles != '':
         items.append(LexicalItem(collected_particles,'',[cl], base_score=get_class_base_score(cl)))
+
+    # space(s) in the end of the line. Preserve them anyway lumping them together 
+    # and adding as an extra item
+    collected_particles = ''
+    while line_idx < len(line) and line[line_idx] == ' ':
+        line_idx += 1
+        collected_particles += ' '
+    if len(collected_particles)>0:
+        items.append(LexicalItem(collected_particles,'',[non_jp_char_pseudoclass]))
 
     for k in set(filter_cjk(line)):
         k_c += 1
@@ -321,10 +362,10 @@ def check_matching_condition(items,pos,conditions,word,original_word,num_scanned
         if pos >0 and items[pos-1].is_masu:
             matched_conditions |= COND_AFTER_MASU
     if conditions & COND_AFTER_TE:
-        if pos >0 and items[pos-1].txt[-1] == 'て':
+        if pos >0 and len(items[pos-1].txt)>0 and items[pos-1].txt[-1] == 'て':
             matched_conditions |= COND_AFTER_TE
     if conditions & COND_BEFORE_TE:
-        if pos < len(items)-1 and items[pos+1].txt[-1] == 'て':
+        if pos < len(items)-1 and len(items[pos+1].txt)>0 and items[pos+1].txt[-1] == 'て':
             matched_conditions |= COND_BEFORE_TE
     if conditions & COND_AFTER_CLASS:
         if pos >0 and params['cond_class'] in items[pos-1].classes:
@@ -502,8 +543,9 @@ def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
                                     set_alt_form(it,params['alt_forms'][i] )
                                 if 'word_id' in params:
                                     # force the word id for these items
-                                    it.word_id = params['word_id']
-                                    it.flags |= NO_SCANNING
+                                    if params['word_id'][i] != '':
+                                        it.word_id = params['word_id'][i]
+                                        it.flags |= NO_SCANNING
                                 new_items.append(it)
                                 i += 1
                             j += 1
@@ -570,8 +612,9 @@ def handle_explicit_form_and_class_changes(pos,items, explicit_change_list):
                     if 'word_id' in params:
                         # force the word id for these items
                         for i in range(lp):
-                            items[pos+i].word_id = params['word_id']
-                            items[pos+i].flags |= NO_SCANNING
+                            if params['word_id'][i] != '':
+                                items[pos+i].word_id = params['word_id'][i]
+                                items[pos+i].flags |= NO_SCANNING
     if changed:
         items[pos].flags |= REPROCESS # this allows cascading changes
     return changed
@@ -846,11 +889,12 @@ def particle_post_processing(pos, items):
             # most likely noun, but allow other classes as well
             items[pos].classes.append(noun_class)
             items[pos].any_class = True
-        if gp_class in cll and items[pos].txt == 'の':
+        if gp_class in cll and (items[pos].txt == 'の' or items[pos].txt == 'も'):
             if pos > 0 and pos < len(items)-1:
                 if noun_class in items[pos-1].classes and (verb_class in items[pos+1].classes or adjective_class in items[pos+1].classes):
-                    # add alternative for の -> が
+                    # add alternative for の/も -> が
                     # e.g. 気の付く　-> 気が付く
+                    # e.g. 背も伸びる　-> 背が伸びる
                     items[pos].alt_forms.append('が')
                     items[pos].appendable_alt_forms.append('が')
                     items[pos].alt_scores['が'] = 0.1
@@ -977,6 +1021,10 @@ def merge_or_replace_items(items):
             if items[i].any_class:
                 # propagate the ANY_CLASS flag to root item
                 processed_items[pos-1].any_class = True
+
+            if items[i].end_of_clause:
+                # propagate the end-of-clause flag to root item
+                processed_items[pos-1].end_of_clause = True
 
             if get_verbose_level()>=2:
                 LOG(2,"resulting..")
@@ -1181,6 +1229,25 @@ def post_process_unidic_particles(items):
                 items[i].appendable_alt_forms.append(correct_kanji)
                 items[i].alt_scores[correct_kanji] = 0.8
 
+    # combine erroneously separated katakana items into a word
+    # (i.e.  イ + ー + ロン -> イーロン)
+    katakana_items = 0
+    do_merge = False
+    for i in range(len(items)):
+        if is_katakana_word(items[i].txt):
+            katakana_items += 1
+        else:
+            if katakana_items > 1 and items[i-1].txt != 'ー':
+                # combine the items as long as the last one isn't ー (which most likely
+                # is an elongation mark)
+                #items[i-katakana_items].classes = [noun_class]
+                #for j in range(i-katakana_items+1,i):
+                #    items[j].flags |= MERGE_ITEM
+                for j in range(i-katakana_items,i):
+                    items[j].classes.append(noun_class)
+            katakana_items = 0
+    #if do_merge:
+    #    items = merge_or_replace_items( items )
 
     # identify end-of-clause items
     for i in range(len(items)):
