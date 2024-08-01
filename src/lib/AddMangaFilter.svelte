@@ -100,7 +100,9 @@ function onFilterChanged() {
         </select>
         <select id='op' bind:value={new_filter['op']}>
             <option value="=">equal to</option>
-            <option value="!=">is not</option>
+            {#if filter_options[new_filter['f']].type!='boolean'}
+                <option value="!=">is not</option>
+            {/if}
             {#if filter_options[new_filter['f']].type=='val'}
                 <option value=">">higher than</option>
                 <option value=">=">higher or equal to</option>

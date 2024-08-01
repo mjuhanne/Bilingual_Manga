@@ -83,6 +83,7 @@ manga_specific_settings_file = base_dir + "tools/manga_specific_settings.json"
 counter_word_id_file = base_dir + "lang/counter_word_ids.tsv"
 
 _title_names = dict()
+_authors = dict()
 _title_name_to_id = dict()
 _chapter_id_to_title_id = dict()
 _chapter_id_to_chapter_number = dict()
@@ -162,17 +163,21 @@ def is_ocr_verified(id):
 def is_book(id):
     return _is_book[id]
 
+def get_authors(id):
+    return _authors[id]
+
 def get_chapter_files_by_chapter_id(id):
     return _chapter_id_to_chapter_files[id]
 
 def read_manga_metadata():
-    global _title_names, _title_name_to_id, _verified_ocr, _is_book
+    global _title_names, _title_name_to_id, _verified_ocr, _is_book, _authors
     def process_manga_metadata(manga_titles):
         for t in manga_titles:
             title_id = t['enid']
             title_name = t['entit']
             _title_names[title_id] = title_name
             _title_name_to_id[title_name] = title_id
+            _authors[title_id] = t['Author']
             if 'verified_ocr' in t:
                 _verified_ocr[title_id] = t['verified_ocr']
             else:

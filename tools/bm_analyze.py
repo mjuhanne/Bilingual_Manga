@@ -290,11 +290,16 @@ def read_sentences(data_set, learning_dataset, results):
 
     l_s = len(data_set['sentence_list'])
     results['unknown_i_sentences'] = unknown_i_sentences
-    results['unknown_i_sentences_pct'] = [round(100*unk/l_s,1) for unk in unknown_i_sentences ]
+    if l_s > 0:
+        results['unknown_i_sentences_pct'] = [round(100*unk/l_s,1) for unk in unknown_i_sentences ]
+        results['comprehensible_input_score'] = round(ci_score/l_s,1)
+        results['comprehensible_input_sentence_grading'] = [round(100*cic/l_s,1) for cic in ci_sentence_count ]
+    else:
+        results['unknown_i_sentences_pct'] = unknown_i_sentences
+        results['comprehensible_input_score'] = -1
+        results['comprehensible_input_sentence_grading'] = [-1 for cic in ci_sentence_count ]
     results['comprehensible_input_pct'] = round(results['unknown_i_sentences_pct'][0] + results['unknown_i_sentences_pct'][1],1)
-    #results['w_comprehensible_input_pct'] = round(results['unknown_i_sentences_pct'][1]*0.5 + results['unknown_i_sentences_pct'][1] - results['unknown_i_sentences_pct'][2],1)
-    results['comprehensible_input_score'] = round(ci_score/l_s,1)
-    results['comprehensible_input_sentence_grading'] = [round(100*cic/l_s,1) for cic in ci_sentence_count ]
+
 
 # This calculates known/unknown word and kanji distribution of chapter/title
 # for each JLPT level (1-5). 
@@ -413,7 +418,7 @@ def load_and_analyze_dataset(file_name):
 
 
 # Analyze all titles
-def analyze_titles():
+def analyze_titles(args):
 
     if not progress_output:
         print("Analyzing comprehension for titles")
@@ -428,8 +433,11 @@ def analyze_titles():
     reset_progress()
     for i, (title_id, title_name) in enumerate(get_title_names().items()):
 
+        if args['title'] is not None and args['title'].lower() not in title_name.lower():
+            continue
+
         if 'series_analysis' in old_analysis and title_id in old_analysis['series_analysis']:
-            title_analysis = old_analysis['series_analysis']['title_id']
+            title_analysis = old_analysis['series_analysis'][title_id]
         else:
             # recalculate analysis
 
@@ -456,6 +464,10 @@ def analyze_titles():
         # aggregate ci sentence grading
         for i in range(7):
             avg_ci_sentence_count[i] += title_analysis['comprehensible_input_sentence_grading'][i]
+
+        if args['title'] is not None:
+            print("\t%s\tCI %.1f Known words %.1f%%" % (title_name,title_analysis['comprehensible_input_pct'],
+                title_analysis['total_statistics']['words']['pct_known_pre_known']))
 
         analysis[title_id] = title_analysis
 
@@ -493,6 +505,10 @@ def get_next_unread_chapter(title_id):
                 valid_found = True
             else:
                 summary = get_summary(title_id)
+                ns = summary['num_sentences']
+                if ns == 0:
+                    print("Warning! %s has no content!" % get_title_by_id(title_id))
+                    return None
                 if 100*summary['num_sentences_per_ch'][highest_read_chapter]/summary['num_sentences'] < 1:
                     # this chapter has less than 1% of total sentences. Most likely a index chapter, so skip it
                     highest_read_chapter += 1
@@ -511,7 +527,7 @@ def get_next_unread_chapter(title_id):
     return highest_read_chapter_id
 
 
-def analyze_next_unread():
+def analyze_next_unread(args):
 
     if not progress_output:
         print("Analyzing comprehension for the next unread chapters/volumes")
@@ -522,8 +538,11 @@ def analyze_next_unread():
     reset_progress()
     for i, (title_id, title_name) in enumerate(get_title_names().items()):
 
+        if args['title'] is not None and args['title'].lower() not in title_name.lower():
+            continue
+
         if 'next_unread_chapter_analysis' in old_analysis and title_id in old_analysis['next_unread_chapter_analysis']:
-            chapter_analysis = old_analysis['next_unread_chapter_analysis']['title_id']
+            chapter_analysis = old_analysis['next_unread_chapter_analysis'][title_id]
         else:
             # recalculate analysis
 
@@ -556,6 +575,10 @@ def analyze_next_unread():
 
             fetch_known_jlpt_levels(chapter_data, chapter_analysis['total_statistics'], total=True)
             fetch_known_jlpt_levels(chapter_data, chapter_analysis['unique_statistics'], total=False)
+
+        if args['title'] is not None:
+            print("\t%s\tCI %.1f Known words %.1f%%" % (title_name,chapter_analysis['comprehensible_input_pct'],
+                chapter_analysis['total_statistics']['words']['pct_known_pre_known']))
 
         analysis[title_id] = chapter_analysis
 
@@ -712,7 +735,7 @@ def suggest_preread(args):
     o_f.close()
 
 
-def series_analysis_for_jlpt():
+def series_analysis_for_jlpt(args):
 
     print("Analyzing suggested reading for JLPT",flush=True)
 
@@ -721,8 +744,11 @@ def series_analysis_for_jlpt():
     count = 0
     for title_id, title_name in get_title_names().items():
 
+        if args['title'] is not None and args['title'].lower() not in title_name.lower():
+            continue
+
         if 'series_analysis_for_jlpt' in old_analysis and title_id in old_analysis['series_analysis_for_jlpt']:
-            title_analysis = old_analysis['series_analysis_for_jlpt']['title_id']
+            title_analysis = old_analysis['series_analysis_for_jlpt'][title_id]
         else:
             # recalculate analysis
 
@@ -814,7 +840,7 @@ def analyze(args):
     if os.path.exists(output_analysis_file):
         with open(output_analysis_file,"r",encoding="utf-8") as f:
             d = json.loads(f.read())
-            if d['timestamp'] > learning_data['timestamp']:
+            if d['timestamp']/1000 > learning_data['timestamp']:
                 if 'version' in d and d['version'] == CURRENT_OCR_SUMMARY_VERSION:
                     if 'parser_version' in d and d['parser_version'] == CURRENT_LANUGAGE_PARSER_VERSION:
                         print("Loaded previous up-to-date analysis")
@@ -823,16 +849,17 @@ def analyze(args):
                 print("Omitting stale previous analysis")
 
     d = dict()
-    d['series_analysis'] = analyze_titles()
-    d['next_unread_chapter_analysis'] =  analyze_next_unread()
-    d['series_analysis_for_jlpt'] =  series_analysis_for_jlpt()
+    d['series_analysis'] = analyze_titles(args)
+    d['next_unread_chapter_analysis'] =  analyze_next_unread(args)
+    d['series_analysis_for_jlpt'] =  series_analysis_for_jlpt(args)
 
-    o_f = open(output_analysis_file,"w",encoding="utf-8")
-    timestamp = int(time.time())*1000
-    data = {'timestamp': timestamp, 'analysis' : d}
-    json_data = json.dumps(data)
-    o_f.write(json_data)
-    o_f.close()
+    if args['title'] is None:
+        o_f = open(output_analysis_file,"w",encoding="utf-8")
+        timestamp = int(time.time())*1000
+        data = {'timestamp': timestamp, 'analysis' : d,'version':CURRENT_OCR_SUMMARY_VERSION,'parser_version':CURRENT_LANUGAGE_PARSER_VERSION}
+        json_data = json.dumps(data)
+        o_f.write(json_data)
+        o_f.close()
 
 
 #################### Read input files #################################
@@ -872,6 +899,7 @@ parser = argparse.ArgumentParser(
 
 subparsers = parser.add_subparsers(help='', dest='command')
 parser_analyze = subparsers.add_parser('analyze', help='Do comprehension analysis per title')
+parser_analyze.add_argument('--title', '-t', type=str, default=None, help='Target manga title')
 parser_analyze.add_argument('--progress-output', '-po', action='store_true', help='Output only progress')
 
 parser_suggest_preread = subparsers.add_parser('suggest_preread', help='Analyze given title and then suggest beneficial pre-read titles which increase comprehension')

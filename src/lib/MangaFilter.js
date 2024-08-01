@@ -6,6 +6,7 @@ export let available_filters = {
         'Category': { s:'mangaupdates_data', field: 'category_list',   type:'list'},
         'Author': { s:'', field: 'Author',   type:'list'},
         'Artist': { s:'', field: 'Artist',   type:'list'},
+        'Book': { s:'', field: 'is_book',   type:'boolean'},
     },
     ...showcase_sort_options,
 }

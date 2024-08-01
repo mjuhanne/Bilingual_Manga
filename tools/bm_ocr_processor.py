@@ -208,6 +208,15 @@ def process_chapters(args):
         if args['book'] and not is_book(title_id):
             continue
 
+        if args['author']:
+            authors = get_authors(title_id)
+            found = False
+            for author in authors:
+                if args['author'].lower() in author:
+                    found = True
+            if not found:
+                continue
+
         if args['keyword'] is None or args['keyword'].lower() in title_name.lower():
 
             load_manga_specific_adjustments(title_name)
@@ -300,6 +309,15 @@ def process_titles(args):
 
         if args['keyword'] is not None:
             if args['keyword'].lower() not in title_name.lower():
+                continue
+
+        if args['author']:
+            authors = get_authors(title_id)
+            found = False
+            for author in authors:
+                if args['author'].lower() in author:
+                    found = True
+            if not found:
                 continue
 
         if args['read']:
@@ -439,12 +457,13 @@ parser.add_argument('--start-index', '-si', nargs='?', type=int, default=1, help
 parser.add_argument('--chapter', '-ch',  nargs='?', type=int, default=None, help='Chapter')
 parser.add_argument('--book', '-b',  action='store_true', help='Parse books only')
 parser.add_argument('keyword', nargs='?', type=str, default=None, help='Title has to (partially) match the keyword in order to processed')
+parser.add_argument('--author', '-a',  nargs='?', type=str, default=None, help='Author')
 
 args = vars(parser.parse_args())
 
 #args['force'] = True
 #args['book'] = True
-#args['keyword'] = '騎士団長殺し'
+#args['keyword'] = 'うふふ'
 #args['chapter'] = 36
 
 if not os.path.exists(title_analysis_dir):
