@@ -123,6 +123,8 @@ export const AugmentMetadataWithCustomLanguageSummary = (manga_metadata, custom_
             element['unknown_jlpt_kanjis_next_ch'] = l['unique_statistics']['kanjis']['jlpt_unknown_list']
             element['unknown_non_jlpt_kanjis_next_ch'] = l['unique_statistics']['kanjis']['non_jlpt_unknown_list']
             element['unread_chapter'] = l['unread_chapter']
+        } else {
+            element['unread_chapter'] = -1
         }
     });
 

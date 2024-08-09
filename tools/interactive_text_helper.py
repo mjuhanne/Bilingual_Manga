@@ -1,5 +1,6 @@
 from helper import *
 from bm_learning_engine_helper import *
+import datetime
 
 metadata_cache_file = base_dir + "json/metadata_cache.json"
 learning_data_filename = base_dir + 'lang/user/learning_data.json'
@@ -34,7 +35,9 @@ metadata_cache = {'chapter_metadata':{}}
 
 if os.path.exists(metadata_cache_file):
     with open(metadata_cache_file,"r",encoding="utf-8") as f:
-        metadata_cache = json.loads(f.read())
+        md_cache = json.loads(f.read())
+        if md_cache['version'] == CURRENT_METADATA_CACHE_VERSION:
+            metadata_cache = md_cache
 
 def get_metadata(source_chapter_id):
     if source_chapter_id not in metadata_cache['chapter_metadata']:
@@ -50,6 +53,7 @@ def get_metadata(source_chapter_id):
             )
             chapter_metadata[cid] = dict()
             chapter_metadata[cid]['name'] = name
+            chapter_metadata[cid]['id'] = id
         metadata_cache['chapter_metadata'] = chapter_metadata
 
         # just in case we need more info later
@@ -155,11 +159,10 @@ def do_manually_update_word_id_refs(changes, page_id, block_id, item_id, text, w
                         print("Current block: ",current_block)
                         print("Errata: ",change)
 
-def manually_update_word_id_refs(chapter_id, page_id, block_id, item_id, text, word_id_refs, word_id_list, current_block, verbose):
+def manually_update_word_id_refs(title_id, chapter_id, page_id, block_id, item_id, text, word_id_refs, word_id_list, current_block, verbose):
     if chapter_id in ocr_corrections['word_id_errata']:
         do_manually_update_word_id_refs(ocr_corrections['word_id_errata'][chapter_id], 
             page_id, block_id, item_id, text, word_id_refs, word_id_list, current_block, verbose)
-    title_id = get_title_id_by_chapter_id(chapter_id)
     if title_id in ocr_corrections['word_id_errata']:
         do_manually_update_word_id_refs(ocr_corrections['word_id_errata'][title_id], 
             page_id, block_id, item_id, text, word_id_refs, word_id_list, current_block, verbose)

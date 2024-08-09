@@ -5,7 +5,6 @@ This script is used to parse BilingualManga.org OCR files into Interactive OCR
 import os
 import json
 import sys
-import datetime
 from helper import *
 from bm_learning_engine_helper import *
 from interactive_text_helper import *
@@ -50,6 +49,9 @@ def create_interactive_ocr(input_file, output_file):
     f_data = f.read()
     f.close()
     
+    metadata = get_metadata(chapter_id)
+    title_id = metadata['id']
+
     pages = json.loads(f_data)
 
     # the lists and settings are kept as separate 'pages'. Ugly, but works.
@@ -83,7 +85,7 @@ def create_interactive_ocr(input_file, output_file):
                 for item in line:
                     for j, (lex_item,word_id_refs) in enumerate(item.items()):
 
-                        manually_update_word_id_refs(chapter_id, page_id, block_id, item_i, lex_item, word_id_refs, pages['parsed_data']['word_id_list'], parsed_lines, debug_this_block)
+                        manually_update_word_id_refs(title_id, chapter_id, page_id, block_id, item_i, lex_item, word_id_refs, pages['parsed_data']['word_id_list'], parsed_lines, debug_this_block)
 
                         word_id_index_list = ','.join([str(w) for w in word_id_refs])
 

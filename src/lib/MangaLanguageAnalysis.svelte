@@ -216,38 +216,54 @@ const colorizeDifference = (a,b) => {
             <tr>
                 <th>Your statistics</th>
                 <th>Whole series</th>
-                <th>Next unread volume/chapter (#{meta.unread_chapter})</th>
+                {#if meta.unread_chapter != -1}
+                    <th>Next unread volume/chapter (#{meta.unread_chapter})</th>
+                {:else}
+                    <th>(All chapters already read)</th>
+                {/if}
             </tr>
             
             <tr>
                 <th>Comprehensible input %</th>
                 <td>{meta.comprehensible_input_pct}</td>
-                <td>{meta.comprehensible_input_pct_next_ch}</td>
+                {#if meta.unread_chapter != -1}
+                    <td>{meta.comprehensible_input_pct_next_ch}</td>
+                {/if}
             </tr>
             <tr>
                 <th>Optimized comprehensible input</th>
                 <td>{meta.comprehensible_input_score}</td>
-                <td>{meta.comprehensible_input_score_next_ch}</td>
+                {#if meta.unread_chapter != -1}
+                    <td>{meta.comprehensible_input_score_next_ch}</td>
+                {/if}
             </tr>
             <tr>
                 <th>Known words %</th>
                 <td>{current_set.pct_known_words}</td>
-                <td>{current_set.pct_known_words_next_ch}</td>
+                {#if meta.unread_chapter != -1}
+                    <td>{current_set.pct_known_words_next_ch}</td>
+                {/if}
             </tr>
             <tr>
                 <th>Unknown/unfamiliar words</th>
                 <td>{current_set.num_unknown_words}</td>
-                <td>{current_set.num_unknown_words_next_ch}</td>
+                {#if meta.unread_chapter != -1}
+                    <td>{current_set.num_unknown_words_next_ch}</td>
+                {/if}
             </tr>
             <tr>
                 <th>Unknown/unfamiliar kanjis</th>
                 <td>{current_set.num_unknown_kanjis}</td>
-                <td>{current_set.num_unknown_kanjis_next_ch}</td>
+                {#if meta.unread_chapter != -1}
+                    <td>{current_set.num_unknown_kanjis_next_ch}</td>
+                {/if}
             </tr>
             <tr>
                 <th>Num unknown/unfamiliar JLPT kanjis</th>
                 <td>{current_set.num_unknown_jlpt_kanjis}</td>
-                <td>{current_set.num_unknown_jlpt_kanjis_next_ch}</td>
+                {#if meta.unread_chapter != -1}
+                    <td>{current_set.num_unknown_jlpt_kanjis_next_ch}</td>
+                {/if}
             </tr>
             <tr>
                 <th>Unknown/unfamiliar JLPT kanjis</th>
@@ -256,16 +272,20 @@ const colorizeDifference = (a,b) => {
                 {:else}
                     <td>{meta.unknown_jlpt_kanjis.join(' ')}</td>
                 {/if}
-                {#if meta.unique_statistics.unknown_jlpt_kanjis_next_ch > 10}
-                    <td>Many</td>
-                {:else}
-                    <td>{meta.unknown_jlpt_kanjis_next_ch.join(' ')}</td>
+                {#if meta.unread_chapter != -1}
+                    {#if meta.unique_statistics.unknown_jlpt_kanjis_next_ch > 10}
+                        <td>Many</td>
+                    {:else}
+                        <td>{meta.unknown_jlpt_kanjis_next_ch.join(' ')}</td>
+                    {/if}
                 {/if}
             </tr>
             <tr>
                 <th>Num unknown/unfamiliar non-JLPT kanjis</th>
                 <td>{current_set.num_unknown_non_jlpt_kanjis}</td>
-                <td>{current_set.num_unknown_non_jlpt_kanjis_next_ch}</td>
+                {#if meta.unread_chapter != -1}
+                    <td>{current_set.num_unknown_non_jlpt_kanjis_next_ch}</td>
+                {/if}
             </tr>
             <tr>
                 <th>Unknown/unfamiliar non-JLPT kanjis</th>
@@ -274,10 +294,12 @@ const colorizeDifference = (a,b) => {
                 {:else}
                     <td>{meta.unknown_non_jlpt_kanjis.join(' ')}</td>
                 {/if}
-                {#if meta.unique_statistics.unknown_non_jlpt_kanjis_next_ch > 10}
-                    <td>Many</td>
-                {:else}
-                    <td>{meta.unknown_non_jlpt_kanjis_next_ch.join(' ')}</td>
+                {#if meta.unread_chapter != -1}
+                    {#if meta.unique_statistics.unknown_non_jlpt_kanjis_next_ch > 10}
+                        <td>Many</td>
+                    {:else}
+                        <td>{meta.unknown_non_jlpt_kanjis_next_ch.join(' ')}</td>
+                    {/if}
                 {/if}
             </tr>
         </table>

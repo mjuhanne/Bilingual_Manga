@@ -288,7 +288,7 @@ if(imgs_jpo[Object.keys(imgs_jpo)[0]]!=undefined && jj>=0)
 
 	if (mounted) {
 		current_chapter_id = cid[(cid.length-seljs)];
-		if (!metadata.is_book) {
+		if (!metadata.is_book && Object.keys(jp_ocr) == 0) {
 			fetch( "/ocr", {
 				headers: {"Content-Type" : "application/json" },
 				method: 'POST',
