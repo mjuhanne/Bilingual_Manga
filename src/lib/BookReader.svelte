@@ -59,6 +59,9 @@
   let fetched_jp_chapter_id = '';
   let pages_jp = '';
   let pages_en = '';
+  let en_text_loaded = false;
+  let jp_text_processed = false;
+  let jp_decoration_done = false;
 
   let auto_scroll = true;
   let jp_scroll_pct = 0;
@@ -144,13 +147,14 @@
                   response.text().then((text) => {
                       text = text.replaceAll('%@ipfs_cid@%',ipfspath);
                       text = text.replaceAll('%@img_style@%',"max-width:100%;max-height:100%;");
-                      pages_en = text
+                      pages_en = text;
+                      en_text_loaded = true;
                   });
               } else {
-                  pages_en =  '<div>EN pages not found</div>'
+                  //pages_en =  '<div>EN pages not found</div>'
               }
           }).catch(error => {
-              pages_en = '<div>EN pages not found</div>'
+              //pages_en = '<div>EN pages not found</div>'
           });
 
           fetched_en_chapter_id = en_chapter_id;
@@ -209,6 +213,7 @@
             }
         }
         loaded_timestamp = Date.now();
+        jp_text_processed = true;
         console.log("Process chapter data - end")
     }
 
@@ -251,32 +256,6 @@
 
       doProcessElementPositions(page_container_elem, items, lang);
 
-      // process each page (here page is actually a separate html in original .epub file
-      // which are concatenated into a chapter)
-      /*
-      for (let page_elem of page_container_elem.children) {
-
-        let elems = page_elem.children;
-        for (let elem of elems) {
-          items.p_pos.push(elem.offsetTop+elem.offsetHeight);
-          if (elem.localName=='p') {
-            items.p_chars.push(elem.innerText.length+1)
-            items.total_chars += elem.innerText.length+1
-          } else if ((heading_tags.indexOf(elem.localName) != -1) && (elem.innerText.length>0)) {
-            // faux text length for headings
-            let faux_chars = parseInt((elem.offsetWidth/15)*elem.offsetHeight/15);
-            //console.log(lang,"faux char",faux_chars);
-            items.p_chars.push(faux_chars);
-            items.total_chars += faux_chars
-          } else {
-            // faux text length for other items
-            items.p_chars.push(5);
-            items.total_chars += 5
-          }
-        }
-      }
-      */
-
       // stub element for lower margin
       items.p_pos.push(page_container_elem.scrollHeight)
       items.p_chars.push(1);
@@ -284,12 +263,16 @@
     }
 
   afterUpdate(() => {
-    let jp_elem = document.getElementById("jp_chapter_page")
-    processElementPositions(jp_elem, jp_items,"jp");
+    if (!jp_decoration_done)
+      return;
+
+    if (en_text_loaded) {
+      let jp_elem = document.getElementById("jp_chapter_page")
+      processElementPositions(jp_elem, jp_items,"jp");
     
-    let en_elem = document.getElementById("en_chapter_page")
-    processElementPositions(en_elem, en_items,"en");
-    //console.log("afterUpdate")
+      let en_elem = document.getElementById("en_chapter_page")
+      processElementPositions(en_elem, en_items,"en");
+    }
 
     let pos = getChapterPosition(cid)
     if (Math.abs(jp_scroll_pct-pos)>1) {
@@ -336,8 +319,9 @@
 
 	const refresh=()=>{
         if (mounted) {
-            if (colorize) {
+            if (colorize && jp_text_processed) {
             updateWordDecorations(reader_root, word_id_list, word_learning_stages, false, undefined, book_learning_stage_colors);
+            jp_decoration_done = true;
             }
             setClickEventListeners();
             document.addEventListener('keydown', keyPressListener, false);
@@ -351,6 +335,32 @@
 		refresh();
 	};
 
+  const translateHoveredBlock=()=>{
+    if (hovered_block_id != -1) {
+      let elems = document.querySelectorAll(`[block_id="${hovered_block_id}"]`);
+      let body = JSON.stringify({
+      'func' : 'translate', 
+      'text' : elems[0].innerText,
+      });
+      fetch( "/deepl", {
+        headers: {"Content-Type" : "application/json" },
+        method: 'POST',
+        body: body,
+      }).then(response => {
+        response.json().then(result => {
+          let txt;
+          if (result.success) {
+            txt = result.translation;
+          } else {
+            txt = result.error;
+          }
+         elems[0].insertAdjacentHTML("beforeend", '<br><span class="translation">' + txt + '</span>');
+        });
+      });
+
+    }
+  }
+
 	const handleKeydown=(e)=>{		
 		if (!edit_mode) {
 			let key = e.key;
@@ -360,6 +370,8 @@
       } else if (key == 's') {
         manual_en_scroll_offset -= 20;
         onJapScroll(undefined);
+      } else if (key == 't') {
+        translateHoveredBlock();
       }
       // stub
 		}
@@ -383,8 +395,6 @@ const sli2=()=>{
 		refresh();
 	}
   document.getElementById("dash").style="position:static;right:2.5vw;left:2.5vw;z-index: 999;background-color:rgba(0,0,0,0.6);"
-	//document.getElementById("dash").style="position:fixed;bottom:1px;right:2.5vw;left:2.5vw;z-index: 999;background-color:rgba(0,0,0,0.6);"
-
 	allquerys();
 	
 }
@@ -398,16 +408,11 @@ function on_scroll() {
 }
 
 async function debugParser() {
-  /*
-    if (hovered_block_id != -1) {
-      let block_text = []
-      let oc = parsed_page[hovered_block_id];
-      oc["og_lines"].forEach((line) => {
-        block_text.push(line)
-        });
+    if (hovered_sentence_id != -1) {
+      let elems = document.querySelectorAll(`[sid="${hovered_sentence_id}"]`);
       let body = JSON.stringify({
       'func' : 'parse', 
-      'text' : block_text,
+      'text' : [elems[0].innerText],
       });
       const response = await fetch( "/jmdict", {
         headers: {"Content-Type" : "application/json" },
@@ -415,19 +420,6 @@ async function debugParser() {
         body: body,
       });
     }
-      */
-      if (hovered_sentence_id != -1) {
-        let elems = document.querySelectorAll(`[sid="${hovered_sentence_id}"]`);
-        let body = JSON.stringify({
-        'func' : 'parse', 
-        'text' : [elems[0].innerText],
-        });
-        const response = await fetch( "/jmdict", {
-          headers: {"Content-Type" : "application/json" },
-          method: 'POST',
-          body: body,
-        });
-      }
   }
 
   async function debugOcr() {
@@ -548,14 +540,11 @@ function clicked(text, word_id_index_list, block_id, sentence_id, item_id) {
     hovered_sentence_id = -1;
   }
 
-  //$: console.log(hovered_block_id);
-
   function getChapterPosition(id) {
     let p = localStorage.getItem("chapter_positions");
     if (p !=null) {
       let positions = JSON.parse(p);
       if (id in positions) {
-        //console.log("getchapterpos",id,positions[id]);
         return positions[id];
       } else {
         return 0;
@@ -679,7 +668,7 @@ function clicked(text, word_id_index_list, block_id, sentence_id, item_id) {
 
     setChapterPosition(cid,jp_scroll_pct)
 
-    if (auto_scroll) {
+    if (auto_scroll && en_text_loaded) {
       let jp_chars_pct = getScrolledCharactersPercentFromScrollPosition(scroll_pos, jp_items);
       console.log("jp_scroll_pct",jp_scroll_pct.toFixed(2),"jp_chars_pct",jp_chars_pct.toFixed(2))
 
@@ -698,10 +687,7 @@ function clicked(text, word_id_index_list, block_id, sentence_id, item_id) {
 
 </script>
 
-
 <svelte:window on:keydown={handleKeydown} on:resize={on_resize}  on:scroll={on_scroll} />
-
-
 
 <div id="reader" class="reader" bind:this={reader_root}>
 
@@ -711,45 +697,50 @@ function clicked(text, word_id_index_list, block_id, sentence_id, item_id) {
         on:priority_word_updated_manually={PriorityWordUpdatedManuallyFromPopUpDialog}
         on:anki_button_clicked={ShowAnkiCardDialog}
     />
-    <div class="pagescontainer" id="pagescontainer">
+    {#if en_text_loaded}
+    <div class="sidebysidecontainer" id="pagescontainer">
       <div class="chapter_page" on:scroll={onEngScroll} class:chapter_page_dark={night_mode} id="en_chapter_page">
         {@html pages_en}
       </div>
       <div class="chapter_page" on:scroll={onJapScroll} class:chapter_page_dark={night_mode} id="jp_chapter_page">
           {@html pages_jp}
       </div>
-  </div>
-
+    </div>
+    {:else}
+    <div id="pagescontainer">
+      <div class="chapter_page"  on:scroll={onJapScroll} class:chapter_page_dark={night_mode} id="jp_chapter_page">
+          {@html pages_jp}
+      </div>
+      </div>
+    {/if}
 
 <div id="dash" >
 
 <BookDashboard
-bind:edit_mode={edit_mode}
-bind:night_mode={night_mode}
-bind:auto_scroll={auto_scroll}
-bind:chaptersen={chaptersen}
-bind:chaptersjp={chaptersjp}
-bind:vj={vj}
-bind:jjj={jjj}
-bind:vi={vi}
-bind:iii={iii}
-bind:langds={langds}
-change={change}
-bind:indicator={indicator}
-allquerys={allquerys}
-refresh={refresh}
-bind:volumesjp={volumesjp}
-bind:volumesen={volumesen}
-sli1={sli1}
-sli2={sli2}
-{jp_scroll_pct}
-{en_scroll_pct}
+  bind:edit_mode={edit_mode}
+  bind:night_mode={night_mode}
+  bind:auto_scroll={auto_scroll}
+  bind:chaptersen={chaptersen}
+  bind:chaptersjp={chaptersjp}
+  bind:vj={vj}
+  bind:jjj={jjj}
+  bind:vi={vi}
+  bind:iii={iii}
+  bind:langds={langds}
+  change={change}
+  bind:indicator={indicator}
+  allquerys={allquerys}
+  refresh={refresh}
+  bind:volumesjp={volumesjp}
+  bind:volumesen={volumesen}
+  sli1={sli1}
+  sli2={sli2}
+  {jp_scroll_pct}
+  {en_scroll_pct}
 />
 </div>
 
 </div>	
-
-
 
 <style>
 	#reader{
@@ -758,43 +749,48 @@ sli2={sli2}
 		
 	}
 
-    .reader {
-        display: ruby;
-    }
-    .pagescontainer {
-        display: grid;
-        grid-template-columns: 50% 50%;
-        grid-gap: 10px;
-    }
+  .reader {
+      display: ruby;
+  }
+  .sidebysidecontainer {
+      display: grid;
+      grid-template-columns: 50% 50%;
+      grid-gap: 10px;
+  }
 
-    .chapter_page {
-        /*writing-mode: vertical-rl;*/
-  	  	max-width:40vw;
-	  	  /*max-height:100vh;
-        text-wrap: break-word;*/
-        background-color: #f5f5f0;
-        color: black;
-        padding: 15px;
-        text-align: left;
-        overflow-y:scroll;
-		    max-height:40vw;
-        position: relative;
-    }
+  .chapter_page {
+      /*writing-mode: vertical-rl;*/
+      max-width:40vw;
+      /*max-height:100vh;
+      text-wrap: break-word;*/
+      background-color: #f5f5f0;
+      color: black;
+      padding: 15px;
+      text-align: left;
+      overflow-y:scroll;
+      max-height:40vw;
+      position: relative;
+  }
 
-    .chapter_page_dark {
-        background-color: #1b1b1a;
-        color: rgb(112, 111, 111);
-    }
-    .ocrtext1 {
-        margin : 0;
-        text-align:left;
-        display:inline-block;
-        vertical-align: top;
-        letter-spacing: 0.1em;
-        line-height: 1.4em;
-    }
-    .ocrtext1 p {
-        margin-block-start: 0;
-        margin-block-end: 0;
-    }
+  .chapter_page_dark {
+      background-color: #1b1b1a;
+      color: rgb(112, 111, 111);
+  }
+  .ocrtext1 {
+      margin : 0;
+      text-align:left;
+      display:inline-block;
+      vertical-align: top;
+      letter-spacing: 0.1em;
+      line-height: 1.4em;
+  }
+  .ocrtext1 p {
+      margin-block-start: 0;
+      margin-block-end: 0;
+  }
+
+  :global(.translation) {
+    color: #7e5984;
+  }
+
 </style>

@@ -1,6 +1,7 @@
 <script>
     import {obj} from '$lib/store.js';
     import {onMount} from 'svelte'
+    import { deserialize } from '$app/forms'
     import { EVENT_TYPE } from "$lib/UserDataTools.js";
     import LearningStageButtons from '$lib/LearningStageButtons.svelte'
     import { 
@@ -26,6 +27,7 @@
     let learned_jlpt_date;
     let enable_custom_forgetting = false;
     let learned_custom_date;
+    let deepl_key = '';
 
     let eventSource;
     let files;
@@ -45,6 +47,9 @@
             enable_custom_forgetting = learning_settings.learned_custom_timestamp > 0
             learned_jlpt_date = timestamp2date(learning_settings.learned_jlpt_timestamp)
             learned_custom_date = timestamp2date(learning_settings.learned_custom_timestamp)
+        }
+        if ('deepl_key' in user_data) {
+            deepl_key = user_data['deepl_key']
         }
         if (!('custom_lang_summary_timestamp' in meta['0'])) {
             // Custom language analysis hasn't been run yet ever. Make settings stale
@@ -202,6 +207,23 @@ function colorizeByStage(text,stage) {
 
 function colorizeStage(stage) {
     return colorizeByStage(learning_stages[stage],stage);
+}
+
+async function saveDeepLKey() {
+    const response = await fetch( "/deepl", {
+        headers: {"Content-Type" : "application/json" },
+        method: 'POST',
+        body: JSON.stringify({
+            'func' : 'save_key', 
+            'deepl_key' : deepl_key,
+            })
+    });
+    const result = await response.json();
+    if (result.success) {
+        alert(`DeepL translation active!`);
+    } else {
+        alert(`Error! ${result.status}`);
+    }
 }
 
 </script>
@@ -421,6 +443,19 @@ function colorizeStage(stage) {
             </div>
         </div>
 
+
+        <div class="knowledge-section">
+            <h4 class="subheading">DeepL settings</h4>
+            <div class="knowledge-subsection">
+                <div>
+                    <label for="deepl_key">DeepL key:</label>
+                    <input type="text" id="deepl_key" name="deepl_key" value="{deepl_key}">
+                    <button class="updatebutton" on:click={()=>saveDeepLKey()}>
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
 
         <div class="knowledge-section">
             <h4 class="subheading">Reading statistics</h4>
