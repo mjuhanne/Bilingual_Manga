@@ -115,7 +115,7 @@ def parse_line_with_unidic(line, kanji_count):
             if '連用形' in details[5]:
                 # this should be in -masu form
                 # for some reason 使っ / だっ verbs have 連用形 flag even though it's not.
-                if w[-1] != 'っ':
+                if w[-1] != 'っ' and w != 'でし':
                     item.is_masu = True
 
             if cl == suffix_class and details[1] == '動詞的':
@@ -356,7 +356,7 @@ def check_matching_condition(items,pos,conditions,word,original_word,num_scanned
     if conditions & COND_END_OF_CLAUSE:
         if items[pos+num_scanned_items-1].end_of_clause:
             matched_conditions |= COND_END_OF_CLAUSE
-    if conditions & COND_BLOCK_START and pos == 0:
+    if conditions & COND_BLOCK_START and (pos == 0 or items[pos+num_scanned_items-1].start_of_clause):
         matched_conditions |= COND_BLOCK_START
     if conditions & COND_AFTER_MASU:
         if pos >0 and items[pos-1].is_masu:
@@ -848,8 +848,6 @@ def particle_post_processing(pos, items):
     if not handle_explicit_form_and_class_changes(pos,items, explicit_word_changes):
         cll = items[pos].classes
 
-        add_alternative_forms_and_classes(pos,items)
-
         if len(cll) == 1:
             if cll[0] <= punctuation_mark_class:
                 items[pos].flags |= NO_SCANNING
@@ -1249,6 +1247,14 @@ def post_process_unidic_particles(items):
     #if do_merge:
     #    items = merge_or_replace_items( items )
 
+    # identify start-of-clause item
+    i = 0
+    while i<len(items) and punctuation_mark_class in items[i].classes:
+        i+=1
+    if i<len(items):
+        items[i].start_of_clause = True
+    # TODO: handle multi-clause lines
+
     # identify end-of-clause items
     for i in range(len(items)):
         if i==len(items)-1:
@@ -1270,6 +1276,7 @@ def post_process_unidic_particles(items):
         if aux_verb_class not in cll and gp_class not in cll and verb_class not in cll:
             add_alternative_form_from_lemma(items[i])
 
+        add_alternative_forms_and_classes(i,items)
 
     if get_verbose_level()>0:
         print("\nAfter unidic preparser:")

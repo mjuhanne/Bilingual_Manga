@@ -193,8 +193,18 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
             next_item = items[pos+i+1].txt
             next_item_classes = set(items[pos+i+1].classes)
         next_word = None
+        next_word_ortho = None
         if pos+num_scanned_items < len(items):
             next_word = items[pos+num_scanned_items].txt
+            next_word_ortho = items[pos+num_scanned_items].ortho
+        next2_word_ortho = None
+        if pos+num_scanned_items+1 < len(items):
+            next2_word_ortho = items[pos+num_scanned_items+1].ortho
+
+        if pos+i>0:
+            prev_item = items[pos+i-1].txt
+        else:
+            prev_item = None
 
         for s_idx, scanned_word_jmd_cl_list in enumerate(scanned_word_jmd_cl_list_per_sense):
             for jmd_cl in scanned_word_jmd_cl_list:
@@ -229,9 +239,17 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
                             # どう + して,  もし + も、、少し + ずつ
                             valid_senses[i].update([s_idx])
                             valid_senses[i+1].update([s_idx])
+                    #if verb_class in unidic_classes:
+                    #    #TODO: try to optimize some adverbs detected as verb (至って)
+                    #    valid_senses[i].update([s_idx])
+                    #    score_modifiers[s_idx] = 0.8
+
                     #if word == '何':
                     #    # 何 is part of many adverbs
                     #    valid_senses[i].update([s_idx])
+                    if noun_class in unidic_classes:
+                        # some adverbs (大分) are detected as nouns
+                        valid_senses[i].update([s_idx])
 
                 if jmd_cl == jmdict_pronoun_class:
                     if pronoun_class in unidic_classes:
@@ -271,16 +289,18 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
                             # allow numeric class for noun if it's the first item and not alone
                             valid_senses[i].update([s_idx])
                     if verb_class in unidic_classes:
-                        if items[pos].is_masu:
+                        if items[pos+i].is_masu:
                             # allow masu-stem verb as noun
                             # e.g.　作り
+                            # accept the noun if isn't before comma (more like to be verb then)
                             if next_word != '、' or (next_word ==  '、' and not is_last):
-                                # give lower preference to the verb if the masu isn't before comma
-                                valid_senses[i].update([s_idx])
-                                if sw_len == 1:
-                                    score_modifiers[s_idx] = 0.5
-                                elif sw_len == 2:
-                                    score_modifiers[s_idx] = 0.8
+                                # don't accept as noun the honorific construction お + masu-stem + する
+                                if not (prev_item == 'お' and (next_word_ortho == 'する' or next_word_ortho == 'できる' or (next_word_ortho=='に' and next2_word_ortho=='なる'))):
+                                    valid_senses[i].update([s_idx])
+                                    if sw_len == 1:
+                                        score_modifiers[s_idx] = 0.5
+                                    elif sw_len == 2:
+                                        score_modifiers[s_idx] = 0.8
                         elif noun_class in next_item_classes:
                             valid_senses[i].update([s_idx])
                             if sw_len == 1:
@@ -337,7 +357,7 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
                         valid_senses[i].update([s_idx])
                         valid_senses[i+1].update([s_idx])
                     if verb_class in unidic_classes and suffix_class in next_item_classes:
-                        if items[pos].is_masu:
+                        if items[pos+i].is_masu:
                             # verb in masu-stem + suffix can act as adjectival noun
                             # あり + がち
                             valid_senses[i].update([s_idx])
@@ -361,6 +381,16 @@ def get_valid_senses_for_scanned_word(original_scanned_word, scanned_word, pos,n
                         if pos > 0 and numeric_pseudoclass in items[pos-1].classes:
                             valid_senses[i].update([s_idx])
                             score_modifiers[s_idx] = 1.5
+
+                if jmd_cl == jmdict_interjection_class:
+                    if verb_class in unidic_classes:
+                        if len(scanned_word) >= 4 or (has_cjk(scanned_word) and len(scanned_word) >= 3):
+                            valid_senses[i].update([s_idx])
+                            if pos == 0:
+                                # unidic most likely detected the class incorrectly
+                                pass
+                            else:
+                                score_modifiers[s_idx] = 0.8
 
 
                 def get_binding_score_modifier(unidic_classes,bindings):
@@ -467,6 +497,8 @@ def add_matched_sense_reference(original_word, chunk, base_score, chunk_len, pos
         if h_chunk in readings:
             chunk = h_chunk
 
+    seq_cl_lists = get_class_list_by_seq(seq)
+
     for sense in valid_senses:
         score_mod = 1
         if sense == ALL_SENSES:
@@ -484,6 +516,13 @@ def add_matched_sense_reference(original_word, chunk, base_score, chunk_len, pos
             if sense in score_modifiers:
                 score_mod = score_modifiers[sense]
         seq_word = str(seq) + ':' + chunk
+        seq_ogword = str(seq) + ':' + original_word
+
+        if sense == ALL_SENSES:
+            cl_list = [ cl for cls_per_sense in seq_cl_lists for cl in cls_per_sense]
+        else:
+            cl_list = seq_cl_lists[sense]
+        cl_list = list(set(cl_list)) # get rid of duplicates
 
         max_previous_score = -1
         for prev_wid in scan_results['item_word_ids'][pos]:
@@ -498,6 +537,7 @@ def add_matched_sense_reference(original_word, chunk, base_score, chunk_len, pos
         pos_score = max(0,6-pos)*20
         #raw_score = (len(chunk)*60*math.sqrt(len(original_word)) + base_score*30 + freq + pos_score)*chunk_len
         raw_score = (len(chunk)*60 + base_score*30 + freq + pos_score)*chunk_len
+
         score = int(raw_score*score_mod)
         unadj_score = score
         if is_jmnedict(seq):
@@ -508,15 +548,21 @@ def add_matched_sense_reference(original_word, chunk, base_score, chunk_len, pos
                     score = int(0.7*score)
                 else:
                     score = int(0.8*score)
+
         # modify score based on hard-coded table
         if word_id in custom_word_id_score_adjustment:
             score += custom_word_id_score_adjustment[word_id]
         elif seq_word in custom_word_id_score_adjustment:
             score += custom_word_id_score_adjustment[seq_word]
+
         if word_id in word_id_score_adjustment:
             score += word_id_score_adjustment[word_id]
         elif seq_word in word_id_score_adjustment:
             score += word_id_score_adjustment[seq_word]
+        #elif seq_ogword in word_id_score_adjustment:
+        #    score += word_id_score_adjustment[seq_ogword]
+        elif '*:' + chunk in word_id_score_adjustment:
+            score += word_id_score_adjustment['*:' + chunk]
         elif chunk in word_score_adjustment:
             score += word_score_adjustment[chunk]
 
@@ -525,6 +571,10 @@ def add_matched_sense_reference(original_word, chunk, base_score, chunk_len, pos
             adj_array = word_id_score_adjustment_with_conditions[word_id]
         elif seq_word in word_id_score_adjustment_with_conditions:
             adj_array = word_id_score_adjustment_with_conditions[seq_word]
+        elif seq_ogword in word_id_score_adjustment_with_conditions:
+            adj_array = word_id_score_adjustment_with_conditions[seq_ogword]
+        elif '*:' + chunk in word_id_score_adjustment_with_conditions:
+            adj_array = word_id_score_adjustment_with_conditions['*:' + chunk]
         if adj_array is not None:
             for adj_settings in adj_array:
                 cond_score = adj_settings[0]
@@ -559,12 +609,6 @@ def add_matched_sense_reference(original_word, chunk, base_score, chunk_len, pos
                 scan_results['word_count'][w_idx] += 1
             except:
                 scan_results['word_id_list'].append(word_id)
-                seq_cl_lists = get_class_list_by_seq(seq)
-                if sense == ALL_SENSES:
-                    cl_list = [ cl for cls_per_sense in seq_cl_lists for cl in cls_per_sense]
-                else:
-                    cl_list = seq_cl_lists[sense]
-                cl_list = list(set(cl_list)) # get rid of duplicates
                 scan_results['word_class_list'].append(cl_list)
                 scan_results['word_count'].append(1)
 

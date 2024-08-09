@@ -33,6 +33,8 @@ def pretty_print_lexical_item(item):
         flags += 'masu '
     if item.end_of_clause:
         flags += 'EOC '
+    if item.start_of_clause:
+        flags += 'SOC '
     if item.any_class:
         flags += 'ANY_CLASS '
     unidic_verb_conj = ''

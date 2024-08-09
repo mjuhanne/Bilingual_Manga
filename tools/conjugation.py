@@ -418,6 +418,11 @@ def check_verbs(pos,items):
         for i in range(max_particles_conjugated):
             items[pos+i+1].flags = MERGE_ITEM
             items[pos+i+1].is_conjugated = True
+            # even though 'です' (and its' other conjugations) are merged with the root word, 
+            # add empty alt form to allow scanner to match a expression without です
+            # i.e. ..かもしれないでしょう matches かもしれない
+            if items[pos+i+1].lemma == 'です':
+                items[pos+i+1].alt_forms.append('')
         if max_particles_conjugated > 0:
             items[pos].is_base_form = False
         items[pos].is_conjugated = True
