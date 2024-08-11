@@ -266,8 +266,8 @@
     if (!jp_decoration_done)
       return;
 
+    let jp_elem = document.getElementById("jp_chapter_page")
     if (en_text_loaded) {
-      let jp_elem = document.getElementById("jp_chapter_page")
       processElementPositions(jp_elem, jp_items,"jp");
     
       let en_elem = document.getElementById("en_chapter_page")
