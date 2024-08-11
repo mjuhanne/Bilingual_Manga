@@ -11,6 +11,7 @@ let vna=Object.keys(vol);
 let url1=""
 
 let ch_page_count = [];
+let vol_page_count = [];
 let i=0;
 if (manga_data.is_book) {
     ch_page_count = manga_data.jp_data.virtual_chapter_page_count;
@@ -26,6 +27,14 @@ if (manga_data.is_book) {
             i++;
         }
     }
+}
+
+for (let v of vna) {
+    let page_count = 0;
+    for (let ch_idx=vol[v].s;ch_idx <= vol[v].e;ch_idx++) {
+        page_count += ch_page_count[ch_idx];
+    }
+    vol_page_count.push(page_count);
 }
 
 url1=`${$page.url}`.split('?')[0]
@@ -52,7 +61,7 @@ const btnel=(e)=>{
 <div id="chlist">
 {#each vna as v,jji}
 {#if (jji==0)}
-<div style="font-size: 1.15rem;margin:10px 0px;"><button on:click={btnel}>{v}<span class="arrowch">M<span class="invi" style="display:none;">#r@e%r@e#{jji}#r@e%r@e#</span></span><span class="invi" style="display:none;">#r@e%r@e#{jji}#r@e%r@e#</span></button>
+<div style="font-size: 1.15rem;margin:10px 0px;"><button on:click={btnel}>{v} ({vol_page_count[jji]} pages)&nbsp;<span class="arrowch">M<span class="invi" style="display:none;">#r@e%r@e#{jji}#r@e%r@e#</span></span><span class="invi" style="display:none;">#r@e%r@e#{jji}#r@e%r@e#</span></button>
     {#if la==="jp"}
     <MangaReadingStatus title={v} chapter_ids={vol[v].chapter_ids} bind:manga_data={manga_data}/>
     {/if}
@@ -72,7 +81,7 @@ const btnel=(e)=>{
 {/each}
 </div>
 {:else}
-<div style="font-size: 1.15rem;margin:10px 0px;"><button on:click={btnel}>{v}<span class="arrowch">W<span class="invi" style="display:none;">#r@e%r@e#{jji}#r@e%r@e#</span></span><span class="invi" style="display:none;">#r@e%r@e#{jji}#r@e%r@e#</span></button>
+<div style="font-size: 1.15rem;margin:10px 0px;"><button on:click={btnel}>{v} ({vol_page_count[jji]} pages)&nbsp;<span class="arrowch">W<span class="invi" style="display:none;">#r@e%r@e#{jji}#r@e%r@e#</span></span><span class="invi" style="display:none;">#r@e%r@e#{jji}#r@e%r@e#</span></button>
     {#if la==="jp"}
     <MangaReadingStatus title={v} chapter_ids={vol[v].chapter_ids} bind:manga_data={manga_data}/>
     {/if}

@@ -76,6 +76,12 @@ export let syn;
         </div>
     </div>
     <div style="margin-left:10px;">
+        <b style="font-size: 1.1rem;">Pages</b>
+        <div class="metae">
+        <a>{meta.num_pages}</a>
+        </div>
+    </div>
+    <div style="margin-left:10px;">
     <b style="font-size: 1.1rem;">Rating</b>
     <div class="metae">
     <a href="{meta.mangaupdates_data.url}" target="_blank" title="Mangaupdates.com ({meta.mangaupdates_data.last_updated})">{meta.mangaupdates_data.rating} ({meta.mangaupdates_data.votes} votes)</a>
