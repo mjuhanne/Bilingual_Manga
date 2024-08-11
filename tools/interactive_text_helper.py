@@ -59,6 +59,12 @@ def get_metadata(source_chapter_id):
         # just in case we need more info later
         metadata_cache['version'] = CURRENT_METADATA_CACHE_VERSION 
 
+        if source_chapter_id not in metadata_cache['chapter_metadata']:
+            # The referred chapter or title was removed. 
+            metadata_cache['chapter_metadata'][source_chapter_id] = {
+                'name' : 'Removed', 'id' : -1
+            }
+
         with open(metadata_cache_file,"w",encoding="utf-8") as f:
             f.write(json.dumps(metadata_cache))
 

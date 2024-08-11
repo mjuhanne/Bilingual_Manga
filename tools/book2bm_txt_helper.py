@@ -268,6 +268,7 @@ def get_chapters_from_txt_file(path):
 
 def divide_chapters(chapters, divide_type):
     chapter = chapters[0]
+    existing_chapter_names = [ch['name'] for ch in chapters]
     chapters = []
 
     chapter_name = chapter['name']
@@ -341,6 +342,11 @@ def divide_chapters(chapters, divide_type):
                 chapter_name = paragraphs[p_i]['lines'][0]
                 chapter_name = chapter_name.replace('\u3000','')
                 chapter_name = chapter_name.replace(' ','')
+
+                while chapter_name in existing_chapter_names:
+                    chapter_name += ' -'  # to avoid collision of OIDs should there be duplicate chapter names
+                existing_chapter_names.append(chapter_name)
+                
                 if new_chapter is None:
                     new_chapter = {
                         'paragraphs' : [],
@@ -357,6 +363,10 @@ def divide_chapters(chapters, divide_type):
             lines = paragraphs[p_i]['lines']
             new_chapter['num_sentences'] += len(lines)
             new_chapter['num_characters'] += len(''.join(lines))
+            if divide_type != 'page_break':
+                if p_break_idx < len(page_breaks) and p_i == page_breaks[p_break_idx]:
+                    new_chapter['page_breaks'].append(len(new_chapter['paragraphs']))
+                    p_break_idx += 1
             p_i += 1
     if len(new_chapter['paragraphs'])>0:
         new_chapter['num_pages'] = get_virtual_page_count_from_characters(new_chapter['num_characters'])
@@ -378,7 +388,7 @@ def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, start_c
 
     chapters = get_chapters_from_txt_file(filepath)
 
-    t_data[lang_data_field][vol_lang_field][vol_name] = {'s':start_ch_idx,'e':start_ch_idx + len(chapters)-1}
+    t_data[lang_data_field][vol_lang_field][vol_name] = {'id':vol_id,'s':start_ch_idx,'e':start_ch_idx + len(chapters)-1}
 
     target_ocr_file_path = None
     target_page_file_path = None

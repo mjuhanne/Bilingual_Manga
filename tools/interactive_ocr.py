@@ -113,7 +113,6 @@ def create_interactive_ocr(input_file, output_file):
 print("Interactive OCR (%s) (%s)" % (str(debug_block_id), str(debug_page_ref)))
 
 try:
-
     if os.path.exists(learning_data_filename):
         with open(learning_data_filename,"r",encoding="utf-8") as f:
             learning_data = json.loads(f.read())

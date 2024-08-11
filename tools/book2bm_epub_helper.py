@@ -88,6 +88,40 @@ def save_image_from_epub(chapter_id, book, img_name):
             return
     print("Image %s not found in epub!" % img_name)
 
+def save_metadata_from_epub(t_metadata, t_data, lang, book, title):
+    desc = book.get_metadata('DC', 'description')
+    if len(desc)>0:
+        t_data['syn_'+lang] = desc
+    # get rid of of the volume part in title
+    vol_title,_ = book.get_metadata('DC', 'title')[0]
+    vol_title = vol_title.split(' 上 ')[0]
+    vol_title = vol_title.split(' 中 ')[0]
+    vol_title = vol_title.split(' 下 ')[0]
+    vol_title = vol_title.replace('_',' ')
+
+    if t_metadata[lang + 'tit'] == PLACEHOLDER:
+        t_metadata[lang + 'tit'] = vol_title
+    creator, _ = book.get_metadata('DC', 'creator')[0]
+    creator2 = creator.replace(' ','')
+    if creator not in t_metadata['Author'] and creator2 not in t_metadata['Author']:
+        if t_metadata['Author'] == [PLACEHOLDER]:
+            t_metadata['Author'] = [creator]
+        else:
+            t_metadata['Author'].append(creator)
+
+    if t_metadata['Release'] == PLACEHOLDER:
+        try:
+            released, _ = book.get_metadata('DC', 'date')[0]
+            t_metadata['Release'] = int(released.split('-')[0])
+        except:
+            pass
+
+    # get the cover image from the first volume also
+    save_cover_image_from_epub(t_metadata, book, lang, title)
+    pass
+
+
+
 def get_chapters_from_epub(book, verbose=False):
     # There are two scenarios how chapters are constructed:
     #
@@ -132,7 +166,7 @@ def get_chapters_from_epub(book, verbose=False):
                         raise Exception("Something is wrong here! TOC contains overlapping references!")                    
 
             chapter_titles.append(title)
-            item_list_per_chapter.append([{'item':item,'start_id':tag_id,'next_ch_start_id':None}])  # 1st file in the chapter
+            item_list_per_chapter.append([{'item':item,'content':item.content,'start_id':tag_id,'next_ch_start_id':None}])  # 1st file in the chapter
 
     # 2nd step is to go through the 'spine' which contains a list of html files in physical
     # order. If a chapter contains more than 1 item(html file) then we must add the 
@@ -154,15 +188,85 @@ def get_chapters_from_epub(book, verbose=False):
                 print("\t\t\t(%s) %s [#%s]" % (item_id,item.file_name, item_list_per_chapter[active_chapter_idx][0]['start_id']))
         if not chapter_changed:
             if active_chapter_idx == -1:
-                heading_chapter_items.append({'item':item,'start_id':None,'next_ch_start_id':None})
+                heading_chapter_items.append({'item':item,'content':item.content,'start_id':None,'next_ch_start_id':None})
             else:
-                item_list_per_chapter[active_chapter_idx].append({'item':item,'start_id':None,'next_ch_start_id':None})
+                item_list_per_chapter[active_chapter_idx].append({'item':item,'content':item.content,'start_id':None,'next_ch_start_id':None})
             if verbose:
                 print("\t\t\t(%s) %s" % (item_id,item.file_name))
 
     if len(heading_chapter_items)>0:
         chapter_titles = ['Heading'] + chapter_titles
         item_list_per_chapter = [heading_chapter_items] + item_list_per_chapter
+
+
+    if len(chapter_titles) == 2:
+        # it seems there is only heading and everything else is dumped into chapter 1, 
+        # so the TOC is unfinished..  Try to split into chapters by <h2> tag
+        # Usually they already exist as separate html files
+        split_chapter_names = []
+        split_item_list_per_chapter = []
+
+        valid = True
+        for ch_item_data in item_list_per_chapter[1]:
+            item = ch_item_data['item']
+            content = item.content
+            soup = BeautifulSoup(content,features="html.parser")
+            h2_list = soup.find_all('h2')
+            if len(h2_list) == 1:
+                split_chapter_names.append(h2_list[0].text)
+
+                split_item_list_per_chapter.append([{'item':item,'content':item.content,'start_id':None,'next_ch_start_id':None}])
+            elif len(h2_list) == 0:
+                if len(split_item_list_per_chapter)==0:
+                    item_list_per_chapter[0].append({'item':item,'content':item.content,'start_id':None,'next_ch_start_id':None})
+                else:
+                    split_item_list_per_chapter[-1].append({'item':item,'content':item.content,'start_id':None,'next_ch_start_id':None})
+            else:
+                # don't yet handle the case where there are multiple chapters in one html file
+                valid = False
+
+        if valid:
+            chapter_titles = [chapter_titles[0]] + split_chapter_names
+            item_list_per_chapter = [item_list_per_chapter[0]] + split_item_list_per_chapter
+
+        # split again by <h3> tags
+        new_chapter_names = [chapter_titles[0]]
+        new_item_list_per_chapter = [item_list_per_chapter[0]]
+
+        chapter_count = 0
+        for ch_name, ch_item_list in zip(chapter_titles[1:],item_list_per_chapter[1:]):
+
+            for ch_item_i, ch_item_data in enumerate(ch_item_list):
+                item = ch_item_data['item']
+                content = item.content
+                soup = BeautifulSoup(content,features="html.parser")
+                h3_list = soup.find_all('h3')
+                if len(h3_list)>0:
+                    for h3_elem in h3_list:
+                        if ch_name != '':
+                            new_ch_name = ch_name + ' - ' + h3_elem.text
+                        else:
+                            new_ch_name = h3_elem.text
+                        new_chapter_names.append(new_ch_name)
+                        ch_html_id = 'parser_h3_chapter_id_' + str(chapter_count)
+                        h3_elem['id'] = ch_html_id
+                        chapter_count += 1
+                        new_content = str(soup)
+                        if len(new_item_list_per_chapter)>0:
+                            if new_item_list_per_chapter[-1][-1]['item'].id == item.id:
+                                new_item_list_per_chapter[-1][-1]['next_ch_start_id'] = ch_html_id
+                                new_item_list_per_chapter[-1][-1]['content'] = new_content
+                        new_item_list_per_chapter.append([{'item':item,'content':new_content,'start_id':ch_html_id,'next_ch_start_id':None}])
+                    
+                else:
+                    if ch_item_i == 0:
+                        new_item_list_per_chapter.append([{'item':item,'content':item.content,'start_id':None,'next_ch_start_id':None}])
+                        new_chapter_names.append(ch_name)
+                    else:
+                        new_item_list_per_chapter[-1].append({'item':item,'content':item.content,'start_id':None,'next_ch_start_id':None})
+        chapter_titles = new_chapter_names
+        item_list_per_chapter = new_item_list_per_chapter
+
     return chapter_titles, item_list_per_chapter
 
 def process_epub(t_data, title_id, book, lang, vol_id, vol_name, start_ch_idx, verbose):
@@ -182,7 +286,7 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, start_ch_idx, v
 
     chapter_titles, item_list_per_chapter = get_chapters_from_epub(book,verbose)
 
-    t_data[lang_data_field][vol_lang_field][vol_name] = {'s':start_ch_idx,'e':start_ch_idx + len(chapter_titles)-1}
+    t_data[lang_data_field][vol_lang_field][vol_name] = {'id':vol_id,'s':start_ch_idx,'e':start_ch_idx + len(chapter_titles)-1}
 
     ch_idx = 0
     current_chapter = None
@@ -196,7 +300,6 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, start_ch_idx, v
     for ch_idx, (ch_name, chapter_items) in enumerate(zip(chapter_titles, item_list_per_chapter)):
 
         ch_id = get_oid(title_id + '/' + lang + '/' + vol_id + '/' + ch_name)
-        ch_ipfs_path = target_ipfs_path + ch_id
         t_data[lang_data_field][ch_name_field].append(ch_name)
         t_data[lang_data_field][ch_lang_h_field].append(ch_id + '/%@rep@%')
         t_data[lang_data_field][ch_lang_field][start_ch_idx+ch_idx+1] = ['pages.html']
@@ -225,9 +328,7 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, start_ch_idx, v
             else:
                 raise Exception("Unknown content file type %s" % item_f_name)
 
-            # don't use get_content() because it loses all <body> attributes!
-            #content = item.get_content()
-            content = item.content
+            content = ch_item_data['content']
 
             # extracts text from the HTML content
             soup = BeautifulSoup(content,features="html.parser")

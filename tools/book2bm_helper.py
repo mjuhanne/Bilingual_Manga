@@ -3,6 +3,9 @@ import unicodedata as ud
 import json
 import bson
 import re
+import subprocess
+
+PLACEHOLDER = 'Placeholder'
 
 target_ext_oid_path = 'json/ext.oids.json'
 target_ocr_path = 'ocr/'
@@ -35,6 +38,9 @@ def get_oid(path_str, create_new_if_not_found=True):
         return oid
     else:
         return None
+
+def download_image(img_url,target_img_path):
+    subprocess.run(['wget','--no-verbose',img_url,'-O',target_img_path])
 
 def get_virtual_page_count_from_characters(num_characters):
     # calculate rough estimate of page count assuming that each page has 550 characters on average
