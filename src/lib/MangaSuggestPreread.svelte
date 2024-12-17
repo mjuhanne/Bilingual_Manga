@@ -12,9 +12,17 @@ obj.subscribe(value => { all_meta_data=value[0].manga_titles;});
 let sort_criteria='Relative CI improvement' //'Newly added';
 let sort_reverse=false;
 
-$: custom_analysis_available = 'pct_known_words' in meta.total_statistics;
+$: custom_analysis_available = 'words' in meta.series.total_statistics;
+
 
 let message = ''
+
+let source_selection = 'next_unread_volume'
+let source_filter = 'book'
+let target_selection = 'next_unread_volume'
+
+let sort_scope = 'series';
+$: if (target_selection == 'next_unread_volume') {sort_scope='volume'} else {sort_scope='series'}
 
 let eventSource;
 
@@ -28,7 +36,7 @@ onMount( () => {
                 //alert(`Error: ${parsedData.msg}`)
             } else if (event_type == EVENT_TYPE.CONNECTED) {
             } else if (event_type == EVENT_TYPE.UPDATED_SUGGESTED_PREREAD) {
-                fetchData(all_meta_data);
+                fetchData();
             } else {
                 message = `${parsedData.msg}`
             }
@@ -44,94 +52,198 @@ onMount( () => {
     });
 
 
-
 export let meta;
 export let manga_data;
 
 let suggested_preread = [];
 
-$: sorted_suggested_preread = sortManga(suggested_preread, sort_criteria, sort_reverse, "None");
+$: sorted_suggested_preread = sortManga(suggested_preread, sort_criteria, sort_scope, sort_reverse, "None",undefined);
 
 let fetched = false;
-async function fetchData(meta_data) {
+
+async function fetchData() {
     const response = await fetch( "/user_data", {
             headers: {"Content-Type" : "application/json" },
             method: 'POST',
-            body: JSON.stringify({'func': 'get_suggested_preread', 'manga_id':meta.enid}),
+            body: JSON.stringify({'func': 'get_suggested_preread', 'title_id':meta.enid,'target_selection':target_selection,'source_selection':source_selection,'source_filter':source_filter}),
         });
 
-    const data = JSON.parse(await response.text());
+    const result = JSON.parse(await response.text());
 
-    if (data.success == false) {
-        message = data.error_message;
+    if (result.success == false) {
+        message = result.error_message;
     } else {
-        for (let manga of meta_data) {
-            if (manga.enid in data.suggested_preread) {
-                let preread = data.suggested_preread[manga.enid];
-                manga.ncuuw = preread['num_common_unique_weak_words'];
-                manga.ncuuw_per_vol = preread['num_common_unique_weak_words_per_vol'];
-                manga.improvement_ci_pct = preread['improvement_ci_pct'];
-                manga.improvement_pct = preread['improvement_pct'];
-                manga.relative_improvement = preread['relative_improvement'];
-                manga.relative_ci_improvement = preread['relative_ci_improvement'];
+        let suggested_preread_data = result.suggested_preread;
+        if (target_selection in suggested_preread_data) {
+            if (source_selection in suggested_preread_data[target_selection]) {
+                let data = suggested_preread_data[target_selection][source_selection];
+                suggested_preread = [];
+                for (let title_data of all_meta_data) {
+                    if (title_data.enid in data.analysis) {
+                        let preread = data.analysis[title_data.enid];
+                        title_data.num_analyzed_pages = preread['num_analyzed_pages'];
+                        title_data.num_analyzed_volumes = preread['num_analyzed_volumes'];
+                        title_data.ncuuw = preread['num_common_unique_weak_words'];
+                        title_data.ncuuw_per_vol = preread['num_common_unique_weak_words_per_vol'];
+                        title_data.improvement_ci_pct = preread['improvement_ci_pct'];
+                        title_data.improvement_pct = preread['improvement_pct'];
+                        title_data.relative_improvement = preread['relative_improvement'];
+                        title_data.relative_ci_improvement = preread['relative_ci_improvement'];
+                        title_data.unread_volume = preread['volume'];
 
-                suggested_preread.push(manga);
+                        suggested_preread.push(title_data);
+                    }
+                }
+                suggested_preread=suggested_preread;
+                fetched = true;
+            } else {
+                message = 'Not yet calculated'
             }
+        } else {
+            message = 'Not yet calculated'
         }
-        suggested_preread=suggested_preread;
-        fetched = true;
     }
 }
 
 
-$: if (custom_analysis_available) fetchData(all_meta_data);
+$: if (custom_analysis_available) fetchData();
 
 const sortCriteriaChanged = (e) => {
-    sort_criteria = e.detail;
+    sort_criteria = e.detail['criteria'];
+    sort_scope = e.detail['scope']
     console.log("sortcriteria " + sort_criteria)
 };
 const sortReverseChanged = (e) => {
     sort_reverse = e.detail;
 };
 
+async function refreshCalculation() {
+    const response = await fetch( "/user_data", {
+        headers: {"Content-Type" : "application/json" },
+        method: 'POST',
+        body: JSON.stringify({
+            'func': 'calculate_suggested_preread',
+            'title_id':meta.enid,
+            'target_selection':target_selection,
+            'source_selection':source_selection,
+            'source_filter':source_filter
+       }),
+    });
+    message = "Starting to calculate.."
+}
+
+const table_fields = [
+    ['Comprehensible input %','/comprehensible_input_pct'],
+    ['Known words %','total_statistics.words.pct_known_pre_known'],
+    ['Unknown unique words','unique_statistics.words.num_unknown_unfamiliar'],
+    ['Unknown unique kanjis','unique_statistics.kanjis.num_unknown_unfamiliar'],
+];
+
+function get_value(item,value_fields) {
+    if (value_fields[0] == '/') {
+        return item[value_fields.split('/')[1]]
+    }
+    let value_path = value_fields.split('.');
+    let i = 0;
+    let value = undefined;
+    let element = item
+    while (i < value_path.length && value_path[i] in element) {
+        element = element[value_path[i]]
+        i += 1
+    }
+    if (i == value_path.length) {
+        value = element;
+    }
+    return value;
+}
+
+
 </script>
 
 {#if custom_analysis_available}
-<table>
-    <tr>
-        <th>Your statistics</th>
-        <th>Whole series</th>
-        <th>Next unread volume(chapter)</th>
-    </tr>
-    <tr>
-        <th>Comprehensible input %</th>
-        <td>{meta.comprehensible_input_pct}</td>
-        <td>{meta.comprehensible_input_pct_next_ch}</td>
-    </tr>
-    <tr>
-        <th>Known words %</th>
-        <td>{meta.total_statistics.pct_known_words}</td>
-        <td>{meta.total_statistics.pct_known_words_next_ch}</td>
-    </tr>
-    <tr>
-        <th>Unknown unique words</th>
-        <td>{meta.unique_statistics.num_unknown_words}</td>
-        <td>{meta.unique_statistics.num_unknown_words_next_ch}</td>
-    </tr>
-    <tr>
-        <th>Unknown unique kanjis</th>
-        <td>{meta.unique_statistics.num_unknown_kanjis}</td>
-        <td>{meta.unique_statistics.num_unknown_kanjis_next_ch}</td>
-    </tr>
-</table>
+<div class="header_grid">
+    <div>
+        <table>
+            <tr>
+                <th>Your statistics</th>
+                <th>Whole series</th>
+                {#if meta.series.num_volumes > 1}
+                    {#if meta.volume.unread_idx != -1}
+                        <th>Next unread volume (#{meta.volume.unread_idx})</th>
+                    {:else}
+                        <th>(All volumes already read)</th>
+                    {/if}
+                {/if}
+                {#if meta.is_book}
+                    {#if meta.chapter.unread_idx != -1}
+                        <th>Next unread chapter (#{meta.chapter.unread_idx})</th>
+                    {:else}
+                        <th>(All chapters already read)</th>
+                    {/if}
+                {/if}
+            </tr>
 
-{#if !fetched}
-<div>{message}</div>
-{:else}
+            {#each table_fields as field}
+            <tr>
+                <th>{field[0]}</th>
+                <td>{get_value(meta.series,field[1])}</td>
+                {#if meta.series.num_volumes > 1}
+                    {#if meta.volume.unread_idx != -1}
+                    <td>{get_value(meta.volume,field[1])}</td>
+                    {:else}
+                        <td></td>
+                    {/if}
+                {/if}
+                {#if meta.is_book}
+                    {#if meta.chapter.unread_idx != -1}
+                    <td>{get_value(meta.chapter,field[1])}</td>
+                    {:else}
+                        <td></td>
+                    {/if}
+                {/if}
+            </tr>
+            {/each}
+        </table>
+    </div>
+    <div class="parameters">
+        <p>
+            Target selection
+            <select id='target_selection' bind:value={target_selection} on:change={fetchData}>
+                <option value="title">Whole title</option>
+                <option value="next_unread_volume">Next unread volume</option>
+                <option value="next_unread_chapter">Next unread chapter</option>
+            </select>
+        </p>
+        <p>
+            Source selection
+            <select id='source_selection' bind:value={source_selection} on:change={fetchData}>
+                <option value="title">Whole title</option>
+                <option value="next_unread_volume">Next unread volume</option>
+            </select>
+        </p>
+        <p>
+            Source filter
+            <select id='source_filter' bind:value={source_filter} on:change={fetchData}>
+                <option value="all">All sources</option>
+                <option value="manga">Only manga</option>
+                <option value="book">Only books</option>
+            </select>
+        </p>
+        <p>
+            <button class="refreshbutton"  on:click={()=>refreshCalculation()}>
+                Recalculate
+            </button>
+        </p>
+        <p>{message}</p>
+    </div>
+</div>
+
+
+{#if fetched}
 <div class="container">
     <div class="subcontainer">
-        <MangaSortDashboard {sort_criteria} {sort_reverse} 
-        sort_criteria_list={Object.keys(suggested_preread_sort_options)} 
+        <MangaSortDashboard {sort_criteria} {sort_scope} {sort_reverse} 
+        sort_options={suggested_preread_sort_options} 
         on:SortCriteriaChanged={sortCriteriaChanged}
         on:SortReverseChanged={sortReverseChanged}
         width='420',
@@ -140,35 +252,51 @@ const sortReverseChanged = (e) => {
 
         <table>
             <tr>
-                <th>Manga</th>
-                <th>Volumes</th>
+                <th class="title">Title</th>
+                {#if source_filter == 'book'}
+                    <th>Pages</th>
+                {:else}
+                    <th>Volumes</th>
+                {/if}
                 <th>Rating</th>
-                <th>Comprehensible input %</th>
-                <th>Comprehensible input % next ch</th>
+                {#if source_selection == 'next_unread_volume'}
+                    <th>Next vol</th>
+                    <th>CI % next vol</th>
+                {:else}
+                    <th class="title">CI %</th>
+                {/if}
                 <th>Known words %</th>
                 <th>Common weak words</th>
                 <th>Common weak words / vol</th>
-                <th>Comprehension % improvement</th>
+                <th>CI % improvement</th>
                 <th>Known words % improvement</th>
-                <th>Relative improvement</th>
                 <th>Relative CI improvement</th>
+                <th>Relative w % improvement</th>
             </tr>
 
             {#key sorted_suggested_preread}
-            {#each sorted_suggested_preread as manga}
+            {#each sorted_suggested_preread as title_data}
             <tr>
-                <td><a href="/manga/{manga.enid}?lang=en" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">{manga.title}</a></td>
-                <td>{manga.num_volumes}</td>
-                <td>{manga.mangaupdates_data.rating}</td>
-                <td>{manga.comprehensible_input_pct}</td>
-                <td>{manga.comprehensible_input_pct_next_ch}</td>                
-                <td>{manga.total_statistics.pct_known_words}</td>
-                <td>{manga.ncuuw}</td>
-                <td>{manga.ncuuw_per_vol}</td>
-                <td>{manga.improvement_ci_pct}</td>
-                <td>{manga.improvement_pct}</td>
-                <td>{manga.relative_improvement}</td>
-                <td>{manga.relative_ci_improvement}</td>
+                <td><a href="/manga/{title_data.enid}?lang=jp" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">{title_data.entit}</a></td>
+                {#if source_filter == 'book'}
+                    <td>{title_data.num_analyzed_pages}</td>
+                {:else}
+                    <td>{title_data.num_analyzed_volumes}</td>
+                {/if}
+                <td>{title_data.mangaupdates_data.rating}</td>
+                {#if source_selection == 'next_unread_volume'}
+                    <td>{title_data.unread_volume}</td>
+                    <td>{title_data.volume.comprehensible_input_pct}</td>
+                {:else}
+                    <td>{title_data.series.comprehensible_input_pct}</td>
+                {/if}
+                <td>{title_data.series.total_statistics.words.pct_known_pre_known}</td>
+                <td>{title_data.ncuuw}</td>
+                <td>{title_data.ncuuw_per_vol}</td>
+                <td>{title_data.improvement_ci_pct}</td>
+                <td>{title_data.improvement_pct}</td>
+                <td>{title_data.relative_ci_improvement}</td>
+                <td>{title_data.relative_improvement}</td>
             </tr>
             {/each}
             {/key}
@@ -183,6 +311,11 @@ const sortReverseChanged = (e) => {
 
 <style>
 
+.parameters {
+    padding: 20px;
+    text-align: left;
+}
+
 table {
     padding: 20px;
 }
@@ -194,6 +327,16 @@ td, th {
 }
 th {
     font-size: 17px;
+}
+
+th.title {
+    min-width: 150px;
+}
+
+.header_grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-gap: 10px;
 }
 
 .container {

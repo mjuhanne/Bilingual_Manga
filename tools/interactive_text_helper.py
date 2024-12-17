@@ -36,14 +36,14 @@ metadata_cache = {'chapter_metadata':{}}
 if os.path.exists(metadata_cache_file):
     with open(metadata_cache_file,"r",encoding="utf-8") as f:
         md_cache = json.loads(f.read())
-        if md_cache['version'] == CURRENT_METADATA_CACHE_VERSION:
+        if md_cache['version'] == get_version(METADATA_CACHE_VERSION):
             metadata_cache = md_cache
 
 def get_metadata(source_chapter_id):
     if source_chapter_id not in metadata_cache['chapter_metadata']:
 
-        read_manga_data()
         read_manga_metadata()
+        read_manga_data()
 
         chapter_metadata = dict()
         for cid,id in get_chapter_id_to_title_id().items():
@@ -57,7 +57,7 @@ def get_metadata(source_chapter_id):
         metadata_cache['chapter_metadata'] = chapter_metadata
 
         # just in case we need more info later
-        metadata_cache['version'] = CURRENT_METADATA_CACHE_VERSION 
+        metadata_cache['version'] = get_version(METADATA_CACHE_VERSION) 
 
         if source_chapter_id not in metadata_cache['chapter_metadata']:
             # The referred chapter or title was removed. 

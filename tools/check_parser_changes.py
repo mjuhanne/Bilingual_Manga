@@ -104,8 +104,8 @@ def process_chapter(title_id, chapter_id, f_p, fo_p, chapter_data):
             print(".",end='',flush=True)
 
     pages['parsed_data'] = results
-    pages['version'] = CURRENT_PARSED_OCR_VERSION
-    pages['parser_version'] = CURRENT_LANUGAGE_PARSER_VERSION
+    pages['version'] = get_version('parsed_ocr')
+    pages['parser_version'] = get_version('language_parser')
 
     # the total word count excluding words belonging to ignored classes 
     # (alphanumeric words, punctuation, auxialiary verbs, grammatical particles)
@@ -341,7 +341,7 @@ open_log_file("ocr-log.txt")
 set_verbose_level(0)
 t = time.time()
 
-#args['keyword'] = 'note'
+#args['keyword'] = 'elon'
 #args['chapter'] = 6
 #args['read'] = True
 

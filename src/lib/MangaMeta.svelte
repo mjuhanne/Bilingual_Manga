@@ -72,13 +72,19 @@ export let syn;
     <div style="margin-left:10px;">
         <b style="font-size: 1.1rem;">Volumes</b>
         <div class="metae">
-        <a>{meta.num_volumes}</a>
+            <a>{meta.series.num_volumes}</a>
+        </div>
+    </div>
+    <div style="margin-left:10px;">
+        <b style="font-size: 1.1rem;">Chapters</b>
+        <div class="metae">
+            <a>{meta.series.num_chapters}</a>
         </div>
     </div>
     <div style="margin-left:10px;">
         <b style="font-size: 1.1rem;">Pages</b>
         <div class="metae">
-        <a>{meta.num_pages}</a>
+            <a>{meta.series.num_pages}</a>
         </div>
     </div>
     <div style="margin-left:10px;">

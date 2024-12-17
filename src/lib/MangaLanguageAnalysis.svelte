@@ -8,20 +8,20 @@ obj.subscribe(value => { all_meta_data=value;});
 export let meta;
 export let manga_data;
 
-export let current_set = meta.total_statistics
+export let current_set = 'total_statistics'
 export let avg_set = all_meta_data[0].average_manga.total_statistics;
 
 let unique_items_set = false;
 let w_per_v_set = false;
-$: custom_analysis_available = 'pct_known_words' in current_set;
+$: custom_analysis_available = 'words' in meta.series.total_statistics;
 
 const toggleUnique = () => {
     console.log("toggleUnique " + unique_items_set);
     if (unique_items_set) {
-        current_set = meta.unique_statistics
+        current_set = 'unique_statistics'
         avg_set = all_meta_data[0].average_manga.unique_statistics;
     } else {
-        current_set = meta.total_statistics
+        current_set = 'total_statistics'
         avg_set = all_meta_data[0].average_manga.total_statistics;
     }
     draw_graphs();
@@ -34,6 +34,7 @@ const toggleWordsPerVolume = () => {
 
 const table_fields = [
     ['JLPT word content (%)','jlpt_word_content_pct'],
+    ['Words per sentence','w_per_s'],
     ['Words per page','w_per_p'],
     ['Words per volume','w_per_v'],
     ['Total # of words in series','num_words'],
@@ -52,21 +53,42 @@ const table_fields = [
     ['Weighted intermediate JLPT word content','weighted_intermediate_jlpt_word_content_pts'],
 ];
 
+const list_kanji_func = (kanji_list) => {
+    if (kanji_list.length>10) {
+        return "Many";
+    } else {
+        return kanji_list.join(' ');
+    }
+}
+
+const table_fields2 = [
+    ['Comprehensible input %','/comprehensible_input_pct',null],
+    ['Comprehensible input (ex katakana) %','/comprehensible_input_ex_katakana_pct',null],
+    ['CI score','/comprehensible_input_score',null],
+    ['Known words %','words.pct_known_pre_known',null],
+    ['Unknown/unfamiliar words','words.num_unknown_unfamiliar',null],
+    ['Unknown/unfamiliar kanjis','kanjis.num_unknown_unfamiliar',null],
+    ['Num unknown/unfamiliar JLPT kanjis','kanjis.jlpt_unknown_num',null],
+    ['Unknown/unfamiliar JLPT kanjis','',(dataset) => {return list_kanji_func(dataset.unique_statistics.kanjis.jlpt_unknown_list)}],
+    ['Num unknown/unfamiliar non-JLPT kanjis','kanjis.non_jlpt_unknown_num',null],
+    ['Unknown/unfamiliar non-JLPT kanjis','',(dataset) => {return list_kanji_func(dataset.unique_statistics.kanjis.non_jlpt_unknown_list)}],
+];
+
 let jlpt_word_data, jlpt_kanji_data;
 
 let ci_data =  {
-        labels: ['All known', '<5K', '<10K', '<20K', '<50K', 'Low Freq','>=2 unknown'],
+        labels: ['All known', '<5K', '<10K', '<20K', '<50K', 'Katakana','Low Freq','>=2 unknown'],
         datasets: [
             {
             label: 'This manga (all chapters)',
-            data: meta.comprehensible_input_sentence_grading,
+            data: meta.series.comprehensible_input_sentence_grading,
             borderWidth: 1,
             borderColor: '#555555',
             backgroundColor: '#eeeeee',
             },
             {
             label: 'This manga (next chapter)',
-            data: meta.comprehensible_input_sentence_grading_next_ch,
+            data: meta.chapter.comprehensible_input_sentence_grading,
             borderWidth: 1,
             borderColor: '#005500',
             backgroundColor: '#009900',
@@ -89,14 +111,14 @@ const set_jlpt_graph_set = () => {
         datasets: [
             {
             label: 'This manga',
-            data: w_per_v_set ? current_set.jlpt_word_level_per_v : current_set.jlpt_word_level_pct,
+            data: w_per_v_set ? meta.series[current_set].jlpt_word_level_per_v : meta.series[current_set].jlpt_word_level_pct,
             borderWidth: 1,
             borderColor: '#555555',
             backgroundColor: '#eeeeee',
             },
             {
             label: 'This manga (known / pre-known)',
-            data: w_per_v_set ? current_set.jlpt_known_w_level_per_v : current_set.jlpt_known_w_level_pct,
+            data: w_per_v_set ? meta.series[current_set].words.jlpt_level_per_v : meta.series[current_set].words.jlpt_level_pct,
             borderWidth: 1,
             borderColor: '#005500',
             backgroundColor: '#009900',
@@ -116,14 +138,14 @@ const set_jlpt_graph_set = () => {
         datasets: [
             {
             label: 'This manga',
-            data: w_per_v_set ? current_set.jlpt_kanji_level_per_v : current_set.jlpt_kanji_level_pct,
+            data: w_per_v_set ? meta.series[current_set].jlpt_kanji_level_per_v : meta.series[current_set].jlpt_kanji_level_pct,
             borderWidth: 1,
             borderColor: '#555555',
             backgroundColor: '#eeeeee',
             },
             {
             label: 'This manga (known / pre-known)',
-            data: w_per_v_set ? current_set.jlpt_known_k_level_per_v : current_set.jlpt_known_k_level_pct,
+            data: w_per_v_set ? meta.series[current_set].kanjis.jlpt_level_per_v : meta.series[current_set].kanjis.jlpt_level_pct,
             borderWidth: 1,
             borderColor: '#005500',
             backgroundColor: '#009900',
@@ -203,6 +225,27 @@ const colorizeDifference = (a,b) => {
     return '<td>' + d + '</td>';
 };
 
+function get_value(item,value_fields,value_func) {
+    if (value_func != null) {
+        return value_func(item)
+    }
+    if (value_fields[0] == '/') {
+        return item[value_fields.split('/')[1]]
+    }
+    let value_path = value_fields.split('.');
+    let i = 0;
+    let value = undefined;
+    let element = item[current_set]
+    while (i < value_path.length && value_path[i] in element) {
+        element = element[value_path[i]]
+        i += 1
+    }
+    if (i == value_path.length) {
+        value = element;
+    }
+    return value;
+}
+
 </script>
 
 <div class="container">
@@ -210,98 +253,57 @@ const colorizeDifference = (a,b) => {
         <div>
             <ToggleSwitch onLabel="Unique kanjis/words" offLabel="All kanjis/words" bind:switchPosition={unique_items_set} on:switchChanged={toggleUnique}></ToggleSwitch>
         </div>
-    
+        {#if meta.is_summary_stale}
+            <span class="warning">Analysis calculated using old parser version {meta.parser_version}</span>
+        {/if}
+
         {#if custom_analysis_available}
         <table>
             <tr>
                 <th>Your statistics</th>
                 <th>Whole series</th>
-                {#if meta.unread_chapter != -1}
-                    <th>Next unread volume/chapter (#{meta.unread_chapter})</th>
-                {:else}
-                    <th>(All chapters already read)</th>
-                {/if}
-            </tr>
-            
-            <tr>
-                <th>Comprehensible input %</th>
-                <td>{meta.comprehensible_input_pct}</td>
-                {#if meta.unread_chapter != -1}
-                    <td>{meta.comprehensible_input_pct_next_ch}</td>
-                {/if}
-            </tr>
-            <tr>
-                <th>Optimized comprehensible input</th>
-                <td>{meta.comprehensible_input_score}</td>
-                {#if meta.unread_chapter != -1}
-                    <td>{meta.comprehensible_input_score_next_ch}</td>
-                {/if}
-            </tr>
-            <tr>
-                <th>Known words %</th>
-                <td>{current_set.pct_known_words}</td>
-                {#if meta.unread_chapter != -1}
-                    <td>{current_set.pct_known_words_next_ch}</td>
-                {/if}
-            </tr>
-            <tr>
-                <th>Unknown/unfamiliar words</th>
-                <td>{current_set.num_unknown_words}</td>
-                {#if meta.unread_chapter != -1}
-                    <td>{current_set.num_unknown_words_next_ch}</td>
-                {/if}
-            </tr>
-            <tr>
-                <th>Unknown/unfamiliar kanjis</th>
-                <td>{current_set.num_unknown_kanjis}</td>
-                {#if meta.unread_chapter != -1}
-                    <td>{current_set.num_unknown_kanjis_next_ch}</td>
-                {/if}
-            </tr>
-            <tr>
-                <th>Num unknown/unfamiliar JLPT kanjis</th>
-                <td>{current_set.num_unknown_jlpt_kanjis}</td>
-                {#if meta.unread_chapter != -1}
-                    <td>{current_set.num_unknown_jlpt_kanjis_next_ch}</td>
-                {/if}
-            </tr>
-            <tr>
-                <th>Unknown/unfamiliar JLPT kanjis</th>
-                {#if meta.unique_statistics.num_unknown_jlpt_kanjis > 10}
-                    <td>Many</td>
-                {:else}
-                    <td>{meta.unknown_jlpt_kanjis.join(' ')}</td>
-                {/if}
-                {#if meta.unread_chapter != -1}
-                    {#if meta.unique_statistics.unknown_jlpt_kanjis_next_ch > 10}
-                        <td>Many</td>
+                {#if meta.series.num_volumes > 1}
+                    {#if meta.volume.unread_idx != -1}
+                        <th>Next unread volume (#{meta.volume.unread_idx})</th>
                     {:else}
-                        <td>{meta.unknown_jlpt_kanjis_next_ch.join(' ')}</td>
+                        <th>(All volumes already read)</th>
+                    {/if}
+                {/if}
+                {#if meta.is_book}
+                    {#if meta.chapter.unread_idx != -1}
+                        <th>Next unread chapter (#{meta.chapter.unread_idx})</th>
+                    {:else}
+                        <th>(All chapters already read)</th>
                     {/if}
                 {/if}
             </tr>
-            <tr>
-                <th>Num unknown/unfamiliar non-JLPT kanjis</th>
-                <td>{current_set.num_unknown_non_jlpt_kanjis}</td>
-                {#if meta.unread_chapter != -1}
-                    <td>{current_set.num_unknown_non_jlpt_kanjis_next_ch}</td>
-                {/if}
-            </tr>
-            <tr>
-                <th>Unknown/unfamiliar non-JLPT kanjis</th>
-                {#if meta.unique_statistics.num_unknown_non_jlpt_kanjis > 10}
-                    <td>Many</td>
-                {:else}
-                    <td>{meta.unknown_non_jlpt_kanjis.join(' ')}</td>
-                {/if}
-                {#if meta.unread_chapter != -1}
-                    {#if meta.unique_statistics.unknown_non_jlpt_kanjis_next_ch > 10}
-                        <td>Many</td>
-                    {:else}
-                        <td>{meta.unknown_non_jlpt_kanjis_next_ch.join(' ')}</td>
+
+            {#key current_set}
+                {#each table_fields2 as field}
+                {#if field[0] != ''}
+                <tr>
+                    <th>{field[0]}</th>
+                    <td>{get_value(meta.series,field[1],field[2])}</td>
+                    {#if meta.series.num_volumes > 1}
+                        {#if meta.volume.unread_idx != -1}
+                        <td>{get_value(meta.volume,field[1],field[2])}</td>
+                        {:else}
+                            <td></td>
+                        {/if}
                     {/if}
+                    {#if meta.is_book}
+                        {#if meta.chapter.unread_idx != -1}
+                        <td>{get_value(meta.chapter,field[1],field[2])}</td>
+                        {:else}
+                            <td></td>
+                        {/if}
+                    {/if}
+                </tr>
+                {:else}
+                    <tr style="height: 15px;"/>
                 {/if}
-            </tr>
+                {/each}
+            {/key}
         </table>
         {/if}
         <table>
@@ -315,9 +317,9 @@ const colorizeDifference = (a,b) => {
             {#if field[0] != ''}
             <tr>
                 <th>{field[0]}</th>
-                <td>{current_set[field[1]]}</td>
+                <td>{meta.series[current_set][field[1]]}</td>
                 <td>{avg_set[field[1]]}</td>
-                {@html colorizeDifference(current_set[field[1]], avg_set[field[1]])}
+                {@html colorizeDifference(meta.series[current_set][field[1]], avg_set[field[1]])}
             </tr>
             {:else}
                 <tr style="height: 15px;"/>
@@ -371,5 +373,9 @@ canvas{
 
 .subcontainer {
     margin: 20px;
+}
+
+.warning {
+    color: red;
 }
 </style>

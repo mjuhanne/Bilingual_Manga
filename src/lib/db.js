@@ -15,10 +15,22 @@ b.forEach(element => {
     element.external = false;
     element.is_book = false;
 });
+
+const response_v = await fetch('http://localhost:3300/json/versions.json')
+const versions = await response_v.json()
+
 const response_r = await fetch('http://localhost:3300/json/mangaupdates.json')
 const mangaupdates = await response_r.json()
+
 const response_l = await fetch('http://localhost:3300/json/lang_summary.json')
 const lang_summary = await response_l.json()
+if (!('version' in lang_summary)) {
+    throw new Error(`Old version of lang_summary.json detected! Please rerun 'bm_lang_summary.py' and restart the server"`)
+} else {
+    if (lang_summary['version'] != versions['ocr_summary']) {
+        throw new Error(`Old version (${lang_summary['version']} < ${versions['ocr_summary']}) of lang_summary.json detected! Please rerun 'bm_lang_summary.py' and restart the server"`)
+    }
+}
 
 
 const response_emmd = await fetch('http://localhost:3300/json/ext.manga_metadata.json')
@@ -55,11 +67,22 @@ let ext_lang_summary = {}
 if (response_el.ok) {
     ext_lang_summary = await response_el.json();
 }
+if (!('version' in ext_lang_summary)) {
+    throw new Error(`Old version of ext_lang_summary.json detected! Please rerun 'bm_lang_summary.py' and restart the server"`)
+} else {
+    if (ext_lang_summary['version'] != versions['ocr_summary']) {
+        throw new Error(`Old version (${ext_lang_summary['version']} < ${versions['ocr_summary']}) of ext_lang_summary.json detected! Please rerun 'bm_lang_summary.py' and restart the server"`)
+    }
+}
+
 
 let custom_lang_summary = undefined
 const response_cl = await fetch('http://localhost:3300/json/custom_lang_analysis.json')
 if (response_cl.ok) {
     custom_lang_summary = await response_cl.json();
+    if (custom_lang_summary['version'] != versions['ocr_summary']) {
+        throw new Error(`Old version (${custom_lang_summary['version']} < ${versions['ocr_summary']}) of custom_lang_analysis.json detected! Please rerun 'bm_lang_analysis.py analyze' and restart the server"`)
+    }
 } else {
     console.log("Custom language analysis file not yet created")
 }
@@ -151,16 +174,21 @@ const AugmentMetadataWithLanguageSummary = (db) => {
     manga_titles.forEach(element => {
         let id = element.enid;
 
+        let l = undefined;
         if (id in ls) {
-            let l = ls[id];
-            for (let k of Object.keys(l)) {
-                element[k] = l[k];
-            }
+            l = ls[id];
         } else if (id in els) {
-            let l = els[id];
-            for (let k of Object.keys(l)) {
-                element[k] = l[k];
+            l = els[id];
+        }
+        if (l !== undefined) {
+            element['series'] = l;
+            if (l['parser_version'] < versions['language_parser']) {
+                element['is_summary_stale'] = true;
+            } else {
+                element['is_summary_stale'] = false;
             }
+        } else {
+            element['is_summary_stale'] = true;
         }
     });
 

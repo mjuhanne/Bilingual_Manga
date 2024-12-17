@@ -3,19 +3,23 @@ import { createEventDispatcher } from "svelte";
 
 let dispatch = createEventDispatcher();
 
-export let label_list;
+export let label_options;
 export let selected_label;
+export let selected_label_scope;
 
 let new_label_list = [];
+const scope_list = ['series','volume','chapter'];
+
 
 $: {
+    let label_list = Object.keys(label_options);
     new_label_list = label_list.filter( (l) => l != 'Newly added'); new_label_list.unshift('None');
 }
 
 export let width = 280;
 
 const onLabelChanged = () => {
-    dispatch("LabelChanged",selected_label);
+    dispatch("LabelChanged",{'label':selected_label,'scope':selected_label_scope});
 };
 </script>
 
@@ -26,6 +30,13 @@ Info
         <option value="{c}">{c}</option>
     {/each}
 </select>
+{#if selected_label != 'None' && selected_label in label_options && label_options[selected_label].sc}
+<select id='scope' bind:value={selected_label_scope} on:change={onLabelChanged}  >
+    {#each scope_list as c}
+        <option value="{c}">{c}</option>
+    {/each}
+</select>
+{/if}
 </div>
 
 <style>

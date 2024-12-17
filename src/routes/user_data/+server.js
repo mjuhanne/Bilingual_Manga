@@ -155,6 +155,7 @@ async function updateCustomLanguageAnalysis() {
 function LaunchLanguageTool_Spawn(cmd, args, exit_cb, progress_cb, error_cb) {
     console.log("Starting Process.");
     var spawn_args = [`tools/${cmd}`].concat(args);
+    console.log(spawn_args);
     var child = child_process.spawn("python", spawn_args);
 
     child.on('error', (err) => {
@@ -179,47 +180,63 @@ function LaunchLanguageTool_Spawn(cmd, args, exit_cb, progress_cb, error_cb) {
 }
 
 
-async function getSuggestedPreread(manga_id) {
+async function getSuggestedPreread(title_id) {
     if (!('timestamp' in db['user_data'])) {
         return {
             success : false,
             error_message : "Language analysis settings not yet configured!",
         }    
     }
-    console.log(`getSuggestedPreread ${manga_id} user data timestamp ${db['user_data']['timestamp']}`);
+    console.log(`getSuggestedPreread ${title_id} user data timestamp ${db['user_data']['timestamp']}`);
+    let preread_dir = 'lang/suggested_preread/';
+    let filename = preread_dir + title_id + '.json';
+    if (fs.existsSync(filename)) {
+        let data = fs.readFileSync(filename, "utf8");
+        let json_data = JSON.parse(data);
+        return {
+            success : true,
+            'suggested_preread' : json_data,
+        }
+    }
+    return {
+        success : false,
+        error_message : "Analysis not yet done",
+    }
+}
+
+
+async function calculateSuggestedPreread(title_id,target_selection,source_selection,source_filter) {
+    if (!('timestamp' in db['user_data'])) {
+        return {
+            success : false,
+            error_message : "Language analysis settings not yet configured!",
+        }    
+    }
+    console.log(`getSuggestedPreread ${title_id} user data timestamp ${db['user_data']['timestamp']}`);
     let preread_dir = 'lang/suggested_preread/';
     if (!fs.existsSync(preread_dir)) {
         fs.mkdirSync(preread_dir, { recursive: true });
     }
     
-    let filename = preread_dir + manga_id + '.json';
-    if (fs.existsSync(filename)) {
-        let data = fs.readFileSync(filename, "utf8");
-        let json_data = JSON.parse(data);
-        console.log(`existing timestamp ${json_data.timestamp}`);
-        if (json_data.timestamp > db['user_data']['timestamp']) {
-            console.log("Suggested preread already up to date")
-            return {
-                success : true,
-                'suggested_preread' : json_data.analysis,
-            }
-        } 
-    }
-
-    if (suggest_preread_lock.has(manga_id)) {
+    if (suggest_preread_lock.has(title_id)) {
         return {
             success : false,
             error_message : "Already analyzing..",
         }    
     }
-    suggest_preread_lock.add(manga_id);
+    suggest_preread_lock.add(title_id);
 
     console.log("Recalculating suggested preread")
 
-    LaunchLanguageTool_Spawn(ANALYZER_TOOL,["suggest_preread",manga_id,'--progress-output'],
+    let tool_args = ["suggest_preread",title_id,'--progress-output','--filter',source_filter]
+    tool_args.push('--target_scope')
+    tool_args.push(target_selection)
+    tool_args.push('--source_scope')
+    tool_args.push(source_selection)
+    LaunchLanguageTool_Spawn(ANALYZER_TOOL,tool_args,
         (exit_code) => {
             console.log("exit code:",exit_code);
-            suggest_preread_lock.delete(manga_id);
+            suggest_preread_lock.delete(title_id);
             if (exit_code == 0) {
                 broadcastEvent(EVENT_TYPE.UPDATED_SUGGESTED_PREREAD,"")
             }
@@ -233,9 +250,8 @@ async function getSuggestedPreread(manga_id) {
             broadcastEvent(EVENT_TYPE.ANALYSIS_ERROR,error_msg)
         }
     );
-
     return {
-        success : false,
+        success : true,
         error_message : "Starting to recalculate..",
     }
 }
@@ -322,7 +338,10 @@ export async function POST({ request }) {
         massSetChapterReadingStatus(data.status_list),
         ret= {success : true};
     } else if (data.func == 'get_suggested_preread') {
-        ret= await getSuggestedPreread(data.manga_id);
+        ret= await getSuggestedPreread(data.title_id);
+        return json(ret);
+    } else if (data.func == 'calculate_suggested_preread') {
+        ret= await calculateSuggestedPreread(data.title_id,data.target_selection,data.source_selection,data.source_filter);
         return json(ret);
     } else if (data.func == 'update_learning_settings') {
         updateLearningSettings(data.settings);

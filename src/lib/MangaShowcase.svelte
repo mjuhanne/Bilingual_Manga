@@ -37,7 +37,9 @@
     let pagen=parseInt($page.url.searchParams.get('page'));
     let ls=$page.url.searchParams.get('ls');
     let sort_criteria=$page.url.searchParams.get('sort');
+    let sort_scope=$page.url.searchParams.get('scope');
     let selected_label=$page.url.searchParams.get('label');
+    let selected_label_scope=$page.url.searchParams.get('label_scope');
     if (sort_criteria === null) {
         if (selected_category == '') {
             sort_criteria = 'Newly added';
@@ -47,16 +49,22 @@
     } else {
         sort_criteria = decodeURIComponent(sort_criteria); 
     }
+    if (sort_scope === null) {
+        sort_scope = 'series';
+    }
     if (selected_label === null) {
         selected_label = 'None';
     } else {
         selected_label = decodeURIComponent(selected_label); 
     }
+    if (selected_label_scope === null) {
+        selected_label_scope = 'series';
+    }
     let sort_reverse=$page.url.searchParams.get('reverse') == "true" ? true : false;
 
-    $: url_param = "ls=" + ls + "&sort=" + encodeURIComponent(sort_criteria) + "&reverse=" + (sort_reverse ? "true" : "false") + "&label=" + encodeURIComponent(selected_label);// + "&filters=" + encodeURIComponent(JSON.stringify(filters));
+    $: url_param = "ls=" + ls + "&sort=" + encodeURIComponent(sort_criteria) +  "&scope=" + sort_scope +"&reverse=" + (sort_reverse ? "true" : "false") + "&label=" + encodeURIComponent(selected_label);// + "&filters=" + encodeURIComponent(JSON.stringify(filters));
     $: fx = filterManga(x, user_filter_list, sort_options);
-    $: sx = sortManga(fx, sort_criteria, sort_reverse, selected_label);
+    $: sx = sortManga(fx, sort_criteria, sort_scope, sort_reverse, selected_label, selected_label_scope);
 
     let sx=[]; // sorted manga list (already sorted by 'Newly added' by default)
 
@@ -108,16 +116,20 @@ $: pii3=pii+1;
         }
     }
     const sortCriteriaChanged = (e) => {
-        sort_criteria = e.detail;
+        sort_criteria = e.detail['criteria'];
+        sort_scope = e.detail['scope']
 		$page.url.searchParams.set('sort',encodeURIComponent(sort_criteria));
+		$page.url.searchParams.set('scope',sort_scope);
 		$page.url.searchParams.set('page',1);
         pagen = 1;
         goto(`?${$page.url.searchParams.toString()}`);
     };
 
     const LabelChanged = (e) => {
-        selected_label = e.detail;
+        selected_label = e.detail['label'];
+        selected_label_scope = e.detail['scope']
 		$page.url.searchParams.set('label',encodeURIComponent(selected_label));
+		$page.url.searchParams.set('label_scope',selected_label_scope);
         goto(`?${$page.url.searchParams.toString()}`);
     };
 
@@ -145,15 +157,15 @@ $: pii3=pii+1;
             />
         </div>
         <div class="sortsel">
-            <MangaSortDashboard {sort_criteria} {sort_reverse} 
-                sort_criteria_list={Object.keys(sort_options)} 
+            <MangaSortDashboard {sort_criteria} {sort_scope} {sort_reverse} 
+                {sort_options} 
                 on:SortCriteriaChanged={sortCriteriaChanged}
                 on:SortReverseChanged={sortReverseChanged}
             />
         </div>
         <div class="sortsel">
-            <MangaLabelDashboard {selected_label}
-                label_list={Object.keys(sort_options)} 
+            <MangaLabelDashboard {selected_label} {selected_label_scope}
+                label_options={sort_options}
                 on:LabelChanged={LabelChanged}
             />
         </div>

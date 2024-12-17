@@ -559,8 +559,8 @@ def add_matched_sense_reference(original_word, chunk, base_score, chunk_len, pos
             score += word_id_score_adjustment[word_id]
         elif seq_word in word_id_score_adjustment:
             score += word_id_score_adjustment[seq_word]
-        #elif seq_ogword in word_id_score_adjustment:
-        #    score += word_id_score_adjustment[seq_ogword]
+        elif seq_ogword in word_id_score_adjustment:
+            score += word_id_score_adjustment[seq_ogword]
         elif '*:' + chunk in word_id_score_adjustment:
             score += word_id_score_adjustment['*:' + chunk]
         elif chunk in word_score_adjustment:

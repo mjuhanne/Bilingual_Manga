@@ -19,7 +19,7 @@ if os.path.exists(target_ext_oid_path):
     for title,oid in ext_object_ids.items():
         oid_to_title[oid] = title
 
-def get_oid(path_str, create_new_if_not_found=True):
+def get_oid(path_str, create_new_if_not_found=True, ask_confirmation=True):
     # the path can be given in Unicode composed form (i.e. で)
     # or decomposed (i.e. て　+　゙	 mark).  The strings are stored in composed form
     path_str_composed = ud.normalize('NFC',path_str)
@@ -29,6 +29,12 @@ def get_oid(path_str, create_new_if_not_found=True):
         return ext_object_ids[path_str_composed]
 
     if create_new_if_not_found:
+        if ask_confirmation:
+            print("Creating new OID from '%s'" % path_str_composed)
+            ok = input("OK?")
+            if ok != 'y':
+                return None
+
         oid = str(bson.objectid.ObjectId())
         ext_object_ids[path_str_composed] = oid
         oid_to_title[oid] = path_str_composed

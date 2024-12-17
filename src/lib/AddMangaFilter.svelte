@@ -1,6 +1,7 @@
 <script>
 import Modal from './Modal.svelte';
 import { createEventDispatcher } from "svelte";
+import { getValue, scopes } from '$lib/MangaSorter.js';
 
 let dispatch = createEventDispatcher();
 
@@ -9,7 +10,7 @@ export let manga_titles;
 export let filter_list;
 export let filter_options;
 let available_filters = Object.keys(filter_options);
-let new_filter = {'en':true,'f':'Rating','op':'>','v':8}
+let new_filter = {'en':true,'f':'Rating','op':'>','v':8,'sc':''}
 let filter_values = [];
 
 function openDialog() {
@@ -29,42 +30,22 @@ function onFilterChanged() {
         filter_values = [];
         for (let m of manga_titles) {
             let val = undefined;
-            if (fo.type == 'list') {
-                let values = [];
-                if (fo.s != '') {
-                    // sort value is in sub-dictionary
-                    if (fo.s in m) {
-                        if (fo.field in m[fo.s]) {
-                            values = m[fo.s][ fo.field ];
-                        }
-                    }
+            if (fo.sc) {
+                    val = getValue(m, fo, new_filter['sc'])
                 } else {
-                    if (fo.field in m) {
-                        values = m[ fo.field ];
-                    }
+                    val = getValue(m, fo, '')
                 }
-                for (val of values) {
-                    if (filter_values.indexOf(val) == -1) {
-                        filter_values.push(val);
+            if (val !== undefined) {
+                if (fo.type == 'list') {
+                    for (v of values) {
+                        if (filter_values.indexOf(v) == -1) {
+                            filter_values.push(v);
+                        }
                     }
                 }
             } else {
-                if (fo.s != '') {
-                    // sort value is in sub-dictionary
-                    if (fo.s in m) {
-                        if (fo.field in m[fo.s]) {
-                            val = m[fo.s][ fo.field ];
-                        }
-                    }
-                } else {
-                    if (fo.field in m) {
-                        val = m[ fo.field ];
-                    }
-                }
-                if (val !== undefined) {
-                    if (filter_values.indexOf(val) == -1) {
-                        filter_values.push(val);
-                    }
+                if (filter_values.indexOf(val) == -1) {
+                    filter_values.push(val);
                 }
             } 
         }
@@ -77,6 +58,9 @@ function onFilterChanged() {
         }
     } else {
 
+    }
+    if (fo.sc) {
+        new_filter['sc'] = 'series';
     }
     filter_values.sort()
 }
@@ -121,7 +105,15 @@ function onFilterChanged() {
                 </select>
             {/key}
         {/if}
-        </div>
+        {#if filter_options[new_filter['f']].sc}
+            in
+            <select id='scope' bind:value={new_filter['sc']}>
+                {#each Object.keys(scopes) as scope}
+                <option value="{scope}">{scopes[scope]}</option>
+                {/each}
+            </select>
+        {/if}
+</div>
     
 </Modal>
 

@@ -46,12 +46,16 @@ with open(ext_manga_data_file,"r",encoding="utf-8") as f:
 old_summary = dict()
 if os.path.exists(summary_file):
     with open(summary_file,"r") as f:
-        old_summary = json.loads(f.read())
+        old_summary_data = json.loads(f.read())
+        if 'version' in old_summary_data and old_summary_data['version'] == get_version(OCR_SUMMARY_VERSION):
+            old_summary = old_summary_data
 
 old_ext_summary = dict()
 if os.path.exists(ext_summary_file):
     with open(ext_summary_file,"r") as f:
-        old_ext_summary = json.loads(f.read())
+        old_ext_summary_data = json.loads(f.read())
+        if 'version' in old_ext_summary_data and old_ext_summary_data['version'] == get_version(OCR_SUMMARY_VERSION):
+            old_ext_summary = old_ext_summary_data
 
 for m in manga_data:
     title_id = m['_id']['$oid']
@@ -198,7 +202,12 @@ def calculate_stats(title_data, calc, total=True):
         calc['k_per_w_pct'] = int(100*calc['num_kanjis'] / calc['num_words'])
     else:
         calc['k_per_w_pct'] = INVALID_VALUE
-    
+
+    if title_data['num_sentences'] != 0:
+        calc['w_per_s'] = int(calc['num_words'] / title_data['num_sentences'])
+    else:
+        calc['w_per_s'] = INVALID_VALUE
+
     if title_data['num_virtual_volumes'] > 0:
         calc['w_per_v'] = int(calc['num_words'] / title_data['num_virtual_volumes'])
         calc['k_per_v'] = int(calc['num_kanjis'] / title_data['num_virtual_volumes'])
@@ -236,8 +245,8 @@ def save_summary():
             elif title_id in old_ext_summary:
                 old_data = old_ext_summary[title_id]
             if old_data is not None and 'parser_version' in old_data and 'version' in old_data:
-                if old_data['parser_version'] == CURRENT_LANUGAGE_PARSER_VERSION and \
-                    old_data['version'] == CURRENT_OCR_SUMMARY_VERSION:
+                if old_data['parser_version'] == get_version(LANUGAGE_PARSER_VERSION) and \
+                    old_data['version'] == get_version(OCR_SUMMARY_VERSION):
                         title_data = old_data
 
         if title_data is None:
@@ -253,6 +262,9 @@ def save_summary():
             o_f = open(title_filename,"r",encoding="utf-8")
             title_data = json.loads(o_f.read())
             o_f.close()
+
+            if title_data['version'] != get_version(OCR_SUMMARY_VERSION):
+                raise Exception("Old version of title [%s] summary file %s! Please rerun bm_ocr_prosessor.py" % (title_name,title_filename))
 
             title_data['num_volumes'] = volume_count_per_title[title_id]
 
@@ -284,13 +296,11 @@ def save_summary():
             del(title_data['word_id_list'])
             del(title_data['word_class_list'])
             del(title_data['sentence_list'])
-            del(title_data['title_id']) # redundant
             if 'lemmas' in title_data:
                 del(title_data['lemmas']) # redundant
 
             title_data['total_statistics'] = total_calc
             title_data['unique_statistics'] = unique_calc
-            title_data['parser_version'] = CURRENT_LANUGAGE_PARSER_VERSION
 
             single_value_field_keys = total_calc.keys()
 
@@ -362,9 +372,11 @@ def save_summary():
             % (num_valid_titles, num_valid_ext_titles, len(title_names.keys()), avg_page_count))
 
         with open(summary_file,"w") as f:
+            summary['version'] = get_version(OCR_SUMMARY_VERSION)
             f.write(json.dumps(summary, ensure_ascii=False))
         if len(ext_summary.keys())>0:
             with open(ext_summary_file,"w") as f:
+                ext_summary['version'] = get_version(OCR_SUMMARY_VERSION)
                 f.write(json.dumps(ext_summary, ensure_ascii=False))
     else:
         # nothing changed 

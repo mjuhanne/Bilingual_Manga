@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 logging.captureWarnings(True) # repress HTML certificate verification warnings
 from deepl_helper import deepl_translate
 import unicodedata as ud
+import urllib
 
 parser = argparse.ArgumentParser(
     prog="google_books_tools",
@@ -32,6 +33,10 @@ parser_search.add_argument('keyword', type=str, help='search keyword (e.g: Meita
 parser_match_url = subparsers.add_parser('match_url', help='Match book titles via Google Books URL')
 parser_match_url.add_argument('title', type=str, help='Book title')
 parser_match_url.add_argument('url', type=str, help='Google Books URL')
+
+parser_match_url = subparsers.add_parser('match_googleid', help='Match book titles via Google Books ID')
+parser_match_url.add_argument('title', type=str, help='Book title')
+parser_match_url.add_argument('googleid', type=str, help='Google Books ID')
 
 parser_select = subparsers.add_parser('match', help='Select book title from search results')
 parser_select.add_argument('title', type=str, help='Book title')
@@ -144,14 +149,18 @@ def show(args):
                 print("%s %s %d [%s] %s : %s" % (star, cat, i, title_id, title_name,t ))
 
 
-def search_records_and_select_one(title_id, keyword, require_authors, index):
+def search_records_and_select_one(title_id, keyword, author, index):
 
+    keyword = ud.normalize('NFKC', keyword)
     keyword_candidates = set()
     keyword_candidates.update([keyword])
     keyword_candidates.update([keyword.replace('ッ','')])
     keyword_candidates.update([keyword.replace(' ','')])
 
-    url = search_url + '{%s}' % keyword
+    url = search_url + keyword
+    if author is not None:
+        url += '+inauthor:' + author
+    url = urllib.parse.quote(url, safe='+/:?=', encoding=None, errors=None)
     response = requests.get(url, headers=headers, verify=False)
     r = response.json()
     hits = r['totalItems']
@@ -171,12 +180,17 @@ def search_records_and_select_one(title_id, keyword, require_authors, index):
                 j = r['items'][index]
                 vi = j['volumeInfo']
                 title_candidates = set()
-                title_candidates.update([vi['title']])
-                title_candidates.update([vi['title'].replace('（上）','')])
+                if 'title' in vi:
+                    title = ud.normalize('NFKC',vi['title'])
+                    title_candidates.update([title])
+                    title_candidates.update([title.replace('（上）','')])
+                    title_candidates.update([title.replace('(上)','')])
                 found = False
                 for keyword_candidate in keyword_candidates:
                     for title_candidate in title_candidates:
                         if title_candidate in keyword_candidate:
+                            found = True
+                        if keyword_candidate in title_candidate:
                             found = True
                 if found:
                     # for some reason the search result doesn't contain always all the information (author or description. Try to fetch these with a separate query)
@@ -185,7 +199,7 @@ def search_records_and_select_one(title_id, keyword, require_authors, index):
                     j = response.json()
                     vi = j['volumeInfo']                    
                     if 'description' in vi:
-                        if not require_authors or 'authors' in vi:
+                        if author is None or 'authors' in vi:
                             print("[match #%d]" % (index+1))
                             save_record(title_id,j)
                             return True
@@ -234,16 +248,25 @@ def save_record(title_id,j):
 
 def search(args):
 
-    url = search_url + '{%s}' % keyword
+    url = search_url + '%s' % args['keyword']
+    url = urllib.parse.quote(url, safe='+/:?=', encoding=None, errors=None)
     response = requests.get(url, headers=headers, verify=False)
     r_json = response.json()
-    r_json = response.json()
+    if r_json['totalItems'] == 0:
+        print("No results!")
+        return
     i = 1
     for r in r_json['items']:
         vj = r['volumeInfo']
-        print("%d: %s" % (i, vj['title']))
+        authors = []
+        if 'authors' in vj:
+            authors = vj['authors']
+        print("%d: %s (authors %s)" % (i, vj['title'], authors))
         print("%s" % r['selfLink'])
-        print("\t(%s) %s" % (vi['publishedDate'], vi['description']))
+        if 'description' in vj and 'publishedDate' in vj:
+            print("\t(%s) %s" % (vj['publishedDate'], vj['description']))
+        else:
+            print("\t NO DESCRIPTION OR PUBLISHED DATE")
         print("")
         i += 1
 
@@ -255,17 +278,36 @@ def match(args):
 def match_url(args):
     title_id = get_title_id(args['title'])
 
-    id_attempt = args['url'].split('/books/edition/_/')
+    if '/books/edition/_/' in args['url']:
+        splitter = '/books/edition/_/'
+    else:
+        print("Unknown url: %s" % args['url'])
+        return
+
+    id_attempt = args['url'].split(splitter)
     if len(id_attempt)==2:
         id = id_attempt[1].split('/')[0]
         url = get_volume_url + id
         response = requests.get(url, headers=headers, verify=False)
+        if response.status_code != 200:
+            print("Error:", response.reason)
+            return
         j = response.json()
         save_record(title_id,j)
         #print(j)
     else:
         print("Invalid url: %s" % args['url'])
     
+def match_googleid(args):
+    title_id = get_title_id(args['title'])
+
+    url = get_volume_url + args['googleid']
+    response = requests.get(url, headers=headers, verify=False)
+    if response.status_code != 200:
+        print("Error:", response.reason)
+        return
+    j = response.json()
+    save_record(title_id,j)
 
 def refresh(args):
 
@@ -313,27 +355,32 @@ def match_all(args):
     no_matches = []
     for title_id, title_name in title_names.items():
         if not title_id in all_entries:
+
+            title_name = title_name.replace('.TXT','')
+            title_name = title_name.replace('.txt','')
+
             if title_name == 'Placeholder':
                 print("Skipping",title_id)
                 continue
 
+            print("Searching %s:%s" % (title_id,title_name))
             queries = []
             keyword = title_name
-            queries.append((keyword,True))
+            queries.append((keyword,None))
 
-            if len(authors[title_id])>0 and authors[title_id][0] != 'Placeholder':
-                keyword += ' ' + ' '.join(authors[title_id])
-                queries.insert(0,(keyword,False))
+            for author in authors[title_id]:
+                if author != 'Placeholder':
+                    queries.insert(0,(keyword,author))
 
             if title_id in publishers:
                 keyword += ' ' + publishers[title_id]
-                queries.insert(0,(keyword,False))
+                queries.insert(0,(keyword,None))
 
             i = 0
             res = False
             while i<len(queries) and res==False:
-                keyword,require_authors = queries[i]
-                res = search_records_and_select_one(title_id,keyword,require_authors,-1)
+                keyword, author = queries[i]
+                res = search_records_and_select_one(title_id,keyword,author,-1)
                 time.sleep(1)
                 i += 1
 

@@ -2,13 +2,6 @@ import json
 import os
 import hashlib
 
-# Other tools depend on the right format of the parsed OCR and summary files..
-CURRENT_PARSED_OCR_VERSION = 7
-CURRENT_OCR_SUMMARY_VERSION = 6
-CURRENT_METADATA_CACHE_VERSION = 2
-# .. whereas older language parser works but may not have parsed all the words as efficiently
-CURRENT_LANUGAGE_PARSER_VERSION = 11
-
 AVERAGE_PAGES_PER_VOLUME = 180
 
 STAGE_NONE = 0  # this is reserved for word ignored automatically (such as punctuation)
@@ -60,6 +53,7 @@ ocr_dir = base_dir + "ocr/"
 ocr_uri = 'https://cdn.bilingualmanga.org/ocr/'
 
 chapter_analysis_dir = base_dir + "lang/chapters/"
+volume_analysis_dir = base_dir + "lang/volumes/"
 title_analysis_dir = base_dir + "lang/titles/"
 
 user_data_file = base_dir + 'json/user_data.json'
@@ -82,14 +76,46 @@ jlpt_vocab_jmdict_file =  base_dir + "lang/jlpt/jlpt_vocab_jmdict.json"
 manga_specific_settings_file = base_dir + "tools/manga_specific_settings.json"
 counter_word_id_file = base_dir + "lang/counter_word_ids.tsv"
 
+version_file = "json/versions.json"
+
+with open(version_file,"r",encoding="utf-8") as f:
+    _versions = json.loads(f.read())
+
+"""
+# Other tools depend on the right format of the parsed OCR and summary files..
+CURRENT_PARSED_OCR_VERSION = 7
+CURRENT_OCR_SUMMARY_VERSION = 6
+CURRENT_METADATA_CACHE_VERSION = 3
+# .. whereas older language parser works but may not have parsed all the words as efficiently
+CURRENT_LANUGAGE_PARSER_VERSION = 12
+"""
+PARSED_OCR_VERSION = 'parsed_ocr'
+OCR_SUMMARY_VERSION = 'ocr_summary'
+METADATA_CACHE_VERSION = 'metadata_cache'
+# .. whereas older language parser works but may not have parsed all the words as efficiently
+LANUGAGE_PARSER_VERSION = 'language_parser'
+
+
+def get_version(version_type):
+    if version_type in _versions:
+        return _versions[version_type]
+    raise Exception("Unknown version type '%s' !" % version_type)
+
 _title_names = dict()
+_jp_title_names = dict()
 _authors = dict()
+_publishers = dict()
 _title_name_to_id = dict()
 _chapter_id_to_title_id = dict()
 _chapter_id_to_chapter_number = dict()
 _chapter_id_to_chapter_name = dict()
 _chapter_id_to_chapter_files = dict()
 _title_chapters = dict()
+_title_volumes = dict()
+_volume_chapters = dict()
+_volume_names = dict()
+_chapter_id_to_vol_id = dict()
+_volume_id_to_volume_number = dict()
 _chapter_page_count = dict()
 _virtual_ch_page_count = dict()
 
@@ -135,6 +161,9 @@ def get_title_names():
 def get_title_by_id(id):
     return _title_names[id]
 
+def get_jp_title_by_id(id):
+    return _jp_title_names[id]
+
 def get_title_id_by_title_name(name):
     return _title_name_to_id[name]
 
@@ -149,6 +178,23 @@ def get_chapter_number_by_chapter_id(id):
 
 def get_chapters_by_title_id(id):
     return _title_chapters[id]
+
+def get_volumes_by_title_id(id):
+    return _title_volumes[id]
+
+def get_volume_name(id):
+    return _volume_names[id]
+
+def get_volume_number_by_volume_id(id):
+    return _volume_id_to_volume_number[id]
+
+def get_chapters_by_volume_id(id):
+    return _volume_chapters[id]
+
+def get_volume_id_by_chapter_id(id):
+    if id in _chapter_id_to_vol_id:
+        return _chapter_id_to_vol_id[id]
+    return None
 
 def get_chapter_page_count(id):
     title_id = get_title_id_by_chapter_id(id)
@@ -166,18 +212,30 @@ def is_book(id):
 def get_authors(id):
     return _authors[id]
 
+def get_publisher(id):
+    if id in _publishers:
+        return _publishers[id]
+    return ''
+
 def get_chapter_files_by_chapter_id(id):
     return _chapter_id_to_chapter_files[id]
 
 def read_manga_metadata():
-    global _title_names, _title_name_to_id, _verified_ocr, _is_book, _authors
+    global _title_names, _jp_title_names, _title_name_to_id
+    global _verified_ocr, _is_book, _authors, _publishers
     def process_manga_metadata(manga_titles):
         for t in manga_titles:
             title_id = t['enid']
             title_name = t['entit']
+            if title_name == 'Placeholder':
+                title_name = t['jptit']
             _title_names[title_id] = title_name
+            _jp_title_names[title_id] = t['jptit']
             _title_name_to_id[title_name] = title_id
+            _title_name_to_id[t['jptit']] = title_id
             _authors[title_id] = t['Author']
+            if 'Publisher' in t:
+                _publishers[title_id] = t['Publisher']
             if 'verified_ocr' in t:
                 _verified_ocr[title_id] = t['verified_ocr']
             else:
@@ -203,6 +261,7 @@ def read_manga_data(read_chapter_files=False):
     global _manga_data
     global _chapter_id_to_title_id, _chapter_id_to_chapter_number, _chapter_id_to_chapter_name
     global _chapter_page_count, _title_chapters, _virtual_ch_page_count
+    global _title_volumes, _volume_chapters, _volume_names, _chapter_id_to_vol_id, _volume_id_to_volume_number
     with open(manga_data_file,"r",encoding="utf-8") as f:
         data = f.read()
         _manga_data = json.loads(data)
@@ -221,6 +280,29 @@ def read_manga_data(read_chapter_files=False):
         for cid in _chapter_ids:
             if cid not in chapter_ids:
                 chapter_ids.append(cid)
+
+        volumes = m['jp_data']['vol_jp']
+        _title_volumes[title_id] = []
+
+        for i, (vol_name,vol_data) in enumerate(volumes.items()):
+            if 'id' in vol_data:
+                try:
+                    vol_id = vol_data['id']
+                    _volume_names[vol_id] = vol_name
+                    _title_volumes[title_id].append(vol_id)
+                    _volume_id_to_volume_number[vol_id] = i
+                    _volume_chapters[vol_id] = []
+                    for ch_i in range(vol_data['s'],vol_data['e']+1):
+                        _volume_chapters[vol_id].append(chapter_ids[ch_i])
+                        _chapter_id_to_vol_id[chapter_ids[ch_i]] = vol_id
+                except:
+                    title = get_title_by_id(title_id)
+                    print("Error in metadata (%s: title '%s' volume '%s')" % (title_id,title, vol_name))
+                    print(m)
+                    raise Exception()
+            else:
+                if is_book(title_id):
+                    print("Warning! %s:%s (vol %s) has no volume_id set!" % (title_id, get_title_by_id(title_id), vol_name))
 
         pages = m['jp_data']['ch_jp']
         _title_chapters[title_id] = chapter_ids
@@ -248,7 +330,7 @@ def get_manga_chapter_name(chapter_id):
 def get_title_id(item):
     if item in _title_name_to_id:
         return _title_name_to_id[item]
-    if _title_names.keys():
+    if item in _title_names.keys():
         # the item is in fact the title id
         return item
     raise Exception("unknown manga title/id %d" % item)

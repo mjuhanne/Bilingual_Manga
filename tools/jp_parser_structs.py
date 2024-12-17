@@ -333,7 +333,8 @@ pre_conjugation_modifications = [
     #[['と','った'],[verb_class, aux_verb_class],COND_NONE,TASK_REPLACE,{'parts':['と','','った'],'classes':[verb_class,verb_class,aux_verb_class],'orthos':['とる','おる',''],'alt_forms':['て','お','']}],
 
     
-    [['ってらっしゃる'],[aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['って','らっしゃる'],'classes':[aux_verb_class,verb_class],'orthos':['','おらっしゃる'],'alt_forms':['って','']}],
+    [['ってらっしゃる'],[aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['って','らっしゃる'],'classes':[aux_verb_class,verb_class],'orthos':['','らっしゃる'],'alt_forms':['って','']}],
+    [['ってらっしゃい'],[aux_verb_class],COND_NONE,TASK_DIVIDE,{'parts':['って','らっしゃい'],'classes':[aux_verb_class,interjection_class],'orthos':['','らっしゃる'],'alt_forms':['って','いらっしゃい']}],
     
     # wakatte-n
     [['てん'],[aux_verb_class],COND_AFTER_MASU,TASK_DIVIDE,{'parts':['て','','ん'],'classes':[aux_verb_class,aux_verb_class,aux_verb_class],'orthos':['','いる',''],'alt_forms':['','いる','']}],
@@ -465,6 +466,10 @@ explicit_word_changes = [
 
     # verbs
     [['だ','も','の'],[aux_verb_class,gp_class,gp_class],COND_NONE,TASK_MERGE,{'class':verb_class}],
+    # archaic ざます
+    [['ザマ','す'],[noun_class,aux_verb_class],COND_NONE,TASK_MERGE,{'class':verb_class}],
+    [['ざま','す'],[noun_class,aux_verb_class],COND_NONE,TASK_MERGE,{'class':verb_class}],
+
 
     # adjectives
     [['らしい'],[aux_verb_class],COND_NONE,TASK_MODIFY,{'add_class':adjective_class}],
@@ -665,6 +670,7 @@ alternative_classes = {
     'べ' : [aux_verb_class],
     'ほら' : [interjection_class],
     'オス' : [interjection_class],
+    'コラ' : [interjection_class],
 
     # Pre-noun Adjectivals, detected originally as adjectival nouns
     'そんな' : [rentaishi_class],
@@ -778,6 +784,7 @@ word_id_score_adjustment = {
     '2662220:そうとも' : 650,
     '2117530:ガン見' : 200,
     '1307770:こ' : 80,
+    '1004320:こーゆー' : 250,
 
 
     # lower priority for these hiragana words that get mixed up 

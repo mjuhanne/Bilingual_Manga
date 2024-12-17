@@ -10,28 +10,58 @@ from helper import *
 
 text_regex = [
     # (一般小説) [藤沢周平] よろずや平四郎活人剣（上） (青空文庫対応txt 表紙付)(校正08-11-04).txt
-    ["\(一般小説\)+\s+\[([^\]]+)\]\s+([^（\(\s\)]+)（(.{1})）",3],
-    ["\(一般小説\)+\s+\[([^\]]+)\]\s+([^（\(\s\)]+)",2],
+    ["\(一般小説\)+\s+\[([^\]]+)\]\s+([^（\(\s\)]+)（(.{1})）",['author','title','vol_name']],
+    ["\(一般小説\)+\s+\[([^\]]+)\]\s+([^（\(\s\)]+)",['author','title']],
 
     # 施耐庵／駒田信二訳-水滸伝（七）.txt
-    ["([^／]+)／[^訳]+訳-([^\s(\d（上中下]*)（([^）]+){1}",3],
+    ["([^／]+)／[^訳]+訳-([^\s(\d（上中下]*)（([^）]+){1}",['author','title','vol_name']],
+
+    # 村上春樹-世界の終りとハードボイルド・ワンダーランド 1
+    #["([^-]+)-(?:[^訳]+訳-)*([^\s(\d上中下]*)\s(\d+)",3]
+
+    # ロレンス／吉田健一訳-息子と恋人 下巻 (青空文庫対応txt)(校正08-12-20).txt
+    #["([^／]*)／([^訳]*)訳-([^\(]*) (.)巻 \(青空",['author','translator','title','vol_name']],
+
+    # オーウェル／佐山栄太郎訳-動物農場 (青空文庫対応txt)(校正08-12-13).txt
+    ["([^／]*)／([^訳]*)訳-([^\(]*)(.*) \(青空",['author','translator','title','vol_name']],
+
+    # ドイル／延原謙訳-(新潮社版) シャーロック・ホームズの事件簿 (青空文庫対応txt)(校正09-11-10).txt
+    ["([^／]*)／([^訳]*)訳-\(新潮社版\) ([^\(]*)(.*) \(青空",['author','translator','title','vol_name']],
+
+    # ディック／朝倉久志訳-アンドロイドは電気羊の夢をみるか.txt
+    ["([^／]*)／([^訳]*)訳-([^\(]*).txt",['author','translator','title']],
+
+    # Ｅ・Ｅ・スミス／川口正吉訳-ヴァレロンのスカイラーク (青空文庫対応txt)(校正09-06-06).txt
+    #["([^／]+)／[^訳]+訳-([^\s(\d上中下]*)",2],
+
+    # 村上春樹-世界の終りとハードボイルド・ワンダーランド (上).txt
+    ["([^-]*)-([^\(]*) \((.)\)",['author','title','vol_name']],
+
 ]
 
 
-def get_info_from_txt_file_name(root_path,source_item, title, author):
+def get_info_from_txt_file_name(root_path,source_item, og_title, og_author):
     vol_name = None
 
     for reg in text_regex:
         res = re.search(reg[0],source_item)
         if res is not None:
             gr = res.groups()
-            if author is None:
-                author = res.groups()[0]
-            if title is None:
-                title = res.groups()[1]
-            if reg[1] == 3:
-                vol_name = res.groups()[2]
-            else:
+            vol_name = ''
+            translator = ''
+            title = og_title
+            author = og_author
+            for field, value in zip(reg[1], res.groups()):
+                if author is None and field == 'author':
+                    author = value
+                if title is None and field == 'title':
+                    title = value
+                if field == 'vol_name':
+                    vol_name = value
+                if field == 'translator':
+                    translator = '(%s訳)' % value
+
+            if vol_name == '':
                 if '（上）' in source_item:
                     vol_name = '上'
                 elif '（下）' in source_item:
@@ -40,7 +70,11 @@ def get_info_from_txt_file_name(root_path,source_item, title, author):
                     vol_name = '中'
                 else:
                     vol_name = title
-            return title, {'type':'txt','author':author,'volume_name':vol_name,'path':root_path,'filename': source_item}
+            if translator != '':
+                vol_name += ' ' + translator
+
+            if title != '' and author != '':
+                return title, {'type':'txt','author':author,'volume_name':vol_name,'path':root_path,'filename': source_item}
 
     return None, None
 
@@ -267,6 +301,8 @@ def get_chapters_from_txt_file(path):
     return chapters
 
 def divide_chapters(chapters, divide_type):
+    if len(chapters) == 0:
+        return []
     chapter = chapters[0]
     existing_chapter_names = [ch['name'] for ch in chapters]
     chapters = []
@@ -376,7 +412,7 @@ def divide_chapters(chapters, divide_type):
 
 
 
-def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, start_ch_idx):
+def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, start_ch_idx, ask_confirmation_for_new_chapters ):
 
     lang_data_field = lang + '_data'
     ch_name_field = 'ch_na' + lang
@@ -400,7 +436,7 @@ def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, start_c
 
         ch_name = chapter['name']
 
-        ch_id = get_oid(title_id + '/' + lang + '/' + vol_id + '/' + ch_name)
+        ch_id = get_oid(title_id + '/' + lang + '/' + vol_id + '/' + ch_name, ask_confirmation=ask_confirmation_for_new_chapters)
         ch_ipfs_path = target_ipfs_path + ch_id
         t_data[lang_data_field][ch_name_field].append(ch_name)
         t_data[lang_data_field][ch_lang_h_field].append(ch_id + '/%@rep@%')

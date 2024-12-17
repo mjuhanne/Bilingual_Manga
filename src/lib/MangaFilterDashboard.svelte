@@ -1,5 +1,6 @@
 <script>
 import { createEventDispatcher } from "svelte";
+import { scopes } from '$lib/MangaSorter.js';
 
 let dispatch = createEventDispatcher();
 
@@ -30,6 +31,9 @@ const onFilterRemoved = (filter_index) => {
             {filter['f']}
             {filter['op']}
             {filter['v']}
+            {#if filter['sc'] != '' && filter['sc'] != undefined}
+               ({scopes[filter['sc']]})
+            {/if}
             <button on:click={() => (onFilterRemoved(fi))}>X</button>
         </span>
     {/each}

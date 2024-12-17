@@ -67,6 +67,10 @@
     if (sort_criteria === null) {
         sort_criteria = 'Repository status';
     }
+    let sort_scope=$page.url.searchParams.get('scope');
+    if (sort_scope === null) {
+        sort_scope = 'series';
+    }
     let sort_reverse=$page.url.searchParams.get('reverse') == "true" ? true : false;
 
     let manga_repo_status={};
@@ -83,7 +87,7 @@
     $: {
         if (Object.keys(manga_repo_status).length>0) {
             // wait until valid repo status is available
-            x12 = sortManga(meta['0'].manga_titles, sort_criteria, sort_reverse, 'None');
+            x12 = sortManga(meta['0'].manga_titles, sort_criteria, sort_scope, sort_reverse, 'None','None');
             console.log(`sorted '${sort_criteria}'`);
             console.log("first is " + x12[0].entit);
         }
@@ -301,10 +305,12 @@
         selected_manga_ids = selected_manga_ids;
     }
     const sortCriteriaChanged = (e) => {
-        sort_criteria = e.detail;
-        console.log("sortcriteria " + sort_criteria)
-		$page.url.searchParams.set('sort',sort_criteria);
+        sort_criteria = e.detail['criteria'];
+        sort_scope = e.detail['scope']
+		$page.url.searchParams.set('sort',encodeURIComponent(sort_criteria));
+		$page.url.searchParams.set('scope',sort_scope);
         goto(`?${$page.url.searchParams.toString()}`);
+
     };
     const sortReverseChanged = (e) => {
         sort_reverse = e.detail;
@@ -367,8 +373,8 @@
     <button on:click={unSelectDownloaded}>unSel DL'd</button>
     <button on:click={selectArchived}>Sel Arch</button>
     <button on:click={unSelectArchived}>unSel Arch</button>
-    <MangaSortDashboard {sort_criteria} {sort_reverse} 
-        sort_criteria_list={Object.keys(download_view_sort_options)} 
+    <MangaSortDashboard {sort_criteria} {sort_scope} {sort_reverse} 
+        sort_options={download_view_sort_options} 
         on:SortCriteriaChanged={sortCriteriaChanged}
         on:SortReverseChanged={sortReverseChanged}
         width='380'

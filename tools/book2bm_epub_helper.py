@@ -6,7 +6,11 @@ from helper import *
 
 epub_regex = [
     # 壁際族に花束を_（上）_(角川文庫).epub
-    ["([^\s(\d（上中下]*)(?:[_\s])*（([^）]+){1}",2]
+    ["([^\s(\d（上中下]*)(?:[_\s])*（([^）]+){1}",2],
+
+    # [村上春樹]国境の南、太陽の西
+    #["(?:\[[^\]]*\])([^（上中下]*)",1],
+
 ]
 
 def get_info_from_epub_file_name(root_path,source_item):
@@ -119,7 +123,6 @@ def save_metadata_from_epub(t_metadata, t_data, lang, book, title):
     # get the cover image from the first volume also
     save_cover_image_from_epub(t_metadata, book, lang, title)
     pass
-
 
 
 def get_chapters_from_epub(book, verbose=False):
@@ -269,7 +272,54 @@ def get_chapters_from_epub(book, verbose=False):
 
     return chapter_titles, item_list_per_chapter
 
-def process_epub(t_data, title_id, book, lang, vol_id, vol_name, start_ch_idx, verbose):
+
+def extract_paragraphs_recursively(soup, element, paragraphs):
+    p = None
+    el_idx = 0
+    if len(element.contents) > 100:
+        pass
+    while el_idx < len(element.contents):
+        #for elem in element.contents:
+        elem = element.contents[el_idx]
+        if isinstance(elem,str):
+            stripped_chunk = elem.strip().replace('　','').replace('\n','')
+            if len(stripped_chunk)>0:
+                if p is None:
+                    # start a new paragraph
+                    p = soup.new_tag('p')
+                    paragraphs.append(p)
+                    elem.insert_before(p)
+                    el_idx += 1
+                # move the text chunk inside the paragraph
+                elem.extract()
+                el_idx -= 1
+                p.append(elem)
+        else:
+            if elem.name == 'div':
+                extract_paragraphs_recursively(soup, elem, paragraphs)
+            elif elem.name == 'p':
+                paragraphs.append(elem)
+            elif elem.name == 'br':
+                # delete the <br> and start a new paragraph
+                elem.extract()
+                el_idx -= 1
+                p = None
+            elif elem.name == 'ruby' or elem.name == 'span':
+                if p is None:
+                    # start a new paragraph
+                    p = soup.new_tag('p')
+                    paragraphs.append(p)
+                    elem.insert_before(p)
+                    el_idx += 1
+                # move the tag inside the paragraph
+                elem.extract()
+                el_idx -= 1
+                p.append(elem)
+        el_idx += 1
+    pass
+
+
+def process_epub(t_data, title_id, book, lang, vol_id, vol_name, start_ch_idx, verbose, ask_confirmation_for_new_chapters):
 
     lang_data_field = lang + '_data'
     ch_name_field = 'ch_na' + lang
@@ -296,10 +346,11 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, start_ch_idx, v
     chapter_paragraphs = []
     chapter_pages = []
     total_num_characters = 0
+    total_num_pages = 0
 
     for ch_idx, (ch_name, chapter_items) in enumerate(zip(chapter_titles, item_list_per_chapter)):
 
-        ch_id = get_oid(title_id + '/' + lang + '/' + vol_id + '/' + ch_name)
+        ch_id = get_oid(title_id + '/' + lang + '/' + vol_id + '/' + ch_name, ask_confirmation=ask_confirmation_for_new_chapters)
         t_data[lang_data_field][ch_name_field].append(ch_name)
         t_data[lang_data_field][ch_lang_h_field].append(ch_id + '/%@rep@%')
         t_data[lang_data_field][ch_lang_field][start_ch_idx+ch_idx+1] = ['pages.html']
@@ -332,39 +383,54 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, start_ch_idx, v
 
             # extracts text from the HTML content
             soup = BeautifulSoup(content,features="html.parser")
+            body = soup.find('body')
 
             # if this html file contains other chapters besides the one which is processed,
             # we must remove all the other content
             if start_id is not None:
-                # remove all elements before the start_id
+                # remove all elements before the start_id (this level)
                 start_elem = soup.find(id=start_id)
                 if start_elem is None:
                     raise Exception("Chapter %d/%s start_id %s not found!" % (ch_idx,ch_name,start_id))
-                container_elems = start_elem.parent.findChildren()
-                elem_idx = 0
-                while elem_idx < len(container_elems) and container_elems[elem_idx] != start_elem:
-                    container_elems[elem_idx].extract()
-                    elem_idx += 1
+
+                if start_elem.parent != body:
+                    # start_id element isn't directly below body, so remove all the preceding parent elements 
+                    container_elems = start_elem.parent.parent.contents
+                    while len(container_elems) > 0 and container_elems[0] != start_elem.parent:
+                        container_elems[0].extract()
+                    # TODO: this should actually be done recursively
+
+                container_elems = start_elem.parent.contents
+                while len(container_elems) > 0 and container_elems[0] != start_elem:
+                    container_elems[0].extract()
+
 
             if stop_id is not None:
                 # remove all elements after (and including) the stop_id
                 stop_elem = soup.find(id=stop_id)
                 if stop_elem is None:
                     raise Exception("Chapter %d/%s stop_id %s not found!" % (ch_idx,ch_name,stop_id))
-                container_elems = stop_elem.parent.findChildren()
+
+                if stop_elem.parent != body:
+                    # stop_id element isn't directly below body, so remove all the following parent elements
+                    container_elems = stop_elem.parent.parent.contents
+                    elem_idx = 0
+                    while elem_idx < len(container_elems) and container_elems[elem_idx] != stop_elem.parent:
+                        elem_idx += 1
+                    elem_idx += 1
+                    while elem_idx < len(container_elems):
+                        container_elems[elem_idx].extract()
+
+                # remove the following elements from this level
+                container_elems = stop_elem.parent.contents
                 elem_idx = 0
                 while elem_idx < len(container_elems) and container_elems[elem_idx] != stop_elem:
                     elem_idx += 1
                 while elem_idx < len(container_elems):
                     container_elems[elem_idx].extract()
-                    elem_idx += 1
 
-            paragraphs = soup.find_all('p')
-
-            # TODO: create a different approach for those epubs in which text is not
-            # divided inside <p> paragraphs, but are inside a single <span> and the
-            # paragraphs are divided by simple <br> tags: 
-            # For example title うふふな日々
+            paragraphs = []
+            extract_paragraphs_recursively(soup, body, paragraphs)
 
             if lang == 'jp':
                 target_ocr_file_path = target_ocr_path + ch_id + '.json'
@@ -466,7 +532,6 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, start_ch_idx, v
 
                 save_image_from_epub(ch_id, book, img_name)
 
-            body = soup.find('body')
             chapter_pages.append(body.prettify())
 
         if lang == 'jp':
@@ -488,6 +553,7 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, start_ch_idx, v
 
         save_chapter_pages(ch_id, chapter_pages)
         total_num_characters += num_characters
+        total_num_pages += t_data[lang_data_field]['virtual_chapter_page_count'][-1]
 
-    print("** Total %d characters" % (total_num_characters))
+    print("** Total %d pages and %d characters" % (total_num_pages, total_num_characters))
     return len(chapter_titles)

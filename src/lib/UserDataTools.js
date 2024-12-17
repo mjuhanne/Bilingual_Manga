@@ -41,6 +41,22 @@ export const checkUserData = (user_data) => {
     }
 }
 
+const iterative_copy = (src,dest) => {
+    Object.keys(src).forEach(key => {
+        //console.log(`key: ${key}, value: ${obj[key]}`)
+        if (typeof src[key] === 'object' && (!Array.isArray(src[key]))) {
+            if (src[key] !== null) {
+                if (!(key in dest)) {
+                    dest[key] = {}
+                }
+                iterative_copy(src[key],dest[key])
+            }
+        } else {
+            dest[key] = src[key]
+        }
+    })
+}
+
 export const AugmentMetadataWithCustomLanguageSummary = (manga_metadata, custom_lang_summary) => {
     let manga_titles = manga_metadata['0'].manga_titles;
     let ls = custom_lang_summary['analysis']['series_analysis'];
@@ -53,78 +69,45 @@ export const AugmentMetadataWithCustomLanguageSummary = (manga_metadata, custom_
 
         if (id in ls) {
             let l = ls[id];
-            element['total_statistics']['pct_known_words'] = l['total_statistics']['words']['pct_known_pre_known'];
-            element['unique_statistics']['pct_known_words'] = l['unique_statistics']['words']['pct_known_pre_known'];
-
-            element['total_statistics']['pct_known_kanjis'] = l['total_statistics']['kanjis']['pct_known_pre_known'];
-            element['unique_statistics']['pct_known_kanjis'] = l['unique_statistics']['kanjis']['pct_known_pre_known'];
-
-            element['total_statistics']['num_unknown_words'] = l['total_statistics']['words']['num_unknown_unfamiliar'];
-            element['unique_statistics']['num_unknown_words'] = l['unique_statistics']['words']['num_unknown_unfamiliar'];
-
-            element['total_statistics']['num_unknown_kanjis'] = l['total_statistics']['kanjis']['num_unknown_unfamiliar'];
-            element['unique_statistics']['num_unknown_kanjis'] = l['unique_statistics']['kanjis']['num_unknown_unfamiliar'];
-
-            element['total_statistics']['jlpt_known_k_level_pct'] = l['total_statistics']['kanjis']['jlpt_level_pct'];
-            element['unique_statistics']['jlpt_known_k_level_pct'] = l['unique_statistics']['kanjis']['jlpt_level_pct'];
-            element['total_statistics']['jlpt_known_w_level_pct'] = l['total_statistics']['words']['jlpt_level_pct'];
-            element['unique_statistics']['jlpt_known_w_level_pct'] = l['unique_statistics']['words']['jlpt_level_pct'];
-            element['total_statistics']['jlpt_known_k_level_per_v'] = l['total_statistics']['kanjis']['jlpt_level_per_v'];
-            element['unique_statistics']['jlpt_known_k_level_per_v'] = l['unique_statistics']['kanjis']['jlpt_level_per_v'];
-            element['total_statistics']['jlpt_known_w_level_per_v'] = l['total_statistics']['words']['jlpt_level_per_v'];
-            element['unique_statistics']['jlpt_known_w_level_per_v'] = l['unique_statistics']['words']['jlpt_level_per_v'];
-            element['total_statistics']['num_known_jlpt_kanjis'] = l['total_statistics']['kanjis']['jlpt_num'];
-            element['unique_statistics']['num_known_jlpt_kanjis'] = l['unique_statistics']['kanjis']['jlpt_num'];
-            element['total_statistics']['num_unknown_jlpt_kanjis'] = l['total_statistics']['kanjis']['jlpt_unknown_num'];
-            element['unique_statistics']['num_unknown_jlpt_kanjis'] = l['unique_statistics']['kanjis']['jlpt_unknown_num'];
-            element['total_statistics']['num_unknown_non_jlpt_kanjis'] = l['total_statistics']['kanjis']['non_jlpt_unknown_num'];
-            element['unique_statistics']['num_unknown_non_jlpt_kanjis'] = l['unique_statistics']['kanjis']['non_jlpt_unknown_num'];
-            element['comprehensible_input_pct'] = l['comprehensible_input_pct']
-            element['comprehensible_input_score'] = l['comprehensible_input_score']
-            element['comprehensible_input_sentence_grading'] = l['comprehensible_input_sentence_grading']
-            element['unknown_jlpt_kanjis'] = l['unique_statistics']['kanjis']['jlpt_unknown_list']
-            element['unknown_non_jlpt_kanjis'] = l['unique_statistics']['kanjis']['non_jlpt_unknown_list']
+            if (!('series' in element)) { 
+                element['series'] = {};
+            }
+            iterative_copy(l,element['series'])
         }
     });
 
+    
     ls = custom_lang_summary['analysis']['next_unread_chapter_analysis'];
     console.log("Augment manga_metadata with custom language summary for " + Object.keys(ls).length + " next unread chapters");
     
     manga_titles.forEach(element => {
         let id = element.enid;
-
-        if (!('total_statistics' in element)) {
-            console.log(element.entit,"not does not have language summary!")
-        } else
+        if (!('chapter' in element)) {
+            element['chapter'] = {};
+        }
         if (id in ls) {
             let l = ls[id];
-            element['total_statistics']['pct_known_words_next_ch'] = l['total_statistics']['words']['pct_known_pre_known'];
-            element['unique_statistics']['pct_known_words_next_ch'] = l['unique_statistics']['words']['pct_known_pre_known'];
-
-            element['total_statistics']['pct_known_kanjis_next_ch'] = l['total_statistics']['kanjis']['pct_known_pre_known'];
-            element['unique_statistics']['pct_known_kanjis_next_ch'] = l['unique_statistics']['kanjis']['pct_known_pre_known'];
-
-            element['total_statistics']['num_unknown_words_next_ch'] = l['total_statistics']['words']['num_unknown_unfamiliar'];
-            element['unique_statistics']['num_unknown_words_next_ch'] = l['unique_statistics']['words']['num_unknown_unfamiliar'];
-
-            element['total_statistics']['num_unknown_kanjis_next_ch'] = l['total_statistics']['kanjis']['num_unknown_unfamiliar'];
-            element['unique_statistics']['num_unknown_kanjis_next_ch'] = l['unique_statistics']['kanjis']['num_unknown_unfamiliar'];
-
-            element['total_statistics']['num_known_jlpt_kanjis_next_ch'] = l['total_statistics']['kanjis']['jlpt_num'];
-            element['unique_statistics']['num_known_jlpt_kanjis_next_ch'] = l['unique_statistics']['kanjis']['jlpt_num'];
-            element['total_statistics']['num_unknown_jlpt_kanjis_next_ch'] = l['total_statistics']['kanjis']['jlpt_unknown_num'];
-            element['unique_statistics']['num_unknown_jlpt_kanjis_next_ch'] = l['unique_statistics']['kanjis']['jlpt_unknown_num'];
-            element['total_statistics']['num_unknown_non_jlpt_kanjis_next_ch'] = l['total_statistics']['kanjis']['non_jlpt_unknown_num'];
-            element['unique_statistics']['num_unknown_non_jlpt_kanjis_next_ch'] = l['unique_statistics']['kanjis']['non_jlpt_unknown_num'];
-
-            element['comprehensible_input_pct_next_ch'] = l['comprehensible_input_pct']
-            element['comprehensible_input_score_next_ch'] = l['comprehensible_input_score']
-            element['comprehensible_input_sentence_grading_next_ch'] = l['comprehensible_input_sentence_grading']
-            element['unknown_jlpt_kanjis_next_ch'] = l['unique_statistics']['kanjis']['jlpt_unknown_list']
-            element['unknown_non_jlpt_kanjis_next_ch'] = l['unique_statistics']['kanjis']['non_jlpt_unknown_list']
-            element['unread_chapter'] = l['unread_chapter']
+            iterative_copy(l,element['chapter'])
         } else {
-            element['unread_chapter'] = -1
+            element['chapter']['unread_idx'] = -1
+        }
+    });
+
+
+    ls = custom_lang_summary['analysis']['next_unread_volume_analysis'];
+    console.log("Augment manga_metadata with custom language summary for " + Object.keys(ls).length + " next unread volumes");
+    
+    manga_titles.forEach(element => {
+        let id = element.enid;
+
+        if (!('volume' in element)) {
+            element['volume'] = {};
+        }
+        if (id in ls) {
+            let l = ls[id];
+            iterative_copy(l,element['volume'])
+        } else {
+            element['volume']['unread_idx'] = -1
         }
     });
 

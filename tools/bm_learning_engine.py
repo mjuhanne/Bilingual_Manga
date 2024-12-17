@@ -728,8 +728,8 @@ def update(args):
             print('%s [Stage: %s(%d)]' % (kanji, learning_stage_labels[entry['s']].upper(), entry['s']))
         pass
 
-read_manga_data()
 read_manga_metadata()
+read_manga_data()
 load_jmdict()
 load_counter_word_ids()
 

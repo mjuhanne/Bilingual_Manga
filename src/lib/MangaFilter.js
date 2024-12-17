@@ -1,31 +1,19 @@
-import { showcase_sort_options } from '$lib/MangaSorter.js';
+import { showcase_sort_options, getValue } from '$lib/MangaSorter.js';
 
 export let available_filters = {
     ...{
-        'Genre': { s:'', field: 'genres',   type:'list'},
-        'Category': { s:'mangaupdates_data', field: 'category_list',   type:'list'},
-        'Author': { s:'', field: 'Author',   type:'list'},
-        'Artist': { s:'', field: 'Artist',   type:'list'},
-        'Book': { s:'', field: 'is_book',   type:'boolean'},
+        'Genre': { sc:false, field: 'genres',   type:'list'},
+        'Category': { sc:false, field: 'mangaupdates_data.category_list',   type:'list'},
+        'Author': { sc:false, field: 'Author',   type:'list'},
+        'Artist': { sc:false, field: 'Artist',   type:'list'},
+        'Book': { sc:false, field: 'is_book',   type:'boolean'},
     },
     ...showcase_sort_options,
 }
 
-const getFilterValue = (data, filter_params) => {
-    let filter_value = undefined;
+const getFilterValue = (elem, filter_params, scope) => {
+    let filter_value = getValue(elem, filter_params, scope)
 
-    if (filter_params.s != '') {
-        // sort value is in sub-dictionary
-        if (filter_params.s in data) {
-            if (filter_params.field in data[filter_params.s]) {
-                filter_value = data[filter_params.s][ filter_params.field ];
-            }
-        }
-    } else {
-        if (filter_params.field in data) {
-            filter_value = data[ filter_params.field ];
-        }
-    }
     if (filter_value === undefined) {
         if ( filter_params.type == 'val') {
             filter_value = -1;
@@ -39,62 +27,76 @@ const getFilterValue = (data, filter_params) => {
 export const filterManga = (x, filters) => {
     let filtered_manga_list = [];
 
+    let active_filters = [];
+    for (let filter of filters) {
+        if (filter['en']) {
+            let idx = Object.keys(available_filters).indexOf(filter['f']);
+            if (idx != -1) {
+                active_filters.push(filter)
+            }
+        }
+    }
+
     for (let key in x) {
         let m = x[key];
         let match = true;
-        for (let filter of filters) {
-            if (filter['en']) {
-                let filter_params = available_filters[filter['f']]
-                let v = getFilterValue(m, filter_params);
-                switch(filter['op']) {
-                    case '<':
-                        if (v >= filter['v']) {
-                            match = false;
-                        }
-                        break;
-                    case '<=':
-                        if (v > filter['v']) {
-                            match = false;
-                        }
-                        break;
-                    case '>':
-                        if (v <= filter['v']) {
-                            match = false;
-                        }
-                        break;
-                    case '>=':
-                        if (v < filter['v']) {
-                            match = false;
-                        }
-                        break;
-                    case '=':
-                        if (filter_params.type == 'list') {
-                            if (v.indexOf(filter['v']) == -1) {
-                                match = false;
-                            }
-                        } else {
-                            if (v != filter['v']) {
-                                match = false;
-                            }
-                        }
-                        break;
-                    case '!=':
-                        if (filter_params.type == 'list') {
-                            if (v.indexOf(filter['v']) != -1) {
-                                match = false;
-                            }
-                        } else {
-                            if (v == filter['v']) {
-                                match = false;
-                            }
-                        }
-                        break;
-                    default:
-                        console.log("Unknown op",filter['op']);
+        for (let filter of active_filters) {
+            let filter_params = available_filters[filter['f']]
+
+            let v;
+            if (filter_params.sc) {
+                v = getFilterValue(m, filter_params, filter['sc']);
+            } else {
+                v = getFilterValue(m, filter_params, '');
+            }
+            switch(filter['op']) {
+                case '<':
+                    if (v >= filter['v']) {
                         match = false;
                     }
-                //console.log(m['title'],v);
-            }
+                    break;
+                case '<=':
+                    if (v > filter['v']) {
+                        match = false;
+                    }
+                    break;
+                case '>':
+                    if (v <= filter['v']) {
+                        match = false;
+                    }
+                    break;
+                case '>=':
+                    if (v < filter['v']) {
+                        match = false;
+                    }
+                    break;
+                case '=':
+                    if (filter_params.type == 'list') {
+                        if (v.indexOf(filter['v']) == -1) {
+                            match = false;
+                        }
+                    } else {
+                        if (v != filter['v']) {
+                            match = false;
+                        }
+                    }
+                    break;
+                case '!=':
+                    if (filter_params.type == 'list') {
+                        if (v.indexOf(filter['v']) != -1) {
+                            match = false;
+                        }
+                    } else {
+                        if (v == filter['v']) {
+                            match = false;
+                        }
+                    }
+                    break;
+                default:
+                    console.log("Unknown op",filter['op']);
+                    match = false;
+                }
+            //console.log(m['title'],v);
         }
         if (match) {
             filtered_manga_list.push(m);
