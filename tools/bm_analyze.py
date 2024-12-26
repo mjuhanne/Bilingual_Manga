@@ -3,7 +3,7 @@ import json
 import copy
 import argparse
 import time
-import sys
+from mongo import *
 
 from helper import *
 from bm_learning_engine_helper import *
@@ -61,12 +61,6 @@ def print_progress(i,title_count,msg):
         print("%s (%d%%)  " % (msg,p), flush=True)
         last_progress = p
 
-def get_summary(title_id):
-    if title_id in summary_data:
-        return summary_data[title_id]
-    elif title_id in ext_summary_data:
-        return ext_summary_data[title_id] 
-    raise Exception("%s [%s] has no summary!" % (get_title_names()['title_id'],title_id))
 
 # Read a data set of words/kanjis (a title or a chapter) and gather statistics 
 # (number of unique word or kanjis per learning stage. Statistics are gathered pre- and post-read)
@@ -210,7 +204,8 @@ def read_dataset(data_set, item_type, learning_dataset, retain_changes=False,
 # Calculate number and percentage of i+0/i+1/i+.. sentences (i.e. how many
 # sentences have 0,1 or more not-known words. In this case PRE_KNOWN words 
 # are considered as KNOWN_WORDS)
-def read_sentences(data_set, learning_dataset, results):
+# Also collect showstopper words (unknown words that prevent a sentence to be 'comprehensible input' i.e. have maximum of 1 unknown words)
+def read_sentences(data_set, learning_dataset, results, save_showstopper_words=False):
 
     known_dataset = learning_dataset["words"]
 
@@ -220,10 +215,12 @@ def read_sentences(data_set, learning_dataset, results):
     unknown_word_occurrences = dict()
     ci_score = 0
 
+    showstopper_word_count = dict()
+
     for i,sentence in enumerate(data_set['sentence_list']):
 
-        unknown_count = 0
-        unknown_count_ex_katakana = 0
+        unknown_wids = set()
+        unknown_ex_katakana_wids = set()
         for ref in sentence:
             wid = data_set['word_id_list'][ref]
 
@@ -239,30 +236,46 @@ def read_sentences(data_set, learning_dataset, results):
                 l_stage = STAGE_UNKNOWN
             old_stage = l_stage
 
-            if l_stage != STAGE_KNOWN and l_stage != STAGE_PRE_KNOWN:
-                # this is a word not (fully) known after started reading..
-
-                if wid not in unknown_word_occurrences:
-                    unknown_word_occurrences[wid] = 1
-                else:
-                    unknown_word_occurrences[wid] += 1
-
-                if learning_settings['automatic_learning_enabled']:
-                    l_freq = l_freq + unknown_word_occurrences[wid]
-                    l_stage = get_stage_by_frequency_and_class(item_type, l_freq, class_list)
-                    if l_stage < old_stage:
-                        # don't downgrade stage just by frequency
-                        l_stage = old_stage
-
+            if l_stage == STAGE_FORGOTTEN and wid in unknown_word_occurrences:
+                # assume we know the word again after 1 lookup
+                l_stage = STAGE_KNOWN
+            else:
                 if l_stage != STAGE_KNOWN and l_stage != STAGE_PRE_KNOWN:
-                    unknown_count += 1
+                    # this is a word not (fully) known after started reading..
 
-                    seq, word = get_seq_and_word_from_word_id(wid)
-                    j_freq = get_frequency_by_seq_and_word(seq,word)
+                    if wid not in unknown_word_occurrences:
+                        unknown_word_occurrences[wid] = 1
+                    else:
+                        unknown_word_occurrences[wid] += 1
 
-                    if not is_katakana_word(word):
-                        unknown_count_ex_katakana += 1
+                    if learning_settings['automatic_learning_enabled']:
+                        l_freq = l_freq + unknown_word_occurrences[wid]
+                        l_stage = get_stage_by_frequency_and_class(item_type, l_freq, class_list)
+                        if l_stage < old_stage:
+                            # don't downgrade stage just by frequency
+                            l_stage = old_stage
 
+                    if l_stage != STAGE_KNOWN and l_stage != STAGE_PRE_KNOWN:
+                        unknown_wids.update([wid])
+                        #unknown_count += 1
+
+                        seq, word = get_seq_and_word_from_word_id(wid)
+                        j_freq = get_frequency_by_seq_and_word(seq,word)
+
+                        if not is_katakana_word(word):
+                            #unknown_count_ex_katakana += 1
+                            unknown_ex_katakana_wids.update([wid])
+
+        unknown_count = len(unknown_wids)
+        unknown_count_ex_katakana = len(unknown_ex_katakana_wids)
+
+        if save_showstopper_words:
+            if unknown_count == 2:
+                for unk_wid in unknown_wids:
+                    if unk_wid not in showstopper_word_count:
+                        showstopper_word_count[unk_wid] = 1
+                    else:
+                        showstopper_word_count[unk_wid] += 1
 
         if unknown_count > 2:
             unknown_count = 2
@@ -318,6 +331,29 @@ def read_sentences(data_set, learning_dataset, results):
         results['comprehensible_input_sentence_grading'] = [-1 for cic in ci_sentence_count ]
     results['comprehensible_input_pct'] = round(results['unknown_i_sentences_pct'][0] + results['unknown_i_sentences_pct'][1],1)
     results['comprehensible_input_ex_katakana_pct'] = round(results['unknown_i_sentences_ex_katakana_pct'][0] + results['unknown_i_sentences_ex_katakana_pct'][1],1)
+
+    if save_showstopper_words:
+
+        sorted_showstopper_word_count = dict(sorted(showstopper_word_count.items(), key=lambda x:x[1], reverse=True))
+        sorted_showstopper_words = list(sorted_showstopper_word_count.keys())
+        # limit saved word count to top 50 words
+        if len(sorted_showstopper_words) > 50:
+            capped_words = sorted_showstopper_words[:50]
+            capped_sorted_showstopper_word_count = {key:sorted_showstopper_word_count[key] for key in capped_words}
+            results['showstopper_words'] = capped_sorted_showstopper_word_count
+        else:
+            results['showstopper_words'] = sorted_showstopper_word_count
+
+        target_ci_pct = 90
+        needed_word_count = 0
+        if results['comprehensible_input_pct'] < target_ci_pct and l_s > 0:
+            ci_sentence_count = unknown_i_sentences[0] + unknown_i_sentences[1]
+            while ( 100*ci_sentence_count/l_s < target_ci_pct and needed_word_count<len(sorted_showstopper_words)):
+                word = sorted_showstopper_words[needed_word_count]
+                ci_sentence_count += sorted_showstopper_word_count[word]
+                needed_word_count += 1
+        results['showstopper_word_count_for_ci90'] = needed_word_count
+
 
 
 # This calculates known/unknown word and kanji distribution of chapter/title
@@ -426,13 +462,13 @@ def load_and_analyze_dataset(file_name):
     analysis['total_statistics']['kanjis'] = k_an['total_statistics']
     analysis['unique_statistics']['kanjis'] =  k_an['unique_statistics']
 
-    read_sentences(data_set, learning_data, analysis)
+    read_sentences(data_set, learning_data, analysis, save_showstopper_words=True)
     
     analysis['total_statistics']['words']['pct_known_pre_known'] = \
         round(analysis['total_statistics']['words']['pct_known_pre_known'],1)
     analysis['unique_statistics']['words']['pct_known_pre_known'] = \
         round(analysis['unique_statistics']['words']['pct_known_pre_known'],1)
-    
+        
     return analysis, data_set
 
 
@@ -455,8 +491,8 @@ def analyze_titles(args):
         if args['title'] is not None and args['title'].lower() not in title_name.lower():
             continue
 
-        if 'series_analysis' in old_analysis and title_id in old_analysis['series_analysis'] and not args['force']:
-            title_analysis = old_analysis['series_analysis'][title_id]
+        if 'series' in old_analysis and title_id in old_analysis['series'] and not args['force']:
+            title_analysis = old_analysis['series'][title_id]
         else:
             # recalculate analysis
 
@@ -494,9 +530,9 @@ def analyze_titles(args):
     # calculate ci sentence grading average
     for i in range(7):
         avg_ci_sentence_count[i] /= len(analysis.keys())
-    analysis['avg_ci_sentence_count'] = [ round(ac,1) for ac in avg_ci_sentence_count ]
+    avg_ci_sentence_count = [ round(ac,1) for ac in avg_ci_sentence_count ]
 
-    return analysis
+    return analysis, avg_ci_sentence_count
 
 
 # Get next non-fully read volume (some chapters might be read and some not)
@@ -532,7 +568,7 @@ def get_next_unread_chapter(title_id):
                 # assume every manga chapter/volume has enough content
                 valid_found = True
             else:
-                summary = get_summary(title_id)
+                summary = get_language_summary(title_id)
                 ns = summary['num_sentences']
                 if ns == 0:
                     print("Warning! %s has no content!" % get_title_by_id(title_id))
@@ -571,8 +607,8 @@ def analyze_next_unread(args):
         if args['title'] is not None and args['title'].lower() not in title_name.lower():
             continue
 
-        if 'next_unread_chapter_analysis' in old_analysis and title_id in old_analysis['next_unread_chapter_analysis'] and not args['force']:
-            chapter_analysis = old_analysis['next_unread_chapter_analysis'][title_id]
+        if 'next_unread_chapter' in old_analysis and title_id in old_analysis['next_unread_chapter'] and not args['force']:
+            chapter_analysis = old_analysis['next_unread_chapter'][title_id]
         else:
             # recalculate analysis
 
@@ -620,8 +656,8 @@ def analyze_next_unread(args):
                 next_vol_analysis[title_id] = chapter_analysis
 
         if is_book(title_id):
-            if 'next_unread_volume_analysis' in old_analysis and title_id in old_analysis['next_unread_volume_analysis'] and not args['force']:
-                volume_analysis = old_analysis['next_unread_volume_analysis'][title_id]
+            if 'next_unread_volume' in old_analysis and title_id in old_analysis['next_unread_volume'] and not args['force']:
+                volume_analysis = old_analysis['next_unread_volume'][title_id]
             else:
                 # recalculate analysis
 
@@ -989,8 +1025,8 @@ def series_analysis_for_jlpt(args):
             else:
                 points = -1
 
-            title_analysis['relative_points'] = round(points,1)
-            title_analysis['absolute_points'] = jlpt_points
+            title_analysis['relative_improvement_pts'] = round(points,1)
+            title_analysis['improvement_pts'] = jlpt_points
             title_analysis['num_new_known_words'] = len(new_known_word_ids)
             title_analysis['num_new_known_kanjis'] = len(new_known_kanjis)
             title_analysis['num_new_learning_words'] = len(new_learning_word_ids)
@@ -1004,49 +1040,90 @@ def series_analysis_for_jlpt(args):
 def analyze(args):
     global old_analysis
 
-    if os.path.exists(output_analysis_file):
-        with open(output_analysis_file,"r",encoding="utf-8") as f:
-            d = json.loads(f.read())
-            if d['timestamp']/1000 > learning_data['timestamp']:
-                if 'version' in d and d['version'] == get_version(OCR_SUMMARY_VERSION):
-                    if 'parser_version' in d and d['parser_version'] == get_version(LANUGAGE_PARSER_VERSION):
-                        print("Loaded previous up-to-date analysis")
-                        old_analysis = d['analysis']
-            if len(old_analysis)==0:
-                print("Omitting stale previous analysis")
+    # TODO. Load older analysis if it exists
 
     d = dict()
-    d['series_analysis'] = analyze_titles(args)
+    d['series'], avg_ci_sentence_count = analyze_titles(args)
     next_ch_analysis, next_vol_analysis = analyze_next_unread(args)
-    d['next_unread_chapter_analysis'] =  next_ch_analysis
-    d['next_unread_volume_analysis'] =  next_vol_analysis
+    d['next_unread_chapter'] =  next_ch_analysis
+    d['next_unread_volume'] =  next_vol_analysis
     d['series_analysis_for_jlpt'] =  series_analysis_for_jlpt(args)
 
-    if args['title'] is None:
-        o_f = open(output_analysis_file,"w",encoding="utf-8")
-        timestamp = int(time.time())*1000
-        data = {
-            'timestamp': timestamp, 
-            'analysis' : d,
-            'version':get_version(OCR_SUMMARY_VERSION),
-            'parser_version':get_version(LANUGAGE_PARSER_VERSION)
-        }
-        json_data = json.dumps(data)
-        o_f.write(json_data)
-        o_f.close()
+    timestamp = int(time.time())*1000
+    custom_lang_analysis_metadata = {
+        'version':get_version(OCR_SUMMARY_VERSION),
+        'parser_version': get_version(LANUGAGE_PARSER_VERSION),
+        'timestamp' : timestamp
+    }
+    for title_id in d['series'].keys():
+        summary = dict()
+        an_types = ['series','next_unread_chapter','next_unread_volume','series_analysis_for_jlpt']
+        summary_fields = ['pct_known_pre_known','comprehensible_input_pct','comprehensible_input_ex_katakana_pct','comprehensible_input_score','num_unknown_unfamiliar','jlpt_unknown_num','relative_improvement_pts']
+        for an_type in an_types:
+            summary[an_type] = dict()
+            if title_id not in d[an_type]:
+                print("Warning. %s not in %s" % (title_id, an_type))
+            else:
+                an = d[an_type][title_id]
+                an['title_id'] = title_id
+                an['type'] = an_type
+                an['user_id'] = DEFAULT_USER_ID
+                an['custom_lang_analysis_metadata'] = custom_lang_analysis_metadata
+                an = json.loads(json.dumps(an)) # make sure all integer keys are converted to strings
+                if args['title'] is not None:
+                    print("Saving %s:%s" % (title_id, an_type))
+                database[BR_CUSTOM_LANG_ANALYSIS].replace_one(
+                    {'user_id':an['user_id'],'type':an_type,'title_id':title_id},
+                    an, upsert=True
+                )
+
+                # pick only few data points from each analysis for summary 
+                def recursive_selective_copy(input_branch, output_branch):
+                    for key,val in input_branch.items():
+                        if key in summary_fields:
+                            output_branch[key] = val
+                        elif isinstance(val,dict):
+                            output_branch[key] = dict()
+                            recursive_selective_copy(input_branch[key], output_branch[key])
+                            if len(output_branch[key]) == 0:
+                                del(output_branch[key])
+
+                recursive_selective_copy(an, summary[an_type])
+                if len(summary[an_type]) == 0:
+                    del(summary[an_type])
+
+        # save the summary
+        summary['title_id'] = title_id
+        summary['type'] = "summary"
+        summary['user_id'] = DEFAULT_USER_ID
+        summary['custom_lang_analysis_metadata'] = custom_lang_analysis_metadata
+        if args['title'] is not None:
+            print("Saving %s:%s" % (title_id, 'summary'))
+        database[BR_CUSTOM_LANG_ANALYSIS].replace_one(
+            {'user_id':DEFAULT_USER_ID,'type':'summary','title_id':title_id},
+            summary, upsert=True
+        )
+
+    # average summary.  
+    # TODO: rest of the average values
+    summary = dict()
+    summary['series'] = {'avg_ci_sentence_count':avg_ci_sentence_count}
+    summary['title_id'] = "average_manga"
+    summary['type'] = "summary"
+    summary['user_id'] = DEFAULT_USER_ID
+    summary['custom_lang_analysis_metadata'] = custom_lang_analysis_metadata
+    summary = json.loads(json.dumps(summary)) # make sure all integer keys are converted to strings
+
+    database[BR_CUSTOM_LANG_ANALYSIS].replace_one(
+        {'user_id':DEFAULT_USER_ID,'type':'summary','title_id':"average"},
+        summary, upsert=True
+    )
+
 
 
 #################### Read input files #################################
 
-if os.path.exists(summary_file):
-    with open(summary_file,"r") as f:
-        summary_data = json.loads(f.read())
-
-if os.path.exists(ext_summary_file):
-    with open(ext_summary_file,"r") as f:
-        ext_summary_data = json.loads(f.read())
-
-needed_paths = [ chapter_analysis_dir, title_analysis_dir, jlpt_kanjis_file, jlpt_vocab_file, user_data_file]
+needed_paths = [ chapter_analysis_dir, title_analysis_dir, jlpt_kanjis_file, jlpt_vocab_file]
 for path in needed_paths:
     if not os.path.exists(path):
         raise Exception("Required path [%s] not found!" % path)
@@ -1086,7 +1163,7 @@ parser_suggest_preread.add_argument('--filter', '-f', type=str, default="all",  
 
 args = vars(parser.parse_args())
 
-#args = {'command':'analyze','progress_output':False}
+#args = {'command':'analyze','title':None,'progress_output':False}
 
 cmd = args.pop('command')
 progress_output = False
@@ -1112,7 +1189,7 @@ if initial_remembering_period > 0:
 learning_settings['learned_jlpt_timestamp'] /= 1000
 learning_settings['learned_custom_timestamp'] /= 1000
 
-#analyze({'title':None,'force':False})
+#analyze({'title':'Hitch','force':False})
 #analyze_next_unread({'title':'tortoise','force':True})
 #suggest_preread({'title':'66620803ae0ef12efe53117a','filter':'book','progress-output':False,'target_scope':'title','source_scope':'next_unread_volume'})
 #suggest_preread({'title':'6696a9de5346852c2184aed0','filter':'manga','progress-output':False,'target_scope':'next_unread_chapter','source_scope':'next_unread_volume'})

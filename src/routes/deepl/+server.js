@@ -1,6 +1,6 @@
-import db from "$lib/db";
-import { saveUserData } from "$lib/UserDataTools.js";
 import { json } from '@sveltejs/kit';
+import { updateUserData, getUserData } from '$lib/collections.js'
+import { DEFAULT_USER_ID } from '$lib/UserDataTools.js'
 
 async function fetchTranslation(text,deepl_key) {
     try {
@@ -36,8 +36,7 @@ async function saveKey(deepl_key) {
     let res = await fetchTranslation(test_text,deepl_key)
     console.log("res",JSON.stringify(res))
     if (res.success) {
-        db['user_data']['deepl_key'] = deepl_key
-        saveUserData(db);
+        await updateUserData(DEFAULT_USER_ID, 'deepl_key', deepl_key)
         console.log("Saved DeepL key")
         return {'success':true}
     } else {
@@ -54,9 +53,10 @@ export async function POST({ request }) {
 	if (data.func == 'save_key') {
         ret = await saveKey(data.deepl_key);
     } else if (data.func == 'translate') {
-        if ('deepl_key' in db['user_data']) {
-            if (db['user_data']['deepl_key'] != '') {
-                ret = await fetchTranslation(data.text,db['user_data']['deepl_key']);
+        var user_data = await getUserData(DEFAULT_USER_ID);
+        if ('deepl_key' in user_data) {
+            if (user_data['deepl_key'] != '') {
+                ret = await fetchTranslation(data.text,user_data['deepl_key']);
             } else {
                 ret = {'success':false,'error':'DeepL key not yet set!'}
             }

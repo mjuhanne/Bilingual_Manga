@@ -1,6 +1,9 @@
 import json
 import os
 import hashlib
+from br_mongo import *
+
+DEFAULT_USER_ID = 0
 
 AVERAGE_PAGES_PER_VOLUME = 180
 
@@ -60,14 +63,6 @@ user_data_file = base_dir + 'json/user_data.json'
 user_set_words_file__old = base_dir + 'json/user_set_words.json'  # deprecated
 user_set_word_ids_file = base_dir + 'json/user_set_word_ids.json'
 
-summary_file = base_dir + "json/lang_summary.json"
-ext_summary_file = base_dir + "json/ext_lang_summary.json"
-
-manga_metadata_file = base_dir + "json/BM_data.manga_metadata.json"
-manga_data_file = base_dir + "json/BM_data.manga_data.json"
-ext_manga_data_file = 'json/ext.manga_data.json'
-ext_manga_metadata_file = 'json/ext.manga_metadata.json'
-
 jlpt_kanjis_file = base_dir + "lang/jlpt/jlpt_kanjis.json"
 jlpt_vocab_with_waller_kanji_restrictions_path_= base_dir + "lang/jlpt-vocab/data_with_waller_restricted_kanji/"
 jlpt_vocab_path =  base_dir + "lang/jlpt-vocab/data/"
@@ -95,11 +90,20 @@ METADATA_CACHE_VERSION = 'metadata_cache'
 # .. whereas older language parser works but may not have parsed all the words as efficiently
 LANUGAGE_PARSER_VERSION = 'language_parser'
 
+def get_language_summary(title_id):
+    summary = database[BR_LANG_SUMMARY].find_one({'_id':title_id})
+    if summary is None:
+        raise Exception("%s [%s] has no summary!" % (get_title_names()['title_id'],title_id))
+    return summary
+
 
 def get_version(version_type):
     if version_type in _versions:
         return _versions[version_type]
     raise Exception("Unknown version type '%s' !" % version_type)
+
+_manga_metadata_processed = False
+_manga_data_processed = False
 
 _title_names = dict()
 _jp_title_names = dict()
@@ -116,17 +120,15 @@ _volume_chapters = dict()
 _volume_names = dict()
 _chapter_id_to_vol_id = dict()
 _volume_id_to_volume_number = dict()
+_volume_id_to_title_id = dict()
 _chapter_page_count = dict()
 _virtual_ch_page_count = dict()
+_verified_ocr = dict()
+_is_book = dict()
 
 _jlpt_word_jmdict_references = None
 _jlpt_word_levels = None
 _jlpt_word_reading_levels = None
-
-_verified_ocr = dict()
-_is_book = dict()
-
-_manga_data = dict()
 
 full_width_alpha_characters = "ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ％"
 full_width_numeric_characters = "０１２３４５６７８９"
@@ -158,11 +160,15 @@ def get_chapter_name_by_id(id):
 def get_title_names():
     return _title_names
 
+def get_jp_title_names():
+    return _jp_title_names
+
 def get_title_by_id(id):
     return _title_names[id]
 
 def get_jp_title_by_id(id):
-    return _jp_title_names[id]
+    md = get_metadata_by_title_id(id)
+    return md['jptit']
 
 def get_title_id_by_title_name(name):
     return _title_name_to_id[name]
@@ -196,6 +202,11 @@ def get_volume_id_by_chapter_id(id):
         return _chapter_id_to_vol_id[id]
     return None
 
+def get_title_id_by_volume_id(id):
+    if id in _volume_id_to_title_id:
+        return _volume_id_to_title_id[id]
+    return None
+
 def get_chapter_page_count(id):
     title_id = get_title_id_by_chapter_id(id)
     if is_book(title_id):
@@ -217,13 +228,22 @@ def get_publisher(id):
         return _publishers[id]
     return ''
 
+def get_metadata_by_title_id(id):
+    return database[BR_METADATA].find_one({'_id':id})
+
+def get_data_by_title_id(id):
+    return database[BR_DATA].find_one({'_id':id})
+
 def get_chapter_files_by_chapter_id(id):
     return _chapter_id_to_chapter_files[id]
 
 def read_manga_metadata():
     global _title_names, _jp_title_names, _title_name_to_id
     global _verified_ocr, _is_book, _authors, _publishers
-    def process_manga_metadata(manga_titles):
+    global _manga_metadata_processed
+
+    if not _manga_metadata_processed:
+        manga_titles = database[BR_METADATA].find({}).to_list()
         for t in manga_titles:
             title_id = t['enid']
             title_name = t['entit']
@@ -244,35 +264,24 @@ def read_manga_metadata():
                 _is_book[title_id] = t['is_book']
             else:
                 _is_book[title_id] = False
-
-    with open(ext_manga_metadata_file,"r",encoding="utf-8") as f:
-        data = f.read()
-        manga_titles = json.loads(data)
-        process_manga_metadata(manga_titles)
-
-    with open(manga_metadata_file,"r",encoding="utf-8") as f:
-        data = f.read()
-        manga_metadata = json.loads(data)
-        manga_titles = manga_metadata[0]['manga_titles']
-        process_manga_metadata(manga_titles)
+        _manga_metadata_processed = True
 
 
 def read_manga_data(read_chapter_files=False):
     global _manga_data
     global _chapter_id_to_title_id, _chapter_id_to_chapter_number, _chapter_id_to_chapter_name
     global _chapter_page_count, _title_chapters, _virtual_ch_page_count
-    global _title_volumes, _volume_chapters, _volume_names, _chapter_id_to_vol_id, _volume_id_to_volume_number
-    with open(manga_data_file,"r",encoding="utf-8") as f:
-        data = f.read()
-        _manga_data = json.loads(data)
+    global _title_volumes, _volume_chapters, _volume_names, _chapter_id_to_vol_id, _volume_id_to_volume_number, _volume_id_to_title_id
 
-    with open(ext_manga_data_file,"r",encoding="utf-8") as f:
-        data = f.read()
-        _ext_manga_data = json.loads(data)
-        _manga_data += _ext_manga_data
+    global _manga_data_processed
+
+    if _manga_data_processed:
+        return
     
+    _manga_data = database[BR_DATA].find({}).to_list()
+           
     for m in _manga_data:
-        title_id = m['_id']['$oid']
+        title_id = m['_id']
 
         _chapter_ids = m['jp_data']['ch_jph']
         _chapter_ids = [cid.split('/')[0] for cid in _chapter_ids]
@@ -291,6 +300,7 @@ def read_manga_data(read_chapter_files=False):
                     _volume_names[vol_id] = vol_name
                     _title_volumes[title_id].append(vol_id)
                     _volume_id_to_volume_number[vol_id] = i
+                    _volume_id_to_title_id[vol_id] = title_id
                     _volume_chapters[vol_id] = []
                     for ch_i in range(vol_data['s'],vol_data['e']+1):
                         _volume_chapters[vol_id].append(chapter_ids[ch_i])
@@ -330,10 +340,12 @@ def get_manga_chapter_name(chapter_id):
 def get_title_id(item):
     if item in _title_name_to_id:
         return _title_name_to_id[item]
-    if item in _title_names.keys():
+    
+    mt = database[BR_METADATA].find_one({'_id':item})
+    if mt is not None:
         # the item is in fact the title id
         return item
-    raise Exception("unknown manga title/id %d" % item)
+    raise Exception("unknown manga title/id %s" % item)
 
 def get_jlpt_kanjis():
     with open(jlpt_kanjis_file,"r",encoding="utf-8") as f:

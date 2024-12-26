@@ -2,6 +2,7 @@
 import MangaFavouriteButton from "./MangaFavouriteButton.svelte";
 export let meta;
 export let syn;
+export let syn_en_deepl;
 
 </script>
 <div id="metac">
@@ -35,25 +36,41 @@ export let syn;
     {/each}    
 </div>
 
-{#if (meta.Author.length<=1)}
-<b style="font-size: 1.1rem;">Author</b>
-{:else}
-<b style="font-size: 1.1rem;">Authors</b>
-{/if}
-<div class="metae">
-    {#each meta.Author as Author }
-        <a href="/manga-author/{Author}">{Author}</a>
-    {/each}    
-</div>
-{#if (meta.Artist.length<=1)}
-<b style="font-size: 1.1rem;">Artist</b>
-{:else}
-<b style="font-size: 1.1rem;">Artists</b>
-{/if}
-<div class="metae">
-    {#each meta.Artist as Artist }
-        <a href="/manga-artist/{Artist}">{Artist}</a>
-    {/each}    
+<div style="display: flex;">
+    <div>
+        {#if (meta.Author.length<=1)}
+        <b style="font-size: 1.1rem;">Author</b>
+        {:else}
+        <b style="font-size: 1.1rem;">Authors</b>
+        {/if}
+        <div class="metae">
+            {#each meta.Author as Author }
+                <a href="/manga-author/{Author}">{Author}</a>
+            {/each}    
+        </div>
+    </div>
+    {#if (meta.translator.length>0)}
+        <div style="margin-left:20px;">
+            <b style="font-size: 1.1rem;">Translator</b>
+            <div class="metae">
+                <a href="/manga-translator/{meta.translator}">{meta.translator}</a>
+            </div>
+        </div>
+    {/if}
+    {#if (meta.Artist.length>0)}
+        <div style="margin-left:20px;">
+            {#if (meta.Artist.length==1)}
+            <b style="font-size: 1.1rem;">Artist</b>
+            {:else}
+            <b style="font-size: 1.1rem;">Artists</b>
+            {/if}
+            <div class="metae">
+                {#each meta.Artist as Artist }
+                    <a href="/manga-artist/{Artist}">{Artist}</a>
+                {/each}    
+            </div>
+        </div>
+    {/if}
 </div>
 
 <div style="display: flex;">
@@ -69,6 +86,7 @@ export let syn;
     <a href="/manga-status/{meta.Status}">{meta.Status}</a>
     </div>
     </div>
+    {#if (meta.series !== undefined)}
     <div style="margin-left:10px;">
         <b style="font-size: 1.1rem;">Volumes</b>
         <div class="metae">
@@ -87,6 +105,9 @@ export let syn;
             <a>{meta.series.num_pages}</a>
         </div>
     </div>
+    {:else}
+    <div>Language analysis not yet done!</div>
+    {/if}
     <div style="margin-left:10px;">
     <b style="font-size: 1.1rem;">Rating</b>
     <div class="metae">
@@ -102,8 +123,15 @@ export let syn;
 </div>
 
 <div class="metaesyn" style="margin-top:10px;">
-    {syn}    
+    {@html syn}
 </div>
+
+{#if syn_en_deepl != ''}
+<div class="metaesyn deepl" style="margin-top:10px;">
+    DeepL translation:
+    {@html syn_en_deepl}
+</div>
+{/if}
 </div>
 <style>
 #metac{
@@ -131,6 +159,10 @@ color: whitesmoke;
 background:#333;
 border-radius:5px;
 
+}
+
+.deepl {
+    color: rgb(249, 174, 246);
 }
 
 a.category_weak {

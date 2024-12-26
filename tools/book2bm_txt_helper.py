@@ -59,7 +59,7 @@ def get_info_from_txt_file_name(root_path,source_item, og_title, og_author):
                 if field == 'vol_name':
                     vol_name = value
                 if field == 'translator':
-                    translator = '(%s訳)' % value
+                    translator = value
 
             if vol_name == '':
                 if '（上）' in source_item:
@@ -71,10 +71,10 @@ def get_info_from_txt_file_name(root_path,source_item, og_title, og_author):
                 else:
                     vol_name = title
             if translator != '':
-                vol_name += ' ' + translator
+                vol_name += ' (%s訳)' % translator
 
             if title != '' and author != '':
-                return title, {'type':'txt','author':author,'volume_name':vol_name,'path':root_path,'filename': source_item}
+                return title, {'type':'txt','author':author,'volume_name':vol_name,'path':root_path,'filename': source_item,'translator':translator}
 
     return None, None
 
@@ -89,6 +89,11 @@ def wide_numbers_to_int(txt):
             raise Exception("Invalid number" % txt)
     return int(new_txt)
 
+
+kanji_commentary = [
+    '葛のヒは人',
+    'しんにょうの点は二つ', # old form of 'road'
+    ]
 def process_note(line,note,note2,rice,txt_line):
     if 'unicode' in note:
         try:
@@ -144,13 +149,16 @@ def process_note(line,note,note2,rice,txt_line):
         # TODO: '「凹／儿」'
         # Is this an alternative? For now just output the raw note
         line += note
+    elif note in kanji_commentary:
+        # ignore this for now
+        pass
     else:
         print("NOTICE! Unhandled note [%s] in line [%s]" % (note,txt_line))
         pass
     return line
 
 
-def get_chapters_from_txt_file(path):
+def read_txt_file(path):
     txt_lines = []
     encodings = ['utf-8','shift_jis','utf_16','utf_32','shift_jis_2004','shift_jisx0213','euc_jp','cp932','euc_jis_2004','euc_jisx0213','iso2022_jp','iso2022_jp_1','iso2022_jp_2','iso2022_jp_2004',',iso2022_jp_3','iso2022_jp_ext',]
     for encod in encodings:
@@ -161,10 +169,12 @@ def get_chapters_from_txt_file(path):
                     txt_lines = d.split('\n')
             except:
                 pass
+    return txt_lines
 
-    ocr_dict = dict()
+def get_chapters_from_txt_file(path):
+
+    txt_lines = read_txt_file(path)
     chapter_paragraphs = []
-    #chapter_pages = []
     num_sentences = 0
     num_characters = 0
 
@@ -409,20 +419,30 @@ def divide_chapters(chapters, divide_type):
         chapters.append(new_chapter)
     return chapters
 
+def get_publisher_from_txt_file(filepath):
+    txt_lines = read_txt_file(filepath)
+    for publisher in publisher_list:
+        for line in txt_lines:
+            if publisher in line:
+                return publisher
+    return None
 
-
-
-def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, start_ch_idx, ask_confirmation_for_new_chapters ):
+def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, ask_confirmation_for_new_chapters ):
 
     lang_data_field = lang + '_data'
     ch_name_field = 'ch_na' + lang
     ch_lang_h_field = 'ch_' + lang + 'h'
     ch_lang_field = 'ch_' + lang
     vol_lang_field = 'vol_' + lang
+    start_ch_idx = len(t_data[lang_data_field][ch_lang_h_field])
 
     print("Process vol/book %s [%s]" % (vol_name,vol_id))
 
     chapters = get_chapters_from_txt_file(filepath)
+
+    if len(chapters) == 0:
+        print("Title %s volume %s [%s] has no detected chapters!" % (title_id, vol_name, vol_id))
+        return 0
 
     t_data[lang_data_field][vol_lang_field][vol_name] = {'id':vol_id,'s':start_ch_idx,'e':start_ch_idx + len(chapters)-1}
 

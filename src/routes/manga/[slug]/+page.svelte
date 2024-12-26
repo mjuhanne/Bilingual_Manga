@@ -5,6 +5,7 @@ import MangaApp from '$lib/MangaApp.svelte';
 import {obj} from '$lib/store.js';
 import { page } from '$app/stores';
 import {onMount} from 'svelte'
+import { browser } from '$app/environment';
 
 let currlink=$page.url;
 let curdom=`${currlink}`.split('/');
@@ -26,28 +27,8 @@ let xipfs=""
 let prel = parseInt(meta['0'].prel);
 let delayml = parseInt(meta['0'].delayml);
 
-
-
-
-
-$:ll={};
-$:{
-    x.forEach(element => {
-        if(element.enid===data.p)
-        {
-            ll=element;
-          
-        }
-        
-    });
-}
-
-
-
-
-
+$:ll=data.meta_data; 
 let imgs_darr=data.manga_data;
-
 
 let langt=data.l==='en'?'ENG':'JP'
 let chengt = (data.chen!=null&&data.chen!=undefined&&data.chen.length > 0&&parseInt(data.chen)>=0)?data.chen:'0';
@@ -68,6 +49,11 @@ if("img_data" in data.manga_data)
 }
 
 </script>
+
+{#if browser}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{/if}
+
 {#if ((data.chen!=null&&data.chen!=undefined&&data.chen.length > 0&&parseInt(data.chen)>=0)||(data.chjp!=null&&data.chjp!=undefined&&data.chjp.length > 0&&parseInt(data.chjp)>=0))}
 
 {@html meta[0].inhtml['ad-up']}

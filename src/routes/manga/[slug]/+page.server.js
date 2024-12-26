@@ -1,68 +1,6 @@
 import { error } from '@sveltejs/kit';
-import db from "$lib/db"
-import {obj} from '$lib/store.js';
-import {ObjectId} from 'mongodb'
-/** @type {import('./$types').PageServerLoad} */
-
-
-/*
-const slugswap=()=>{    let meta;
-    obj.subscribe(value => { meta=value;});
-    let metarr = meta['0'].manga_titles;
-
-    metarr.forEach(element => {
-        if(("enslug" in element)&&("jpslug" in element))
-        {
-        if(element.enslug===id)
-        {
-            id=element.enid;
-    
-        }
-        else if(element.jpslug===id)
-        {
-            id=element.enid;
-    
-        }
-    
-        }
-        
-    });}
-*/
-
-export async function load({params,url}) 
-{   let id=params["slug"]
-    
-
-    let meta;
-
-    obj.subscribe(value => { meta=value;});
-    let metarr = meta['0'].manga_titles;
-    
-    metarr.forEach(element => {
-         if(("enslug" in element)&&("jpslug" in element))
-         {
-            
-            let tempe=decodeURI(element['enslug'])
-            let tempej=decodeURI(element['jpslug'])
-
-
-        if(tempe===id)
-        {
-            id=`${element.enid}`;
-
-            url.searchParams.set('lang',"en");
-
-         }
-        else if(tempej===id)
-        {
-            id=`${element.enid}`;
-            url.searchParams.set('lang',"jp");
-        }
-
-     }
-
-
-});
+import {AugmentTitleMetadataWithUserData, DEFAULT_USER_ID} from '$lib/UserDataTools.js'
+import { searchCollection, getBilingualMangaSettings, getUserData, getMangaMetadataForSingleTitle} from "$lib/collections.js";
 
 // Replace uncommon characters in local file names with '_'  
 function cleanFileNames(manga_data) {
@@ -86,52 +24,109 @@ function cleanFileNames(manga_data) {
     }
 }
 
-    let arr =[];
-    let man=db['manga_data']
+/** @type {import('./$types').PageServerLoad} */
+export async function load({params,url}) {   
+    let id=params["slug"]
+
+    const meta_data_by_id = await searchCollection("br_metadata", "_id", id);
+
+    var meta_data = undefined;
+    if (meta_data_by_id.length>0) {
+        meta_data = meta_data_by_id[0]
+    } else {
+        const meta_data_by_enslug = await searchCollection("br_metadata", "enslug", id);
+        if (meta_data_by_enslug.length>0) {
+            meta_data = meta_data_by_enslug[0]
+            id = meta_data['_id']
+            url.searchParams.set('lang',"en");
+        } else {
+            const meta_data_by_jpslug = await searchCollection("br_metadata", "jpslug", id);
+            if (meta_data_by_jpslug.length>0) {
+                meta_data = meta_data_by_jpslug[0]
+                id = meta_data['_id']
+                url.searchParams.set('lang',"jp");
+            }
+        }   
+    }
+    //console.log(JSON.stringify(meta_data))
+
+    meta_data = await getMangaMetadataForSingleTitle(DEFAULT_USER_ID, id)
+
+    if (meta_data !== undefined) {
+
+        const data = await searchCollection("br_data", "_id", id);
+
+        if (data.length>0) {
+            const title_data = data[0];
+
+            const settings = await getBilingualMangaSettings();
+            console.log(`Title data for ${meta_data.entit} / ${meta_data.jptit}: ` + JSON.stringify(title_data))
+            console.log(JSON.stringify(title_data))
+
+            const user_data = await getUserData(DEFAULT_USER_ID);
+
+            let jsonc;
+            const ref = url.searchParams.get('lang');
+            const chen = url.searchParams.get('chen');
+            const chjp = url.searchParams.get('chjp');
+            const enp = url.searchParams.get('enp');
+            const jpp = url.searchParams.get('jpp');
     
-    if(ObjectId. isValid(id)){ 
-
-    for(let m_id in man)
-    { 
-      let m_idel=man[m_id]
-      let x111=m_idel['_id'];
-      let x112=x111['$oid'];
-    if(x112==id){arr.push(m_idel);break;}
-        
-        }
+            let ipfsss=""
+            let aa1=await fetch(`${settings.cdn1}/json/dw.json`)
+            let aa2 = await aa1.json()
+            let pm = aa2["pm"]
     
-    if(arr.length!=0)
-    {   let jsonc;
-        const ref = url.searchParams.get('lang');
-        const chen = url.searchParams.get('chen');
-        const chjp = url.searchParams.get('chjp');
-        const enp = url.searchParams.get('enp');
-        const jpp = url.searchParams.get('jpp');
+            if(pm.includes(id) || !title_data.from_bilingualmanga_org)
+            {
+                ipfsss=settings.ipfsgate1
+                cleanFileNames(title_data);
+            }
+            else
+            {
+                ipfsss=settings.ipfsgate
+            }
+            title_data.is_book = meta_data.is_book
+    
+            // create list of jp chapter ids and jp chapter id -> chapter name lookup table
+            let chapter_ids = [];
+            title_data.jp_data.chapter_names = {};
+            let i = 0;
+            for (let ch of title_data.jp_data.ch_jph) {
+                let chapter_id = ch.split('/')[0];
+                chapter_ids.push(chapter_id);
+                title_data.jp_data.chapter_names[chapter_id] = title_data.jp_data.ch_najp[i];
+                i += 1;
+            }
+            title_data.jp_data.chapter_ids = chapter_ids;
 
+            // create a list of chapters per volume
+            for (let vol in title_data.jp_data.vol_jp) {
+                let vol_chapters = [];
+                let start_c = title_data.jp_data.vol_jp[vol].s;
+                let end_c = title_data.jp_data.vol_jp[vol].e
+                for (let idx = start_c; idx <= end_c; idx ++ ) {
+                    vol_chapters.push(chapter_ids[idx]);
+                }
+                title_data.jp_data.vol_jp[vol].chapter_ids = vol_chapters;
+            };
 
+            // Add en chapter id lookup table
+            chapter_ids = [];
+            for (let ch of title_data.en_data.ch_enh) {
+                let chapter_id = ch.split('/')[0];
+                chapter_ids.push(chapter_id);
+            }
+            title_data.en_data.chapter_ids = chapter_ids;
 
-        let ipfsss=""
-        let aa1=await fetch(`${meta['0'].cdn1}/json/dw.json`)
-        let aa2 = await aa1.json()
-        let pm = aa2["pm"]
+            AugmentTitleMetadataWithUserData(meta_data, title_data, user_data)
 
-        if(pm.includes(id) || arr[0].external)
-        {
-            ipfsss=meta['0'].ipfsgate1
-            cleanFileNames(arr[0]);
+            let jsona={"p":id,"l":ref,"chen":chen,"chjp":chjp,"enp":enp,"jpp":jpp,"manga_data":title_data,"meta_data":meta_data,"ipfs":ipfsss};
+            jsonc = JSON.stringify(jsona);
+            jsonc=JSON.parse(jsonc)
+            return jsonc;
         }
-        else
-        {
-            ipfsss=meta['0'].ipfsgate
-        }
-
-        
-        let jsona={"p":id,"l":ref,"chen":chen,"chjp":chjp,"enp":enp,"jpp":jpp,"manga_data":arr[0],"ipfs":ipfsss};
-        jsonc = JSON.stringify(jsona);
-        jsonc=JSON.parse(jsonc)
-
-        return jsonc;     
-        
-    }}
+        throw error(404, 'Data not found');
+    }
     throw error(404, 'Not found');
 }

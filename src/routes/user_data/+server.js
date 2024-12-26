@@ -7,6 +7,8 @@ import child_process from "node:child_process";
 import util from "node:util";
 const execSync = util.promisify(exec);
 import { EventEmitter } from 'node:events';
+import { getUserDataValue, updateUserData } from '$lib/collections.js' 
+import { DEFAULT_USER_ID } from '../../lib/UserDataTools.js';
 
 // Overwrite the last history event if the change happened less than hour ago.
 // This prevents logging unnecessary events when user accidently flips between stages
@@ -27,47 +29,34 @@ function delay(time) {
     return new Promise(resolve => setTimeout(resolve, time));
 }
 
-function updateMetadata() {
-    let filename = 'json/custom_lang_analysis.json';
-    if (fs.existsSync(filename)) {
-        let data = fs.readFileSync(filename, "utf8");
-        let json_data = JSON.parse(data);
-        db['custom_lang_summary'] = json_data;
-        AugmentMetadataWithCustomLanguageSummary(db['manga_metadata'],db['custom_lang_summary']);
-    } else {
-        console.error(`Custom lang summary file ${filename} not found!`)
-    }
-}
 
-const toggleFavourite = (manga_id) => {
+async function toggleFavourite(manga_id) {
     let favourite = false;
-    if (db['user_data'].favourites.includes(manga_id)) {
-        console.log(db['user_data'].favourites);
-        db['user_data'].favourites = db['user_data'].favourites.filter((id) => id != manga_id);
+    let favourites = await getUserDataValue(DEFAULT_USER_ID, "favourites")
+    if (favourites.includes(manga_id)) {
+        favourites = favourites.filter((id) => id != manga_id);
     } else {
-        db['user_data'].favourites.push(manga_id);
+        favourites.push(manga_id);
         favourite = true;
     }
-	saveUserData(db);
-	AugmentMetadataWithUserData(db);
+	await updateUserData(DEFAULT_USER_ID, "favourites", favourites);
 	return favourite;
 }
 
-const updateLearningSettings = (settings) => {
-    db['user_data']['learning_settings'] = settings
-    db['user_data']['timestamp'] = Date.now();
-	saveUserData(db);
-    updateCustomLanguageAnalysis();
+async function updateLearningSettings(settings) {
+	await updateUserData(DEFAULT_USER_ID, "learning_settings", settings);
+	await updateUserData(DEFAULT_USER_ID, "timestamp", Date.now());
+    updateCustomLanguageAnalysis()
 }
 
-const updateAnkiSettings = (settings) => {
-    db['user_data']['anki_settings'] = settings
-	saveUserData(db);
+async function updateAnkiSettings(settings) {
+	await updateUserData(DEFAULT_USER_ID, "anki_settings", settings);
 }
 
-const massSetChapterReadingStatus = (status_list) => {
+async function massSetChapterReadingStatus(status_list) {
     console.log("massSetChapterReadingStatus")
-    let rs = db['user_data']['chapter_reading_status'];
+    let rs = await getUserDataValue(DEFAULT_USER_ID, "chapter_reading_status")
+    console.log("rs: " + JSON.stringify(rs))
     for (const [c_id, reading_data] of Object.entries(status_list)) {
         if (c_id in rs) {
             if (reading_data.status == 'Unread') {
@@ -84,9 +73,8 @@ const massSetChapterReadingStatus = (status_list) => {
             }
         }
     }
-    db['user_data']['chapter_reading_status'] = rs;
-    db['user_data']['timestamp'] = Date.now();
-    saveUserData(db);
+	await updateUserData(DEFAULT_USER_ID, "chapter_reading_status", rs);
+	await updateUserData(DEFAULT_USER_ID, "timestamp", Date.now());
     updateCustomLanguageAnalysis();
 }
 
@@ -116,8 +104,6 @@ async function updateCustomLanguageAnalysis() {
                                 updateCustomLanguageAnalysis();
                             } else {
                                 console.log("updateCustomLanguageAnalysis - analysis done")
-                                updateMetadata();
-                                AugmentMetadataWithUserData(db);
                                 broadcastEvent(EVENT_TYPE.UPDATED_ANALYSIS);
                             }
                             broadcastEvent(EVENT_TYPE.UPDATED_SUGGESTED_PREREAD,"")
@@ -181,13 +167,7 @@ function LaunchLanguageTool_Spawn(cmd, args, exit_cb, progress_cb, error_cb) {
 
 
 async function getSuggestedPreread(title_id) {
-    if (!('timestamp' in db['user_data'])) {
-        return {
-            success : false,
-            error_message : "Language analysis settings not yet configured!",
-        }    
-    }
-    console.log(`getSuggestedPreread ${title_id} user data timestamp ${db['user_data']['timestamp']}`);
+    console.log(`getSuggestedPreread ${title_id}`);
     let preread_dir = 'lang/suggested_preread/';
     let filename = preread_dir + title_id + '.json';
     if (fs.existsSync(filename)) {
@@ -206,13 +186,7 @@ async function getSuggestedPreread(title_id) {
 
 
 async function calculateSuggestedPreread(title_id,target_selection,source_selection,source_filter) {
-    if (!('timestamp' in db['user_data'])) {
-        return {
-            success : false,
-            error_message : "Language analysis settings not yet configured!",
-        }    
-    }
-    console.log(`getSuggestedPreread ${title_id} user data timestamp ${db['user_data']['timestamp']}`);
+    console.log(`getSuggestedPreread ${title_id}`);
     let preread_dir = 'lang/suggested_preread/';
     if (!fs.existsSync(preread_dir)) {
         fs.mkdirSync(preread_dir, { recursive: true });
@@ -276,8 +250,6 @@ const updateManuallySetWordLearningStage = (data) => {
         db['user_set_words'][word_id] = [history_entry];
     }
 	saveUserSetWords(db);
-    // TODO: We don't want to do this every time a single word status changes
-    //updateCustomLanguageAnalysis();
     return replaced_last_entry;
 }
 
@@ -332,10 +304,10 @@ export async function POST({ request }) {
 	if (data.func == 'toggle_favourite') {
         ret= {
             success : true,
-            'favourite' : toggleFavourite(data.manga_id)
+            'favourite' : await toggleFavourite(data.manga_id)
         };
 	} else if (data.func == 'mass_set_chapter_reading_status') {
-        massSetChapterReadingStatus(data.status_list),
+        await massSetChapterReadingStatus(data.status_list),
         ret= {success : true};
     } else if (data.func == 'get_suggested_preread') {
         ret= await getSuggestedPreread(data.title_id);
@@ -344,15 +316,15 @@ export async function POST({ request }) {
         ret= await calculateSuggestedPreread(data.title_id,data.target_selection,data.source_selection,data.source_filter);
         return json(ret);
     } else if (data.func == 'update_learning_settings') {
-        updateLearningSettings(data.settings);
+        await updateLearningSettings(data.settings);
         ret= {success : true};
-    } else if (data.func == 'update_manually_set_word_learning_stage') {        
+    } else if (data.func == 'update_manually_set_word_learning_stage') {
         ret= {
             success : true, 
-            'replaced_last_entry' : updateManuallySetWordLearningStage(data.stage_data)
+            'replaced_last_entry' : await updateManuallySetWordLearningStage(data.stage_data)
         };
     } else if (data.func == 'update_anki_settings') {
-        updateAnkiSettings(data.settings);
+        await updateAnkiSettings(data.settings);
         ret= {success : true};
     }
     console.log("POST /user_data return: " + JSON.stringify(ret));

@@ -277,7 +277,11 @@ function get_value(item,value_fields) {
             {#key sorted_suggested_preread}
             {#each sorted_suggested_preread as title_data}
             <tr>
+                {#if title_data.entit != "Placeholder"}
                 <td><a href="/manga/{title_data.enid}?lang=jp" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">{title_data.entit}</a></td>
+                {:else}
+                <td><a href="/manga/{title_data.enid}?lang=jp" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">{title_data.jptit}</a></td>
+                {/if}
                 {#if source_filter == 'book'}
                     <td>{title_data.num_analyzed_pages}</td>
                 {:else}
@@ -286,7 +290,7 @@ function get_value(item,value_fields) {
                 <td>{title_data.mangaupdates_data.rating}</td>
                 {#if source_selection == 'next_unread_volume'}
                     <td>{title_data.unread_volume}</td>
-                    <td>{title_data.volume.comprehensible_input_pct}</td>
+                    <td>{title_data.next_unread_volume.comprehensible_input_pct}</td>
                 {:else}
                     <td>{title_data.series.comprehensible_input_pct}</td>
                 {/if}

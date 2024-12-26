@@ -6,10 +6,9 @@ let all_meta_data;
 obj.subscribe(value => { all_meta_data=value;});
 
 export let meta;
-export let manga_data;
 
 export let current_set = 'total_statistics'
-export let avg_set = all_meta_data[0].average_manga.total_statistics;
+$: avg_set = (meta.is_book ? all_meta_data[0].average_book.total_statistics : all_meta_data[0].average_manga.total_statistics);
 
 let unique_items_set = false;
 let w_per_v_set = false;
@@ -19,10 +18,10 @@ const toggleUnique = () => {
     console.log("toggleUnique " + unique_items_set);
     if (unique_items_set) {
         current_set = 'unique_statistics'
-        avg_set = all_meta_data[0].average_manga.unique_statistics;
+        avg_set = (meta.is_book ? all_meta_data[0].average_book.unique_statistics : all_meta_data[0].average_manga.unique_statistics);
     } else {
         current_set = 'total_statistics'
-        avg_set = all_meta_data[0].average_manga.total_statistics;
+        avg_set = (meta.is_book ? all_meta_data[0].average_book.total_statistics : all_meta_data[0].average_manga.total_statistics);
     }
     draw_graphs();
 }
@@ -67,6 +66,7 @@ const table_fields2 = [
     ['CI score','/comprehensible_input_score',null],
     ['Known words %','words.pct_known_pre_known',null],
     ['Unknown/unfamiliar words','words.num_unknown_unfamiliar',null],
+    ['Unknown/unfamiliar words needed for 90% CI','/showstopper_word_count_for_ci90',null],
     ['Unknown/unfamiliar kanjis','kanjis.num_unknown_unfamiliar',null],
     ['Num unknown/unfamiliar JLPT kanjis','kanjis.jlpt_unknown_num',null],
     ['Unknown/unfamiliar JLPT kanjis','',(dataset) => {return list_kanji_func(dataset.unique_statistics.kanjis.jlpt_unknown_list)}],
@@ -95,7 +95,7 @@ let ci_data =  {
             },
             {
             label: 'Average manga',
-            data: all_meta_data[0].average_manga.avg_ci_sentence_count,
+            data: all_meta_data[0].average_manga.series.avg_ci_sentence_count,
             borderWidth: 1,
             borderColor: '#707070',
             backgroundColor: '#606060',

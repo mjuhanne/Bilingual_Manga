@@ -23,7 +23,7 @@ let common_sort_options = {
     'Known w %'     : { sc:true, field: 'total_statistics.words.pct_known_pre_known',  type:'val', subheading_template:'Known w _ %', rev:true },
     'Unknown words' : { sc:true, field: 'unique_statistics.words.num_unknown_unfamiliar',  type:'val', subheading_template:'_ unk words', rev:true },
     'Unkn JLPT kanjis': { sc:true, field: 'unique_statistics.kanjis.jlpt_unknown_num',  type:'val', subheading_template:'_ unk JLPT kanjis', rev:true },
-    'JLPT improvement': { sc:false, field: 'jlpt_improvement_pts',  type:'val', subheading_template:'_ pts', rev:true },
+    'JLPT improvement': { sc:false, field: 'series_analysis_for_jlpt.relative_improvement_pts',  type:'val', subheading_template:'_ pts', rev:true },
 };
 
 

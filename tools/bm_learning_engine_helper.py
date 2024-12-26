@@ -1,5 +1,6 @@
 from jp_parser_helper import jmdict_particle_class
 from helper import *
+from br_mongo import *
 
 _user_settings = dict()
 _learning_settings = dict()
@@ -7,14 +8,13 @@ _counter_word_ids = dict()
 
 def read_user_settings():
     global _user_settings, _learning_settings
-    if os.path.exists(user_data_file):
-        with open(user_data_file,"r") as f:
-            d = f.read()
-            _user_settings = json.loads(d)
-            if 'learning_settings' in _user_settings:
-                _learning_settings = _user_settings['learning_settings']
-            else:
-                raise Exception("Please set the learning settings first in the Language settings screen!")
+
+    _user_settings = database[BR_USERDATA].find_one({'user_id':DEFAULT_USER_ID})
+    if _user_settings is not None:
+        if 'learning_settings' in _user_settings:
+            _learning_settings = _user_settings['learning_settings']
+        else:
+            raise Exception("Please set the learning settings first in the Language settings screen!")
     else:
         raise Exception("Please set the learning settings first in the Language settings screen!")
     return _user_settings

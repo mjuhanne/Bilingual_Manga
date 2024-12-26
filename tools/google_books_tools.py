@@ -12,102 +12,25 @@ logging.captureWarnings(True) # repress HTML certificate verification warnings
 from deepl_helper import deepl_translate
 import unicodedata as ud
 import urllib
+from br_mongo import *
+from helper import get_metadata_by_title_id, read_manga_data, read_manga_metadata, get_jp_title_names, get_jp_title_by_id, get_authors, get_publisher, get_data_by_title_id, is_book, get_title_id
 
-parser = argparse.ArgumentParser(
-    prog="google_books_tools",
-    description="Bilingual Manga DB <-> Google Books match and update tool",
-     
-)
-subparsers = parser.add_subparsers(help='', dest='command')
-
-parser_match_all = subparsers.add_parser('match_all', help='Search data for all the book titles and select the first match')
-
-parser_update = subparsers.add_parser('refresh', help='Refresh entries')
-parser_update.add_argument('keyword', type=str, help='search keyword (e.g: Meitantei)')
-
-parser_list = subparsers.add_parser('show', help='Show matched titles')
-
-parser_search = subparsers.add_parser('search', help='Search book titles from Google Books')
-parser_search.add_argument('keyword', type=str, help='search keyword (e.g: Meitantei)')
-
-parser_match_url = subparsers.add_parser('match_url', help='Match book titles via Google Books URL')
-parser_match_url.add_argument('title', type=str, help='Book title')
-parser_match_url.add_argument('url', type=str, help='Google Books URL')
-
-parser_match_url = subparsers.add_parser('match_googleid', help='Match book titles via Google Books ID')
-parser_match_url.add_argument('title', type=str, help='Book title')
-parser_match_url.add_argument('googleid', type=str, help='Google Books ID')
-
-parser_select = subparsers.add_parser('match', help='Select book title from search results')
-parser_select.add_argument('title', type=str, help='Book title')
-parser_select.add_argument('keyword', type=str, help='search keyword (e.g: Meitantei)')
-parser_select.add_argument('index', type=int, help='search result index number')
-
-parser_remove = subparsers.add_parser('remove', help='Remove book title match')
-parser_remove.add_argument('title', type=str, help='book title')
-
-args = vars(parser.parse_args())
-cmd = args.pop('command')
 
 base_dir = "./"
-
-ext_manga_data_file = base_dir + "json/ext.manga_data.json"
-ext_manga_metadata_file = base_dir + "json/ext.manga_metadata.json"
-google_books_file = base_dir + "json/google_books.json"
-ext_oid_file = 'json/ext.oids.json'
 
 search_url = "https://www.googleapis.com/books/v1/volumes?q="
 get_volume_url = "https://www.googleapis.com/books/v1/volumes/"
 headers = {'Content-Type': 'application/json'}
 
-title_name_to_id = dict()
-title_names = dict()
-title_years = dict()
-synopsis = dict()
-authors = dict()
-publishers = dict()
+def get_google_books_entry(title_id):
+    return database[BR_GOOGLE_BOOKS].find_one({'_id':title_id})
 
-all_entries = dict()
-ext_object_ids = dict()
+read_manga_metadata()
+read_manga_data()
 
-try:
-    with open(google_books_file,"r",encoding="utf-8") as f:
-        data = f.read()
-        entries = json.loads(data)
-        for id,item in entries.items():
-            all_entries[id] = item
-except:
-    print("Existing google_books.json not found")
-
-if os.path.exists(ext_oid_file):
-    with open(ext_oid_file,'r',encoding="UTF-8") as oid_f:
-        ext_object_ids = json.loads(oid_f.read())
-
-
-with open(ext_manga_metadata_file,"r",encoding="utf-8") as f:
-    data = f.read()
-    manga_titles = json.loads(data)
-    for t in manga_titles:
-        if 'is_book' in t and t['is_book']:
-            title_id = t['enid']
-            title_name = t['jptit']
-            title_years[title_id] = t['Release']
-            title_names[title_id] = title_name
-            authors[title_id] = t['Author']
-            if 'Publisher' in t and t['Publisher'] != 'Placeholder':
-                publishers[title_id] = t['Publisher']
-                
-            title_name_to_id[title_name.lower()] = title_id
-
-
-with open(ext_manga_data_file,"r",encoding="utf-8") as f:
-    data = f.read()
-    manga_data = json.loads(data)
-    for m in manga_data:
-        title_id = m['_id']['$oid']
-        if title_id in title_names:
-            synopsis[title_id] = m['syn_en']
-            pages = m['jp_data']['ch_jp']
+def get_title_name(title_id):
+    t = get_metadata_by_title_id(title_id)
+    return t['jptit']
 
 def clean_text(title):
     title = title.replace('&#039;',"'")
@@ -123,33 +46,30 @@ def cleanhtml(raw_html):
   cleantext = clean_text(cleantext)
   return cleantext
 
-def get_title_id(item):
-    item = item.lower()
-    if item in title_name_to_id.keys():
-        return title_name_to_id[item]
-    if item in title_names.keys():
-        # the item is in fact the title id
-        return item
-    raise Exception("unknown book title/id %s" % str(item))
-
 def show(args):
     i = 0
-    for title_id, title_name in title_names.items():
-        i += 1
-        if title_id not in all_entries:
-            print("MISSING: [%s] %s " % (title_id, title_name))
-        else:
-            c = all_entries[title_id]
-            if c['id'] == -1:
-                print("OMITTED: [%s] " % (title_id))
+    for title_id, title_name in get_jp_title_names().items():
+        if is_book(title_id):
+            i += 1
+            c = get_google_books_entry(title_id)
+            if c is None:
+                print("MISSING: [%s] %s " % (title_id, title_name))
             else:
-                t = c['volumeInfo']['title']
-                star = '* ' if t.lower() != title_name.lower() else '  '
-                cat = ' '
-                print("%s %s %d [%s] %s : %s" % (star, cat, i, title_id, title_name,t ))
+                if c['id'] == -1:
+                    print("OMITTED: [%s] " % (title_id))
+                else:
+                    t = c['volumeInfo']['title']
+                    star = '* ' if t.lower() != title_name.lower() else '  '
+                    cat = ' '
+                    print("%s %s %d [%s] %s : %s" % (star, cat, i, title_id, title_name,t ))
 
 
-def search_records_and_select_one(title_id, keyword, author, index):
+def search_records_and_select_one(title_id, search_metadata, index, manual_confirmation=False):
+
+    keyword = search_metadata['title']
+    author = search_metadata.get('author')
+    translator = search_metadata.get('translator')
+    publisher = search_metadata.get('publisher')
 
     keyword = ud.normalize('NFKC', keyword)
     keyword_candidates = set()
@@ -172,8 +92,7 @@ def search_records_and_select_one(title_id, keyword, author, index):
             url = j['selfLink']
             response = requests.get(url, headers=headers, verify=False)
             j = response.json()
-            save_record(title_id,j)
-            return True
+            return save_record(title_id,j)
         else:
             index = 0
             while index <len(r['items']):
@@ -197,21 +116,79 @@ def search_records_and_select_one(title_id, keyword, author, index):
                     url = j['selfLink']
                     response = requests.get(url, headers=headers, verify=False)
                     j = response.json()
-                    vi = j['volumeInfo']                    
-                    if 'description' in vi:
-                        if author is None or 'authors' in vi:
-                            print("[match #%d]" % (index+1))
-                            save_record(title_id,j)
-                            return True
+                    vi = j['volumeInfo']
+                    authors = []
+                    detected_translator = ''
+                    if 'authors' in vi:
+                        for author in vi['authors']:
+                            if '／' in author:
+                                auth_tr = author.split('／')
+                                if '訳' == auth_tr[1][-1]:
+                                    detected_translator = auth_tr[1][:-1]
+                                    authors.append(auth_tr[0])
+                                else:
+                                    authors.append(auth_tr[0])
+                                    authors.append(auth_tr[1])
+                            else:
+                                authors.append(author)
+                    vi['authors'] = authors
+                    if 'description' in vi and vi['language'] == 'ja':
+                        if author is None or len(authors)>0:
+                            if translator is None or translator == detected_translator:
+                                print("[match #%d]" % (index+1))
+                                ok = True
+                                if manual_confirmation:
+                                    translate_metadata(j)
+                                    print("Title: ",vi['title'])
+                                    print("Authors: ",vi['authors'])
+                                    print("Authors (en): ",j['en_authors_deepl'])
+                                    if detected_translator != '':
+                                        print("Detected translator:",detected_translator)
+                                    if translator is not None:
+                                        print("Translator:",translator)
+                                    if publisher is not None:
+                                        print("Publisher:",publisher)
+                                    print("Description: ",vi['description'])
+                                    print("Description (en): ",j['en_synopsis_deepl'])
+                                    print("Publisher: ",vi['publisher'])
+                                    ans = input("Is this ok? ")
+                                    if ans != 'y':
+                                        ok = False
+                                if ok:
+                                    return save_record(title_id,j)
+                                else:
+                                    print("Skipped")
+                                    return None
                 index += 1
 
-    print("\t",title_names[title_id] + " with keyword " + keyword+ " not found")
-    return False
+    print("\t",get_jp_title_by_id(title_id) + " with keyword " + keyword+ " not found")
+    return None
     
+def clean_google_books_title(title):
+    vols = ['上','中','下']
+    for vol in vols:
+        if title[-1] == vol:
+            if title[-2] == '\u3000':
+                title = title[:-2]
+    return title
+
+def translate_metadata(j):
+    title = j['volumeInfo']['title']
+    title = clean_google_books_title(title)
+
+    j['en_title_deepl'] = deepl_translate(title)
+    j['en_synopsis_deepl'] = deepl_translate(j['volumeInfo']['description'])
+    j['en_authors_deepl'] = []
+    for jp_author in j['volumeInfo']['authors']:
+        j['en_authors_deepl'].append(deepl_translate(jp_author))
 
 
 def save_record(title_id,j):
 
+    j['google_book_id'] = j['id']
+    del(j['id'])
+    metadata = get_metadata_by_title_id(title_id)
+    data = get_data_by_title_id(title_id)
     vi = j['volumeInfo']
 
     if 'authors' in vi:
@@ -219,31 +196,29 @@ def save_record(title_id,j):
     else:
         authors = "NA"
     print("\t%s [%s] : MU name: %s (%s)" % (
-            title_names[title_id], title_years[title_id], 
+            get_jp_title_by_id(title_id), metadata['Release'], 
             vi['title'], authors)
     )
 
-    vi['description'] = cleanhtml(vi['description'])
+    if 'description' in vi:
+        vi['description'] = cleanhtml(vi['description'])
+    else:
+        vi['description'] = 'NA'
 
-    print("BM synopsis: %s" % (synopsis[title_id]))
+    print("BM synopsis: %s" % (data['syn_jp']))
     print("MU synopsis: %s" % (vi['description']))
     print("")
 
     del(j['saleInfo'])
     del(j['accessInfo'])
 
-    j['en_title_deepl'] = deepl_translate(j['volumeInfo']['title'])
-    j['en_synopsis_deepl'] = deepl_translate(j['volumeInfo']['description'])
+    if 'en_title_deepl' not in j:
+        translate_metadata(j)
 
     j['last_refreshed_timestamp'] = int(time.time())
 
-    all_entries[title_id] = j
-
-    f = open(google_books_file,"w",encoding="utf-8")
-    s = json.dumps(all_entries, ensure_ascii=False)
-    f.write(s)
-    f.close()
-    return True
+    database[BR_GOOGLE_BOOKS].update_one({'_id':title_id},{'$set':j},upsert=True)
+    return database[BR_GOOGLE_BOOKS].find_one({'_id':title_id})
 
 
 def search(args):
@@ -273,7 +248,8 @@ def search(args):
 
 def match(args):
     title_id = get_title_id(args['title'])
-    search_records_and_select_one(title_id, args['keyword'], False, args['index']-1)
+    search_metadata = { 'title' : args['keyword'] }
+    search_records_and_select_one(title_id, search_metadata, args['index']-1)
 
 def match_url(args):
     title_id = get_title_id(args['title'])
@@ -305,24 +281,45 @@ def match_googleid(args):
     response = requests.get(url, headers=headers, verify=False)
     if response.status_code != 200:
         print("Error:", response.reason)
-        return
+        return None
     j = response.json()
-    save_record(title_id,j)
+    if 'authors' in j['volumeInfo']:
+        return save_record(title_id,j)
+    else:
+        print("Ignoring... No description or author in volumeInfo: ",j['volumeInfo'])
+        return None
+
+
+def is_title_ignored_for_google_books(title_id):
+    j = database[BR_GOOGLE_BOOKS].find_one({'_id':title_id})
+    if j is None:
+        return False
+    else:
+        return j['google_book_id'] == -1
+
+def ignore_google_book_matching_for_title(title_id):
+    j = dict()
+    j['google_book_id'] = -1
+    j['_id'] = title_id
+    database[BR_GOOGLE_BOOKS].update_one({'_id':title_id},{'$set':j},upsert=True)
+    return database[BR_GOOGLE_BOOKS].find_one({'_id':title_id})
 
 def refresh(args):
 
     i = 0
-    for title_id, j in all_entries.items():
+    for title_id, title_name in get_jp_title_names().items():
         i += 1
 
-        if args['keyword'] is not None and args['keyword'].lower() not in title_names[title_id].lower():
+        if args['keyword'] is not None and args['keyword'].lower() not in get_jp_title_by_id(title_id).lower():
             continue
+
+        j = get_google_books_entry(title_id)
 
         updated = False
         timestamp = int(time.time())
         if 'last_refreshed_timestamp' not in j or (j['last_refreshed_timestamp'] < timestamp - 24*60*60) or args['keyword'] is not None:
 
-            print("Updating %d : %s" % (i,title_names[title_id]))
+            print("Updating %d : %s" % (i,get_jp_title_by_id(title_id)))
             j['last_refreshed_timestamp'] = int(time.time())
 
             url = j['selfLink']
@@ -342,19 +339,19 @@ def refresh(args):
             j['en_synopsis_deepl'] = deepl_translate(j['volumeInfo']['description'])
             updated = True
 
-        if updated:
-            all_entries[title_id] = j
+        if ('en_authors_deepl' not in j) or (j['en_authors_deepl'] == ''):
+            j['en_authors_deepl'] = deepl_translate(j['volumeInfo']['authors'])
+            updated = True
 
-            f = open(google_books_file,"w",encoding="utf-8")
-            s = json.dumps(all_entries, ensure_ascii=False)
-            f.write(s)
-            f.close()
+        if updated:
+            database[BR_GOOGLE_BOOKS].update_one({'_id':title_id},j,upsert=True)
 
 
 def match_all(args):
     no_matches = []
-    for title_id, title_name in title_names.items():
-        if not title_id in all_entries:
+    for title_id, title_name in get_jp_title_names().items():
+        j = get_google_books_entry(title_id)
+        if j is None:
 
             title_name = title_name.replace('.TXT','')
             title_name = title_name.replace('.txt','')
@@ -368,19 +365,24 @@ def match_all(args):
             keyword = title_name
             queries.append((keyword,None))
 
-            for author in authors[title_id]:
+            for author in get_authors(title_id):
                 if author != 'Placeholder':
                     queries.insert(0,(keyword,author))
 
-            if title_id in publishers:
-                keyword += ' ' + publishers[title_id]
+            publisher = get_publisher(title_id)
+            if publisher != '' and publisher != 'Placeholder':
+                keyword += ' ' + publisher
                 queries.insert(0,(keyword,None))
 
             i = 0
             res = False
             while i<len(queries) and res==False:
                 keyword, author = queries[i]
-                res = search_records_and_select_one(title_id,keyword,author,-1)
+                search_metadata = {
+                    'title' : keyword,
+                    'author'  : author,
+                }
+                res = search_records_and_select_one(title_id,search_metadata, -1, args['manual_confirmation'])
                 time.sleep(1)
                 i += 1
 
@@ -390,25 +392,63 @@ def match_all(args):
     if len(no_matches)>0:
         print("\nNo matches for these titles! Match manually with:")
         for title_id in no_matches:
-            print("\t%s:\tpython3 tools/google_books_tools.py %s https://www.google.com/books/edition/_/" % (title_names[title_id],title_id))
+            print("\t%s:\tpython3 tools/google_books_tools.py %s https://www.google.com/books/edition/_/" % (get_jp_title_by_id(title_id),title_id))
 
 
 def remove(args):
     title_id = get_title_id(args['title'])
-    if title_id in all_entries:
-        if all_entries[title_id]['id'] == -1:
+
+    entry = database[BR_GOOGLE_BOOKS].find_one({'_id':title_id})
+
+    if entry is not None:
+        if entry['id'] == -1:
             print("Already removed!")
             return
         
-        del(all_entries[title_id])
-        all_entries[title_id] =  { "id":-1 }
-        f = open(google_books_file,"w",encoding="utf-8")
-        f.write(json.dumps(all_entries))
-        f.close()
-        print("Removed match for %s [%s]" % (title_names[title_id],title_id))
-
+        entry =  { "id":-1 }
+        print("Removed match for %s [%s]" % (get_jp_title_by_id(title_id),title_id))
+        database[BR_GOOGLE_BOOKS].update_one({'_id':title_id},j,upsert=True)
     else:
         print("Match not found!")
 
-if cmd != None:
-  locals()[cmd](args)
+
+if __name__ == '__MAIN__':
+    parser = argparse.ArgumentParser(
+        prog="google_books_tools",
+        description="Bilingual Manga DB <-> Google Books match and update tool",
+        
+    )
+    subparsers = parser.add_subparsers(help='', dest='command')
+
+    parser_match_all = subparsers.add_parser('match_all', help='Match all the book titles with Google Maps')
+    parser_match_all.add_argument('--manual_confirmation', '-mc', action='store_true', help='Ask confirmation before matching')
+
+    parser_update = subparsers.add_parser('refresh', help='Refresh entries')
+    parser_update.add_argument('keyword', type=str, help='search keyword (e.g: Meitantei)')
+
+    parser_list = subparsers.add_parser('show', help='Show matched titles')
+
+    parser_search = subparsers.add_parser('search', help='Search book titles from Google Books')
+    parser_search.add_argument('keyword', type=str, help='search keyword (e.g: Meitantei)')
+
+    parser_match_url = subparsers.add_parser('match_url', help='Match book titles via Google Books URL')
+    parser_match_url.add_argument('title', type=str, help='Book title')
+    parser_match_url.add_argument('url', type=str, help='Google Books URL')
+
+    parser_match_url = subparsers.add_parser('match_googleid', help='Match book titles via Google Books ID')
+    parser_match_url.add_argument('title', type=str, help='Book title')
+    parser_match_url.add_argument('googleid', type=str, help='Google Books ID')
+
+    parser_select = subparsers.add_parser('match', help='Select book title from search results')
+    parser_select.add_argument('title', type=str, help='Book title')
+    parser_select.add_argument('keyword', type=str, help='search keyword (e.g: Meitantei)')
+    parser_select.add_argument('index', type=int, help='search result index number')
+
+    parser_remove = subparsers.add_parser('remove', help='Remove book title match')
+    parser_remove.add_argument('title', type=str, help='book title')
+
+    args = vars(parser.parse_args())
+    cmd = args.pop('command')
+
+    if cmd != None:
+        locals()[cmd](args)

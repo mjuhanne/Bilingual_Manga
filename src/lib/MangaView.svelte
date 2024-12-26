@@ -6,12 +6,18 @@
     import MangaSuggestPreread from './MangaSuggestPreread.svelte';
     export let data;    
     export let ll;
+
+    let available_tabs = ['Series info','Volumes']
+    if (ll.series !== undefined) {
+        available_tabs = ['Series info','Volumes','Language analysis','Suggested preread']
+    }
     
     export let cdncdn1;
 
     export let selectedTab;
 
-    let chapters, volumes, cover, title, syn;
+    let chapters, volumes, cover, title, syn
+    let syn_en_deepl = '';
     if (data.l=="en") {
         chapters=data.manga_data.en_data.ch_naen;
         volumes=data.manga_data.en_data.vol_en;
@@ -25,6 +31,9 @@
         title=ll.jptit;
         syn=data.manga_data.syn_jp;
     }
+    if ('syn_en_deepl' in data.manga_data) {
+        syn_en_deepl = data.manga_data.syn_en_deepl
+    }
 </script>
 
 <div id="mainimagec" style="background:url({cdncdn1}/{cover}) no-repeat; background-size: cover;background-position: center;" >
@@ -32,13 +41,13 @@
 <div id="spreads" ></div>
 <div id="mainimagetitle">{title}</div>
 </div>
-<Tabs titles={['Series info','Volumes','Language analysis','Suggested preread']} lang={data.l} bind:selectedTab>
+<Tabs titles={available_tabs} lang={data.l} bind:selectedTab>
     {#if selectedTab==0}
-        <MangaMeta meta={ll} {syn}/>
+        <MangaMeta meta={ll} {syn} {syn_en_deepl}/>
     {:else if selectedTab==1}
         <MangaChSel ch={chapters} vol={volumes} manga_data={data.manga_data} la={data.l}/>
     {:else if selectedTab==2}
-        <MangaLanguageAnalysis meta={ll} manga_data={data.manga_data}/>
+        <MangaLanguageAnalysis meta={ll}/>
     {:else if selectedTab==3}
         <MangaSuggestPreread meta={ll} manga_data={data.manga_data}/>
     {/if}

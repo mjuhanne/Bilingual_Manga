@@ -30,11 +30,11 @@ def get_info_from_epub_file_name(root_path,source_item):
                     vol_name = '中'
                 else:
                     vol_name = title
-            return title, {'type':'epub','volume_name':vol_name,'path':root_path,'filename': source_item}
+            return title, {'type':'epub','volume_name':vol_name,'path':root_path,'filename': source_item, 'translator':''}
 
     # if no regex matches, simply use the filename as title and volume name
     title = source_item[:-5]
-    return title, {'type':'epub','path':root_path,'volume_name':title,'filename':source_item}
+    return title, {'type':'epub','path':root_path,'volume_name':title,'filename':source_item, 'translator':''}
 
 
 def save_cover_image_from_epub(t_metadata, book,lang,title):
@@ -92,19 +92,38 @@ def save_image_from_epub(chapter_id, book, img_name):
             return
     print("Image %s not found in epub!" % img_name)
 
-def save_metadata_from_epub(t_metadata, t_data, lang, book, title):
-    desc = book.get_metadata('DC', 'description')
-    if len(desc)>0:
-        t_data['syn_'+lang] = desc
+def get_clean_title_from_epub(book):
     # get rid of of the volume part in title
     vol_title,_ = book.get_metadata('DC', 'title')[0]
-    vol_title = vol_title.split(' 上 ')[0]
-    vol_title = vol_title.split(' 中 ')[0]
-    vol_title = vol_title.split(' 下 ')[0]
-    vol_title = vol_title.replace('_',' ')
+    clean_title = vol_title.split(' 上 ')[0]
+    clean_title = clean_title.split(' 中 ')[0]
+    clean_title = clean_title.split(' 下 ')[0]
+    clean_title = clean_title.replace('_',' ')
+
+    vol_title, publisher = extract_publisher_from_title(clean_title)
+    return vol_title, clean_title, publisher
+
+def get_language_from_epub(book):
+    lang_item = book.get_metadata('DC', 'lang')
+    if len(lang_item) == 0:
+        lang_item = book.get_metadata('DC', 'language')
+    if len(lang_item) == 0:
+        raise Exception("No language!")
+    lang, _ = lang_item[0]
+    if lang == 'ja':
+        lang = 'jp'
+    return lang
+
+def get_metadata_from_epub(t_metadata, t_data, lang, book, title):
+    desc_meta = book.get_metadata('DC', 'description')
+    if len(desc_meta)>0:
+        desc,_ = desc_meta[0]
+        t_data['syn_'+lang] = desc
+
+    vol_title, clean_title, publisher = get_clean_title_from_epub(book)
 
     if t_metadata[lang + 'tit'] == PLACEHOLDER:
-        t_metadata[lang + 'tit'] = vol_title
+        t_metadata[lang + 'tit'] = clean_title
     creator, _ = book.get_metadata('DC', 'creator')[0]
     creator2 = creator.replace(' ','')
     if creator not in t_metadata['Author'] and creator2 not in t_metadata['Author']:
@@ -113,16 +132,25 @@ def save_metadata_from_epub(t_metadata, t_data, lang, book, title):
         else:
             t_metadata['Author'].append(creator)
 
-    if t_metadata['Release'] == PLACEHOLDER:
-        try:
-            released, _ = book.get_metadata('DC', 'date')[0]
-            t_metadata['Release'] = int(released.split('-')[0])
-        except:
-            pass
+    if lang == 'jp':
+        if t_metadata['Release'] == PLACEHOLDER:
+            try:
+                released, _ = book.get_metadata('DC', 'date')[0]
+                t_metadata['Release'] = int(released.split('-')[0])
+            except:
+                pass
 
-    # get the cover image from the first volume also
-    save_cover_image_from_epub(t_metadata, book, lang, title)
-    pass
+        if t_metadata['Publisher'] == PLACEHOLDER:
+            if publisher is not None:
+                t_metadata['Publisher'] = publisher
+            else:
+                try:
+                    publisher, _ = book.get_metadata('DC', 'publisher')[0]
+                    t_metadata['Publisher'] = publisher
+                except:
+                    pass
+
+    return vol_title
 
 
 def get_chapters_from_epub(book, verbose=False):
@@ -319,7 +347,7 @@ def extract_paragraphs_recursively(soup, element, paragraphs):
     pass
 
 
-def process_epub(t_data, title_id, book, lang, vol_id, vol_name, start_ch_idx, verbose, ask_confirmation_for_new_chapters):
+def process_epub(t_data, title_id, book, lang, vol_id, vol_name, verbose, ask_confirmation_for_new_chapters):
 
     lang_data_field = lang + '_data'
     ch_name_field = 'ch_na' + lang
@@ -327,6 +355,7 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, start_ch_idx, v
     ch_lang_field = 'ch_' + lang
     vol_lang_field = 'vol_' + lang
 
+    start_ch_idx = len(t_data[lang_data_field][ch_lang_h_field])
     print("Process vol/book %s [%s]" % (vol_name,vol_id))
 
     items = []
@@ -335,6 +364,10 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, start_ch_idx, v
             items.append(item)
 
     chapter_titles, item_list_per_chapter = get_chapters_from_epub(book,verbose)
+
+    if len(chapter_titles) == 0:
+        print("Title %s volume %s [%s] has no detected chapters!" % (title_id, vol_name, vol_id))
+        return 0
 
     t_data[lang_data_field][vol_lang_field][vol_name] = {'id':vol_id,'s':start_ch_idx,'e':start_ch_idx + len(chapter_titles)-1}
 

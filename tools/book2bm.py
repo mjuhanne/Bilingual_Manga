@@ -1,24 +1,26 @@
 import json
 import os
-import subprocess
 from helper import * 
 import shutil
 import argparse
-import logging
 import re
 
 from book2bm_helper import *
 from book2bm_epub_helper import *
 from book2bm_txt_helper import *
+from google_books_tools import get_google_books_entry, search_records_and_select_one, clean_google_books_title, match_googleid, is_title_ignored_for_google_books, ignore_google_book_matching_for_title, match_googleid
 
 default_book_path = '/mnt/Your/Book/Directory'
-google_books_file = base_dir + "json/google_books.json"
 
 verbose = False
+verbose_update = True
 
+add_new_titles = True
 ask_confirmation_for_new_titles = True
 ask_confirmation_for_new_volumes = False
 ask_confirmation_for_new_chapters = False
+refresh_google_books_data = False
+ask_google_books_match_confirmation = True
 
 titles = dict()
 
@@ -48,9 +50,9 @@ parser_search.add_argument('keyword', type=str, default=None, help='Keyword')
 
 parser_show = subparsers.add_parser('show', help='Show list of all imported manga')
 
-parser_set_en_vol = subparsers.add_parser('set_en_vol', help='Set english vol for title')
-parser_set_en_vol.add_argument('title_id', type=str, default=None, help='Title id')
-parser_set_en_vol.add_argument('--file', '-f', type=str, help='Source .epub file')
+parser_set_google_book_id = subparsers.add_parser('set_google_book_id', help='Bind title with Google Books ID and update metadata')
+parser_set_google_book_id.add_argument('title_id', type=str, default=None, help='Title id')
+parser_set_google_book_id.add_argument('google_book_id', type=str, help='Google Book Id')
 
 
 args = vars(parser.parse_args())
@@ -61,67 +63,25 @@ if 'verbose' in args:
 if verbose:
     print("Args: ",args)
 
-cmd = args.pop('command')
-
-if cmd == 'scan':
-    if args['source_dir'][-1] != '/':
-        args['source_dir'] += '/'
-    src_jp = args['source_dir'] + 'jp/'
-    source_items = [f_name for f_name in os.listdir(src_jp) if '.epub' in f_name.lower() or '.txt' in f_name.lower() or os.path.isdir(src_jp + f_name)]
-
-    source_items.sort()
-
 
 j = 0
-manga_metadata_per_id = dict()
-manga_data_per_id = dict()
 
-if os.path.exists(ext_manga_metadata_file):
-    with open(ext_manga_metadata_file,"r",encoding="utf-8") as f:
-        data = f.read()
-        _manga_metadata = json.loads(data)
-        for mdata in _manga_metadata:
-            id = mdata['enid']
-            manga_metadata_per_id[id] = mdata
-
-if os.path.exists(ext_manga_data_file):
-    with open(ext_manga_data_file,"r",encoding="utf-8") as f:
-        data = f.read()
-        _manga_data = json.loads(data)
-        for mdata in _manga_data:
-            id = mdata['_id']['$oid']
-            manga_data_per_id[id] = mdata
-
-try:
-    with open(google_books_file,"r",encoding="utf-8") as f:
-        data = f.read()
-        google_book_data = json.loads(data)
-except:
-    print("Existing google_books.json not found")
-    google_book_data = dict()
+read_manga_metadata()
+read_manga_data()
 
 
-def copy_file(src, target_path, target_file):
-
-    if not os.path.exists(target_path):
-        os.mkdir(target_path)
-    
-    p  = target_path + '/' + target_file
-    if os.path.exists(src):
-        if not os.path.exists(p):
-            print("\tCopying %s to %s" % (src,p))
-            shutil.copyfile(src, p)
-    else:
-        print("\tDoes not exist! %s" % src)
+def save_metadata(title_id, t_metadata, t_data, verbose):
+    old_metadata = get_metadata_by_title_id(title_id)
+    if old_metadata is not None and verbose:
+        show_diff(old_metadata, t_metadata)
+    old_data = get_data_by_title_id(title_id)
+    if old_data is not None and verbose:
+        show_diff(old_data, t_data)
+    database[BR_METADATA].update_one({'_id':title_id},{'$set':t_metadata},upsert=True)
+    t_data = json.loads(json.dumps(t_data))
+    database[BR_DATA].update_one({'_id':title_id},{'$set':t_data},upsert=True)
 
 
-def save_metadata_files():
-    target_f = open(ext_manga_data_file,'w',encoding="UTF-8")
-    target_f.write(json.dumps(list(manga_data_per_id.values()),ensure_ascii=False))
-    target_f.close()
-    target_f = open(ext_manga_metadata_file,'w',encoding="UTF-8")
-    target_f.write(json.dumps(list(manga_metadata_per_id.values()),ensure_ascii=False))
-    target_f.close()
 
 dir_regex = [
     "\(一般小説\)+\s+\[([^\]]+)\]\s+([^（\(\s\)]+)"
@@ -140,25 +100,29 @@ def get_info_from_directory(source_item):
             return title, author
     return title, author
 
-def recursive_scan(root_path,source_item,title=None, author=None, filtered_file_type=None):
+def recursive_scan(args, root_path, source_item, title=None, author=None, filtered_file_type=None):
     global titles
     new_path = root_path + source_item + '/'
+
     if os.path.isdir(new_path):
         if filtered_file_type is None:
             sub_items = [f_name for f_name in os.listdir(new_path) if '.epub' in f_name.lower() or '.txt' in f_name.lower() or os.path.isdir(new_path + f_name)]
         else:
             sub_items = [f_name for f_name in os.listdir(new_path) if filtered_file_type in f_name.lower() or os.path.isdir(new_path + f_name)]
         sub_items.sort()
-        if source_item[0] == '_' or source_item == 'jp':
+        if source_item[:2] == '__':
+            # skip
+            pass
+        elif source_item[0] == '_' or source_item == 'jp':
             # just a simple sub-directory which doesn't infer a title 
             # e.g.  _science_fiction/  or _murakami
             for sub_item in sub_items:
-                recursive_scan(new_path, sub_item, filtered_file_type=filtered_file_type)
+                recursive_scan(args, new_path, sub_item, filtered_file_type=filtered_file_type)
         else:
             # a subdirectory from which we can infer the title (and maybe the author)
             title, author = get_info_from_directory(source_item)
             for sub_item in sub_items:
-                recursive_scan(new_path, sub_item, title, author, filtered_file_type)
+                recursive_scan(args, new_path, sub_item, title, author, filtered_file_type)
     else:
         vol_info = None
         if '.epub' in source_item:
@@ -170,34 +134,282 @@ def recursive_scan(root_path,source_item,title=None, author=None, filtered_file_
             if title is None:
                 title = new_title
         if title is not None and vol_info is not None:
-            if title not in titles:
-                titles[title] = []
-            titles[title].append(vol_info)
+            process_file(args, title, vol_info)
         else:
             pass
             #if '訳' in source_item:
-            #    print("Missing file name processor: %s" % source_item)
+            #print("Missing file name processor: %s" % source_item)
+
+def create_new_title(title):
+    title_id = get_oid(title, add_new_titles, ask_confirmation=ask_confirmation_for_new_titles)
+    if title_id is None:
+        # oid not found and adding new one was manually skipped
+        return None
+
+    clean_title, publisher = extract_publisher_from_title(title)
+
+    # normalize the title just in case
+    # It can be in Unicode composed form (i.e. で)
+    # or decomposed (i.e. て　+　゙	 mark).  The strings are stored in composed form
+    title = ud.normalize('NFC',clean_title)
+
+    print("Creating new title [%s]: %s " % (title_id, title))
+
+    t_metadata = dict()
+
+    if has_cjk(clean_title) or has_word_hiragana(clean_title) or has_word_katakana(clean_title):
+        t_metadata['jptit'] = clean_title
+        t_metadata['entit'] = PLACEHOLDER
+    else:
+        t_metadata['entit'] = clean_title
+        t_metadata['jptit'] = PLACEHOLDER
+
+    t_metadata['genres'] = []
+    if publisher is not None:
+        t_metadata['Publisher'] = publisher
+    else:
+        t_metadata['Publisher'] = PLACEHOLDER
+
+    t_metadata['Author'] = [PLACEHOLDER]
+    t_metadata['Release'] = PLACEHOLDER
+
+    t_metadata['coveren'] = PLACEHOLDER
+    t_metadata['coverjp'] = PLACEHOLDER
+    t_metadata['Artist'] = []
+
+    t_metadata['Status'] = 'Completed' # assumption
+    t_metadata['search'] = ''
+    t_metadata['enid'] = title_id
+    t_metadata['verified_ocr'] = True
+    t_metadata['is_book'] = True
+
+    t_data = dict()
+    t_data['_id'] = title_id
+    t_data['en_data'] = dict()
+    t_data['jp_data'] = dict()
+
+    t_data['syn_jp'] = ''
+    t_data['syn_en'] = ''
+    t_data['is_book'] = True
+
+    t_data['en_data']['ch_naen'] = []
+    t_data['en_data']['ch_enh'] = []
+    t_data['en_data']['vol_en'] = dict()
+    t_data['en_data']['ch_en'] = dict()
+
+    t_data['jp_data']['ch_najp'] = []
+    t_data['jp_data']['ch_jph'] = []
+    t_data['jp_data']['vol_jp']= dict()
+    t_data['jp_data']['ch_jp'] = dict()
+    t_data['jp_data']['virtual_chapter_page_count'] = []
+
+    save_metadata(title_id, t_metadata, t_data, False)
+    return title_id
+
+def update_metadata_from_google_books(t_metadata, t_data, gb, force=False):
+    vi = gb['volumeInfo']
+    if '訳)' in t_metadata['jptit']:
+        t_metadata['jptit'] = clean_google_books_title(vi['title']) + " (%s訳)" % t_metadata['translator']
+    else:
+        t_metadata['jptit'] = clean_google_books_title(vi['title'])
+
+    if t_metadata['entit'] == PLACEHOLDER or force:
+        t_metadata['entit'] = gb['en_title_deepl']
+
+    if 'categories' in vi:
+        t_metadata['genres'] = vi['categories']
+
+    if (t_metadata['Publisher'] == PLACEHOLDER or force) and 'publisher' in vi:
+        t_metadata['Publisher'] = vi['publisher']
+
+    if 'authors' in vi:
+        t_metadata['Author'] = vi['authors']
+
+    if t_metadata['Release'] == PLACEHOLDER or force:
+        try:
+            t_metadata['Release'] = int(vi['publishedDate'].split('-')[0])
+        except:
+            pass
+
+    t_data['syn_en_deepl'] = gb['en_synopsis_deepl']
+    t_data['syn_jp'] = gb['volumeInfo']['description']
+
+def process_volume(title_id, title, vol_info):
+    t_metadata = get_metadata_by_title_id(title_id)
+    t_data = get_data_by_title_id(title_id)
+
+    # first try to get the metadata from epub or vol_info
+    if vol_info['type'] == 'epub':
+        book = epub.read_epub(vol_info['path'] + vol_info['filename'])
+        lang = get_language_from_epub(book)
+        vol_name = get_metadata_from_epub(t_metadata, t_data, lang, book, title)
+        save_cover_image_from_epub(t_metadata, book, lang, title)
+    else:
+        lang = 'jp' # assumption
+        vol_name = vol_info['volume_name']
+        detected_publisher = get_publisher_from_txt_file(vol_info['path'] + vol_info['filename'])
+        if detected_publisher is not None and t_metadata['Publisher'] == PLACEHOLDER:
+            t_metadata['Publisher'] = detected_publisher
+
+    if vol_name in t_data['jp_data']['vol_jp'] or vol_name in t_data['en_data']['vol_en']:
+        print("%s [%s] Skipping already existing volume %s (%s)" % (title, title_id, vol_name, vol_info['filename']))
+        return None, None
+
+    if t_metadata['Author'] == [PLACEHOLDER]:
+        t_metadata['Author'] = [vol_info['author']]
+
+    if 'translator' not in t_metadata:
+        t_metadata['translator'] = ''
+    if t_metadata['translator'] == '' and vol_info['translator'] != '':
+        t_metadata['translator'] = vol_info['translator']
+
+    gb = None
+    if not is_title_ignored_for_google_books(title_id):
+        gb = get_google_books_entry(title_id)
+        if gb is None or refresh_google_books_data:
+            author = t_metadata['Author'][0]
+            if author != PLACEHOLDER and t_metadata['jptit'] != PLACEHOLDER:
+                search_metadata = {
+                    'title' : t_metadata['jptit'],
+                    'author' : author,
+                    'translator' : t_metadata['translator'],
+                    'publisher' : t_metadata['Publisher']
+                }
+                gb = search_records_and_select_one(title_id, search_metadata, -1, manual_confirmation=ask_google_books_match_confirmation)
+                if gb is None and ask_google_books_match_confirmation:
+                    print("Author: " + author)
+                    if t_metadata['translator'] != '':
+                        print("Translator: " + t_metadata['translator'])
+                    if t_metadata['Publisher']  != PLACEHOLDER:
+                        print("Publisher: " + t_metadata['Publisher'])
+                    ans = input("Input Google book id: ")
+                    if ans == '-':
+                        ignore_google_book_matching_for_title(title_id)
+                    elif ans != '':
+                        gb = match_googleid({'title':title_id, 'googleid':ans})
+
+    # try to fill the remaining missing data from Google books
+    if gb is not None:
+        update_metadata_from_google_books(t_metadata, t_data, gb)
+
+    if lang == 'en':
+        #############  process english chapter
+        vol_id = get_oid(title_id + '/en/' + vol_name, ask_confirmation=ask_confirmation_for_new_volumes)
+
+        print("\tVolume EN [%s]: %s " % (vol_id, vol_name))
+
+        if t_metadata['coveren'] == PLACEHOLDER:
+            save_cover_image_from_epub(t_metadata, book, 'en',title)
+
+        t_data['en_data']['virtual_chapter_page_count'] = []
+
+        process_epub(t_data, title_id, book,'en', vol_id, vol_name, 0, args['verbose'])
+
+    elif lang == 'jp':
+        if vol_info['type'] == 'epub':
+            vol_id = get_oid(title_id + '/jp/' + vol_name, ask_confirmation=ask_confirmation_for_new_volumes)
+            if vol_id is not None:
+                print("\tJP EPUB volume [%s]: %s " % (vol_id, vol_name))
+                process_epub(t_data, title_id, book,'jp', vol_id, vol_name, args['verbose'], ask_confirmation_for_new_chapters)
+
+        elif vol_info['type'] == 'txt':
+            jp_vol_title = vol_info['volume_name']
+            jp_volume_f = vol_info['path'] + vol_info['filename']
+            vol_id = get_oid(title_id + '/jp/' + vol_name, ask_confirmation=ask_confirmation_for_new_volumes)
+            if vol_id is not None:
+                print("\tJP TXT volume [%s]: %s " % (vol_id, jp_vol_title))
+                process_txt_file(t_data, title_id, jp_volume_f ,'jp', vol_id, jp_vol_title, ask_confirmation_for_new_chapters)
+
+        # if cover is not yet fetched, try to get it from Google Books
+        if t_metadata['coverjp'] == PLACEHOLDER:
+            if gb is not None:
+                fetch_cover_from_google_books(title_id, title, t_metadata, gb)
+
+    save_metadata(title_id, t_metadata, t_data, verbose_update)
+    return vol_id, lang
+
+def fetch_cover_from_google_books(title_id, title, t_metadata, gb, force=False):
+    vi = gb['volumeInfo']
+    if 'imageLinks' in vi:
+        img_url = vi['imageLinks']['thumbnail']
+        target_img_name = clean_name(title)
+        suffix = 'jpg' # TODO, assume jpeg 
+        target_img_path = 'manga_cover/jp/' + target_img_name + '.' + suffix
+        t_metadata['coverjp'] = target_img_path
+        if not os.path.exists(target_img_path) or force:
+            print("\tFetching cover image %s" % img_url)
+            download_image(img_url,target_img_path)
 
 
-def extract_publisher_from_title(title):
-        
-    # if possible, extract publisher from the title
-    publishers = ['角川書店','角川文庫','徳間文庫','角川ホラー文庫',
-        '電撃文庫','PHP文芸文庫','講談社青い鳥文庫','Kindle Single',
-        '角川スニーカー文庫','アオシマ書店','文春文庫','河出文庫','新潮文庫','講談社文庫']
+def process_file(args, title, vol_info):
+    path = vol_info['path'].split(args['source_dir'])[1]
+    import_metadata = database[BR_VOL_IMPORT_METADATA].find_one({'filename':vol_info['filename'], 'path':path})
+    if import_metadata is None:
+        md5digest = md5(vol_info['path'] + vol_info['filename'])
+        import_metadata = database[BR_VOL_IMPORT_METADATA].find_one({'md5':md5digest})
 
-    publisher = None
-    clean_title = title
-    for pub in publishers:
-        pub_str = '(%s)' % pub
-        if pub_str in clean_title:
-            clean_title = clean_title.split(pub_str)[0]
-            publisher = pub
-    if ']' in clean_title:
-        clean_title = title.split(']')[1]
-    clean_title = clean_title.replace('_',' ')
-    clean_title = clean_title.strip()
-    return clean_title, publisher
+    if import_metadata is None:
+
+        # new volume
+        import_metadata = {
+            'filename' : vol_info['filename'],
+            'vol_name' : vol_info['volume_name'],
+            'path' : path,
+            'type' : vol_info['type'],
+            'md5' : md5(vol_info['path'] + vol_info['filename'])
+        }
+
+        # try to match this volume with a title
+        title_metadata = None
+        if vol_info['translator'] != '':
+            title_with_translator = title + ' (%s訳)' % vol_info['translator']
+            title_metadata = database[BR_METADATA].find_one({'jptit':title,'translator':vol_info['translator']})
+            if title_metadata is None:
+                title_metadata = database[BR_METADATA].find_one({'jptit':title_with_translator,'translator':vol_info['translator']})
+        if title_metadata is None:
+            title_metadata = database[BR_METADATA].find_one({'jptit':title})
+
+            if vol_info['translator'] != '' and title_metadata is not None:
+                # ok, so a title with a different translator found. We have to make a separate title
+                # and name it explicitely with the translator
+                title_metadata = None
+                title = title_with_translator
+
+        if title_metadata is None:
+            # no match --> create new titlte
+            title_id = create_new_title(title)
+            if title_id is None:
+                # skipped creating new title
+                if input("Ignore this file?") == 'y':
+                    import_metadata['ignore'] = True
+                    res = database[BR_VOL_IMPORT_METADATA].insert_one(import_metadata)
+                return False
+        else:
+            title_id = title_metadata['_id']
+            
+        vol_id, lang = process_volume(title_id, title, vol_info)
+        if vol_id is None:
+            return False
+        import_metadata['lang'] = lang
+        import_metadata['_id'] = vol_id
+        database[BR_VOL_IMPORT_METADATA].insert_one(import_metadata)
+    else:
+        if (args['force'] and (args['keyword'].lower() in title.lower() or args['keyword']==import_metadata['_id'])):
+            # re-process existing volume
+            vol_id = import_metadata['_id']
+            title_id = get_title_id_by_volume_id(vol_id)
+            if title_id is None:
+                print("Orphan volume detected! ",import_metadata)
+                ans = input("Remove? ")
+                if ans == 'y':
+                    database[BR_VOL_IMPORT_METADATA].delete_one({'_id':vol_id})
+                    print("Removed volume %s from processed list. Can now be re-imported")
+            else:
+                process_volume(title_id, title, vol_info)
+
+
+            pass
+    return True
 
 
 def scan(args):
@@ -207,304 +419,25 @@ def scan(args):
         filtered_file_type = '.txt'
     else:
         filtered_file_type = None
-    recursive_scan(args['source_dir'], 'jp', filtered_file_type=filtered_file_type)
+    recursive_scan(args, args['source_dir'], 'jp', filtered_file_type=filtered_file_type)
 
-    for title,volumes in titles.items():
-
-        if args['keyword'] is not None and args['keyword'].lower() not in title.lower():
-            if verbose:
-                print("Skipping %s" % title)
-            continue
-
-        if args['simulate']:
-            title_id = get_oid(title, create_new_if_not_found=False)
-            if title_id is None:
-                print("New title found: %s" % title)
-                for v in volumes:
-                    print("\t%s" % (v['filename']))
-                    if v['type'] == 'txt':
-                        print("\t%s/%s/%s" % (v['author'],title,v['volume_name']))
-                        chapters = get_chapters_from_txt_file(v['path'] + v['filename'])
-                        for chapter in chapters:
-                            print("\t\t[%d] %s" % (chapter['num_pages'],chapter['name']))
-                    elif v['type'] == 'epub':
-                        jp_volume_f = v['path'] + v['filename']
-                        jp_book = epub.read_epub(jp_volume_f)
-                        creator, _ = jp_book.get_metadata('DC', 'creator')[0]
-                        print("\t  %s/%s/%s" % (creator,title,v['volume_name']))
-                        chapter_titles,_ = get_chapters_from_epub(jp_book,args['verbose'])
-                        #for chapter in chapter_titles:
-                        #    print("\t\t%s" % (chapter))
-                print("")
-            continue
-                
-        clean_title, publisher = extract_publisher_from_title(title)
-
-        title_id = get_oid(title, ask_confirmation=ask_confirmation_for_new_titles)
-        if title_id is None:
-            # oid not found and adding new one was manually skipped
-            continue
-
-        just_refresh_metadata = False
-        if title_id in manga_metadata_per_id and title_id in manga_data_per_id:
-            if args['refresh_metadata']:
-                just_refresh_metadata = True
-            else:
-                if not args['force']:
-                    if verbose:
-                        print("Skipping already processed %s" % title)
-                    continue
-        
-        # normalize the title just in case
-        # It can be in Unicode composed form (i.e. で)
-        # or decomposed (i.e. て　+　゙	 mark).  The strings are stored in composed form
-        title = ud.normalize('NFC',clean_title)
-
-        print("Processing title [%s]: %s " % (title_id, title))
-
-        if os.path.exists(args['source_dir'] + 'en/' + title + '.epub'):
-            en_book = epub.read_epub(args['source_dir'] + 'en/' + title + '.epub')
-            en_vol_title,_ = en_book.get_metadata('DC', 'title')[0]
-        else:
-            en_book = None
-
-        if title_id not in manga_metadata_per_id or args['refresh_metadata']:
-            if title_id in manga_metadata_per_id:
-                t_metadata = manga_metadata_per_id[title_id]
-            else:
-                t_metadata = dict()
-            if en_book is not None:
-                entit,_ = en_book.get_metadata('DC', 'title')[0]
-                t_metadata['entit'] = entit
-            else:
-                if has_cjk(title) or has_word_hiragana(title) or has_word_katakana(title):
-                    t_metadata['entit'] = PLACEHOLDER
-                else:
-                    t_metadata['entit'] = title
-
-            if title_id in google_book_data:
-                gb = google_book_data[title_id]
-                vi = gb['volumeInfo']
-                t_metadata['jptit'] = vi['title']
-
-                if t_metadata['entit'] == PLACEHOLDER:
-                    t_metadata['entit'] = gb['en_title_deepl']
-
-                if 'categories' in vi:
-                    t_metadata['genres'] = vi['categories']
-                else:
-                    t_metadata['genres'] = []
-
-                if 'publisher' in vi:
-                    t_metadata['Publisher'] = vi['publisher']
-                else:
-                    if publisher is not None:
-                        t_metadata['Publisher'] = publisher
-                    else:
-                        t_metadata['Publisher'] = PLACEHOLDER
-                if 'authors' in vi:
-                    t_metadata['Author'] = vi['authors']
-                else:
-                    if 'author' in volumes[0]:
-                        t_metadata['Author'] = [volumes[0]['author']]
-                    else:
-                        t_metadata['Author'] = [PLACEHOLDER]
-
-                try:
-                    t_metadata['Release'] = int(vi['publishedDate'].split('-')[0])
-                except:
-                    t_metadata['Release'] = PLACEHOLDER
-            else:
-                if has_cjk(title) or has_word_hiragana(title) or has_word_katakana(title):
-                    t_metadata['jptit'] = title
-                else:
-                    t_metadata['jptit'] = PLACEHOLDER
-                t_metadata['genres'] = []
-                if publisher is not None:
-                    t_metadata['Publisher'] = publisher
-                else:
-                    t_metadata['Publisher'] = PLACEHOLDER
-                if 'author' in volumes[0]:
-                    t_metadata['Author'] = [volumes[0]['author']]
-                else:
-                    t_metadata['Author'] = [PLACEHOLDER]
-                t_metadata['Release'] = PLACEHOLDER
-
-            t_metadata['coveren'] = PLACEHOLDER
-            t_metadata['coverjp'] = PLACEHOLDER
-            t_metadata['Artist'] = []
-
-            t_metadata['Status'] = 'Completed' # assumption
-            t_metadata['search'] = ''
-            t_metadata['enid'] = title_id
-            t_metadata['fetched'] = False
-
-            manga_metadata_per_id[title_id] = t_metadata 
-        else:
-            t_metadata = manga_metadata_per_id[title_id]
-
-        if title_id not in manga_data_per_id or args['refresh_metadata']:
-            if title_id in manga_data_per_id:
-                t_data = manga_data_per_id[title_id]
-            else:
-                t_data = dict()
-                t_data['_id'] = dict()
-                t_data['_id']['$oid'] = title_id
-                t_data['en_data'] = dict()
-                t_data['jp_data'] = dict()
-
-            if title_id in google_book_data:
-                t_data['syn_en'] = google_book_data[title_id]['en_synopsis_deepl']
-                t_data['syn_jp'] = google_book_data[title_id]['volumeInfo']['description']
-            else:                
-                t_data['syn_en'] = ''
-                t_data['syn_jp'] = ''
-
-            manga_data_per_id[title_id] = t_data 
-        else:
-            t_data = manga_data_per_id[title_id]
-
-        t_metadata['verified_ocr'] = True
-        t_metadata['is_book'] = True
-        t_data['is_book'] = True
-
-
-        #############  process english chapters
-        if not args['skip_content'] and not just_refresh_metadata:
-            t_data['en_data']['ch_naen'] = []
-            t_data['en_data']['ch_enh'] = []
-            t_data['en_data']['vol_en'] = dict()
-            t_data['en_data']['ch_en'] = dict()
-            if en_book is not None:
-                vol_name = en_vol_title
-                vol_id = get_oid(title_id + '/en/' + vol_name, ask_confirmation=ask_confirmation_for_new_volumes)
-                vol_number = 1
-
-                print("\tVolume EN [%s]: %s " % (vol_id, vol_name))
-    
-                save_cover_image_from_epub(t_metadata, en_book, 'en',title)
-
-                t_data['en_data']['virtual_chapter_page_count'] = []
-
-                process_epub(t_data, title_id, en_book,'en', vol_id, en_vol_title, 0, args['verbose'])
-        else:
-            if en_book is not None:
-                save_metadata_from_epub(t_metadata, t_data, 'en', en_book, title)
-
-        #############  process jp volumes/chapters
-        if not args['skip_content'] and not just_refresh_metadata:
-            t_data['jp_data']['ch_najp'] = []
-            t_data['jp_data']['ch_jph'] = []
-            t_data['jp_data']['vol_jp']= dict()
-            t_data['jp_data']['ch_jp'] = dict()
-            t_data['jp_data']['virtual_chapter_page_count'] = []
-            total_ch_count = 0
-
-            for vol_idx, vol_info in enumerate(volumes):
-                                
-                jp_volume_f = vol_info['path'] + vol_info['filename']
-
-                if vol_info['type'] == 'epub':
-                    jp_book = epub.read_epub(jp_volume_f)
-                    jp_vol_title,_ = jp_book.get_metadata('DC', 'title')[0]
-
-                    if vol_idx == 0:
-                        # get the metadata from the first volume
-                        save_metadata_from_epub(t_metadata, t_data, 'jp', jp_book, title)
-
-                    vol_id = get_oid(title_id + '/jp/' + jp_vol_title, ask_confirmation=ask_confirmation_for_new_volumes)
-                    if vol_id is not None:
-                        print("\tJP EPUB volume [%s]: %s " % (vol_id, jp_vol_title))
-
-                        total_ch_count += process_epub(t_data, title_id, jp_book,'jp', vol_id, jp_vol_title, total_ch_count, args['verbose'], ask_confirmation_for_new_chapters)
-
-                elif vol_info['type'] == 'txt':
-
-                    jp_vol_title = vol_info['volume_name']
-
-                    vol_id = get_oid(title_id + '/jp/' + jp_vol_title, ask_confirmation=ask_confirmation_for_new_volumes)
-                    if vol_id is not None:
-
-                        print("\tJP TXT volume [%s]: %s " % (vol_id, jp_vol_title))
-
-                        total_ch_count += process_txt_file(t_data, title_id, jp_volume_f ,'jp', vol_id, jp_vol_title, total_ch_count, ask_confirmation_for_new_chapters)
-        else:
-            # get the metadata from the first volume
-            if len(volumes)>0:
-                vol_info = volumes[0]
-                if vol_info['type'] == 'epub':
-                    jp_volume_f = vol_info['path'] + vol_info['filename']
-                    jp_book = epub.read_epub(jp_volume_f)
-                    save_metadata_from_epub(t_metadata, t_data, 'jp', jp_book, title)
-
-        # if cover is not yet fetched, try to get it from Google Books
-        if t_metadata['coverjp'] == PLACEHOLDER:
-            if title_id in google_book_data:
-                vi = google_book_data[title_id]['volumeInfo']
-                if 'imageLinks' in vi:
-                    img_url = vi['imageLinks']['thumbnail']
-                    target_img_name = clean_name(title)
-                    suffix = 'jpg' # TODO, assume jpeg 
-                    target_img_path = 'manga_cover/jp/' + target_img_name + '.' + suffix
-                    t_metadata['coverjp'] = target_img_path
-                    if not os.path.exists(target_img_path):
-                        print("\tFetching cover image %s" % img_url)
-                        download_image(img_url,target_img_path)
-
-        save_metadata_files()
 
 def remove(args):
-    found = False
-    for title, title_id in ext_object_ids.items():
-        if args['title_id'] == title_id:
+    md = database[BR_METADATA].find_one(({'_id':args['title_id']}))
+    if md is None:
+        print("Couldn't find %s" % args['title_id'])
+        return
 
-            if title_id in manga_metadata_per_id:
-                found = True
-                print("Deleting %s [%s]" % (title,title_id))
-                del(manga_data_per_id[title_id])
-                del(manga_metadata_per_id[title_id])
-                save_metadata_files()
+    d = database[BR_METADATA].delete_one({'_id':args['title_id']})
+    d = database[BR_DATA].delete_one({'_id':args['title_id']})
+    d = database[BR_CUSTOM_LANG_ANALYSIS].delete_one({'_id':args['title_id']})
+    d = database[BR_LANG_SUMMARY].delete_one({'_id':args['title_id']})
+    d = database[BR_LANG_SUMMARY].delete_one({'_id':args['title_id']})
 
-    if not found:
-        print("Title id %s not found in ext_object_ids!" % args['title_id'])
-
-
-def set_en_vol(args):
-    title_id = args['title_id']
-    if title_id in manga_metadata_per_id:
-        t_data = manga_data_per_id[title_id]
-        t_metadata = manga_metadata_per_id[title_id]
-
-        en_book = epub.read_epub(args['file'])
-        en_vol_title,_ = en_book.get_metadata('DC', 'title')[0]
-
-        t_metadata['entit'] = en_vol_title
-        t_data['syn_en'] = en_book.get_metadata('DC', 'description')
-
-        t_data['en_data']['ch_naen'] = []
-        t_data['en_data']['ch_enh'] = []
-        t_data['en_data']['vol_en'] = dict()
-        t_data['en_data']['ch_en'] = dict()
-        ch_idx = 1
-
-        vol_name = en_vol_title
-        vol_id = get_oid(title_id + '/en/' + vol_name, ask_confirmation=ask_confirmation_for_new_titles)
-        vol_number = 1
-
-        print("\tVolume EN [%s]: %s " % (vol_id, vol_name))
-
-        save_cover_image_from_epub(t_metadata, en_book, 'en',en_vol_title)
-
-        t_data['en_data']['virtual_chapter_page_count'] = []
-
-        process_epub(t_data, title_id, en_book,'en', vol_id, en_vol_title, 0)
-
-        save_metadata_files()
-
-    else:
-        print("Title id %s not found!" % args['title_id'])
 
 def search(args):
+    print("TODO")
+    """
     saved_oids = []
     for title, title_id in ext_object_ids.items():
         if args['keyword'].lower() in title.lower():
@@ -515,8 +448,11 @@ def search(args):
             for oid in saved_oids:
                 if oid in title:
                     print("[%s] -> [%s] %s" % (oid,title_id,title))
+    """
 
 def show(args):
+    print("TODO")
+    """
     for title_id, mdata in manga_metadata_per_id.items():
         for title, oid in ext_object_ids.items():
             if oid == title_id:
@@ -525,9 +461,24 @@ def show(args):
                 if entit.lower() != title.lower():
                     mark = '*'
                 print("%s [%s] %s\t%s" % (mark,title_id,title.ljust(20),mdata['entit']))
+    """
 
+def set_google_book_id(args):
+    title_id = args['title_id']
+    google_book_id = args['google_book_id']
+    gb = match_googleid({'title':title_id, 'googleid':google_book_id})
+    if gb is not None:
+        t_metadata = get_metadata_by_title_id(title_id)
+        t_data = get_data_by_title_id(title_id)
+        update_metadata_from_google_books(t_metadata, t_data, gb, force=True)
+        fetch_cover_from_google_books(title_id, t_metadata['jptit'], t_metadata, gb, force=True)
+        save_metadata(title_id, t_metadata, t_data, verbose_update)
+    else:
+        print("Couldn't set google book id to %s" % google_book_id)
 
 def remove_duplicates():
+    print("TODO")
+    """
     names = set()
     removable_titleids = []
     for title_id, m in manga_metadata_per_id.items():
@@ -543,14 +494,25 @@ def remove_duplicates():
         del(manga_data_per_id[title_id])
         del(manga_metadata_per_id[title_id])
     save_metadata_files()
+    """
 
 
 #FOR DEBUGGING
 #fetch_metadata({'keyword':None,'force':False})
 #fetch_metadata({'keyword':'look','force':True})
-#remove({'title_id':'6664444753468576c994cdd7'})
+#remove({'title_id':'6753586ad9539c213a63483a'})
 #scan(args)
 #remove_duplicates()
+
+#TESTING
+#args = {'command':'scan','keyword':None,'force':False,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':False,'skip_content':False, 'only_epub':False,'only_txt':False}
+#args = {'command':'scan','keyword':'銀河鉄道の','force':True,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':False,'skip_content':False, 'only_epub':False,'only_txt':False}
+#args = {'command':'scan','keyword':'Musk','force':False,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':True,'skip_content':False, 'only_epub':False,'only_txt':False}
+#args = {'command':'set_en_vol','title_id':'66981f12534685524f9e373a','file':'/Users/markojuhanne/Documents/books/import/Murakami, Haruki (29 books)/Underground/Murakami, Haruki - Underground (Vintage, 2000).epub'}
+#args = {'command':'scan','keyword':None,'force':False,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':True,'skip_content':False, 'only_epub':False,'only_txt':False}
+
+cmd = args.pop('command')
+
 
 if cmd != None:
   locals()[cmd](args)

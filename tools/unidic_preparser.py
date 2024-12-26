@@ -40,6 +40,7 @@ def parse_line_with_unidic(line, kanji_count):
 
     k_c = 0
     items = []
+    white_space = [' ','\n','\t']
     collected_particles = ''
     previous_cl = -1
     line_idx = 0
@@ -77,7 +78,6 @@ def parse_line_with_unidic(line, kanji_count):
 
         # restore possible white space characters before an alphabet/punctuation string
         # (Unidict removes them during parsing)
-        white_space = [' ','\n','\t']
         if line[line_idx] in white_space:
             if cl <= lumped_class:
                 while line[line_idx] in white_space:
@@ -151,12 +151,12 @@ def parse_line_with_unidic(line, kanji_count):
     if collected_particles != '':
         items.append(LexicalItem(collected_particles,'',[cl], base_score=get_class_base_score(cl)))
 
-    # space(s) in the end of the line. Preserve them anyway lumping them together 
+    # White space(s) in the end of the line. Preserve them anyway lumping them together 
     # and adding as an extra item
     collected_particles = ''
-    while line_idx < len(line) and line[line_idx] == ' ':
+    while line_idx < len(line) and line[line_idx] in white_space:
+        collected_particles += line[line_idx]
         line_idx += 1
-        collected_particles += ' '
     if len(collected_particles)>0:
         items.append(LexicalItem(collected_particles,'',[non_jp_char_pseudoclass]))
 
