@@ -59,8 +59,12 @@ chapter_analysis_dir = base_dir + "lang/chapters/"
 volume_analysis_dir = base_dir + "lang/volumes/"
 title_analysis_dir = base_dir + "lang/titles/"
 
-user_data_file = base_dir + 'json/user_data.json'
-user_set_words_file__old = base_dir + 'json/user_set_words.json'  # deprecated
+manga_metadata_file__deprecated = base_dir + "json/BM_data.manga_metadata.json"
+manga_data_file__deprecated = base_dir + "json/BM_data.manga_data.json"
+ext_manga_data_file__deprecated = 'json/ext.manga_data.json'
+ext_manga_metadata_file__deprecated= 'json/ext.manga_metadata.json'
+
+user_data_file__deprecated = base_dir + 'json/user_data.json'
 user_set_word_ids_file = base_dir + 'json/user_set_word_ids.json'
 
 jlpt_kanjis_file = base_dir + "lang/jlpt/jlpt_kanjis.json"

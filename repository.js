@@ -2,7 +2,9 @@ import fetch from "node-fetch"
 import fs from "fs"
 import util from "node:util";
 import {exec} from "node:child_process";
+import { MongoClient } from 'mongodb';
 
+const MONGO_URL = process.env.MONGO_URL
 const execSync = util.promisify(exec);
 
 let manob = {};
@@ -906,38 +908,32 @@ export async function fetchCoverImages() {
 }
 
 
-export function initRepository(send_event_callback_func) {
+export async function initRepository(send_event_callback_func) {
   send_event_func = send_event_callback_func;
 
-  let data = fs.readFileSync("./json/BM_data.manga_data.json", "utf8");
-  let mdata = JSON.parse(data);
-  manob["data"] = mdata;
-  console.log("Loaded manga_data")
+  console.log("Mongo URL:" + MONGO_URL);
+  const client = new MongoClient(MONGO_URL);
 
-  if (fs.existsSync("./json/ext.manga_data.json")) {
-    let data = fs.readFileSync("./json/ext.manga_data.json", "utf8");
-    let mdata = JSON.parse(data);
-    for (let ii in mdata) {
-      manob["data"].push(mdata[ii])
-    }
-    console.log("Loaded external manga_data")  
-  }
+  try {
+    let res = await client.connect()
+  } catch(e) {
+        console.log("MongoDB failed to start");
+        console.log(e);
+        throw e;
+  };
+  let db = client.db()
 
-  data = fs.readFileSync("./json/BM_data.manga_metadata.json", "utf8");
-  mdata = JSON.parse(data);
-  let re1 = mdata[0];
+  let data = await db.collection("br_data").find({'is_book':false}).toArray()
+  manob["data"] = data;
+  console.log(`Loaded manga_data with ${data.length} entries`)
+
+  let re1 = await db.collection("br_settings").findOne()
   manob["meta"] = re1;
   cdn = re1["cdn"];
-  console.log("Loaded manga_metadata")
 
-  if (fs.existsSync("./json/ext.manga_metadata.json")) {
-    let data = fs.readFileSync("./json/ext.manga_metadata.json", "utf8");
-    let mdata = JSON.parse(data);
-    for (let ii in mdata) {
-      manob["meta"]["manga_titles"].push(mdata[ii])
-    }
-    console.log("Loaded external manga_metadata")  
-  }
+  let mdata = await db.collection("br_metadata").find({'is_book':false}).toArray()
+  manob["meta"]["manga_titles"] = mdata;
+  console.log(`Loaded manga_metadata with ${mdata.length} entries`)
       
   data = fs.readFileSync("./json/dw.json", "utf8" );
   data = JSON.parse(data);

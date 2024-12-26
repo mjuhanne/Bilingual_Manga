@@ -97,5 +97,5 @@ function broadcastEvent() {
   clients.forEach(client => client.response.write(`data: ${JSON.stringify(getStatus())}\n\n`))
 }
 
-initRepository(broadcastEvent);
+await initRepository(broadcastEvent);
 await fetchCoverImages();
