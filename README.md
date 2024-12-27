@@ -5,5 +5,5 @@ Source code of bilingual manga(home)
 
 2.Run these commands in the main directory
 - `npm install`
-- `node app.js`
+- `node --env-file=.env app.js`
 - `npm run dev`

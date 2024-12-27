@@ -137,7 +137,7 @@
           fetched_jp_chapter_id = jp_chapter_id;
         }
 
-      if (en_chapter_id != fetched_en_chapter_id) {
+      if ((en_chapter_id !== undefined) && (en_chapter_id != fetched_en_chapter_id)) {
 
           let ipfspath=ipfsgate.replace('%@cid@%',en_chapter_id);
 

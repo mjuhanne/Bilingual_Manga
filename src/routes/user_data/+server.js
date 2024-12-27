@@ -1,13 +1,13 @@
 import { json } from '@sveltejs/kit';
 import db from "$lib/db";
-import { AugmentMetadataWithUserData, AugmentMetadataWithCustomLanguageSummary, saveUserData, saveUserSetWords, EVENT_TYPE } from "$lib/UserDataTools.js";
+import { saveUserSetWords, EVENT_TYPE } from "$lib/UserDataTools.js";
 import fs from "fs";
 import {exec} from "node:child_process";
 import child_process from "node:child_process";
 import util from "node:util";
 const execSync = util.promisify(exec);
 import { EventEmitter } from 'node:events';
-import { getUserDataValue, updateUserData } from '$lib/collections.js' 
+import { getUserDataValue, updateUserData, updateUserSetWordHistory, getUserWordHistory } from '$lib/collections.js' 
 import { DEFAULT_USER_ID } from '../../lib/UserDataTools.js';
 
 // Overwrite the last history event if the change happened less than hour ago.
@@ -230,15 +230,15 @@ async function calculateSuggestedPreread(title_id,target_selection,source_select
     }
 }
 
-const updateManuallySetWordLearningStage = (data) => {
+async function updateManuallySetWordLearningStage(data) {
     let word_id = data.word_id;
     let stage = data.stage;
     let word_metadata = data.metadata;
     let timestamp = Math.trunc(Date.now()/1000);
     let history_entry = { 't' : timestamp, 's':stage, 'm':word_metadata};
     let replaced_last_entry = false;
-    if (word_id in db['user_set_words']) {
-        let word_history = db['user_set_words'][word_id];
+    let word_history = await getUserSetWordHistory(data.user_id, word_id)
+    if (word_history !== null) {
         let last_timestamp = word_history[word_history.length-1].t;
         if (timestamp - last_timestamp < LEARNING_STAGE_CHANGE_REMORSE_PERIOD) {
             word_history[word_history.length-1] = history_entry
@@ -247,10 +247,18 @@ const updateManuallySetWordLearningStage = (data) => {
             word_history.push(history_entry);
         }
     } else {
-        db['user_set_words'][word_id] = [history_entry];
+        word_history = [history_entry];
     }
-	saveUserSetWords(db);
+    await updateUserSetWordHistory(data.user_id, word_id, word_history)
     return replaced_last_entry;
+}
+
+async function getWordHistory(data) {
+    let word_history = await getUserWordHistory(data.user_id, data.word_id)
+    if (word_history == null) {
+        word_history = [];
+    }
+    return word_history;
 }
 
 function broadcastEvent(event_type, msg) {
@@ -321,7 +329,12 @@ export async function POST({ request }) {
     } else if (data.func == 'update_manually_set_word_learning_stage') {
         ret= {
             success : true, 
-            'replaced_last_entry' : await updateManuallySetWordLearningStage(data.stage_data)
+            'replaced_last_entry' : await updateManuallySetWordLearningStage(data.param)
+        };
+    } else if (data.func == 'get_word_history') {
+        ret= {
+            success : true, 
+            'history' : await getWordHistory(data.param)
         };
     } else if (data.func == 'update_anki_settings') {
         await updateAnkiSettings(data.settings);

@@ -65,7 +65,7 @@ ext_manga_data_file__deprecated = 'json/ext.manga_data.json'
 ext_manga_metadata_file__deprecated= 'json/ext.manga_metadata.json'
 
 user_data_file__deprecated = base_dir + 'json/user_data.json'
-user_set_word_ids_file = base_dir + 'json/user_set_word_ids.json'
+user_set_word_ids_file__deprecated = base_dir + 'json/user_set_word_ids.json'
 
 jlpt_kanjis_file = base_dir + "lang/jlpt/jlpt_kanjis.json"
 jlpt_vocab_with_waller_kanji_restrictions_path_= base_dir + "lang/jlpt-vocab/data_with_waller_restricted_kanji/"
@@ -80,14 +80,6 @@ version_file = "json/versions.json"
 with open(version_file,"r",encoding="utf-8") as f:
     _versions = json.loads(f.read())
 
-"""
-# Other tools depend on the right format of the parsed OCR and summary files..
-CURRENT_PARSED_OCR_VERSION = 7
-CURRENT_OCR_SUMMARY_VERSION = 6
-CURRENT_METADATA_CACHE_VERSION = 3
-# .. whereas older language parser works but may not have parsed all the words as efficiently
-CURRENT_LANUGAGE_PARSER_VERSION = 12
-"""
 PARSED_OCR_VERSION = 'parsed_ocr'
 OCR_SUMMARY_VERSION = 'ocr_summary'
 METADATA_CACHE_VERSION = 'metadata_cache'
@@ -97,7 +89,7 @@ LANUGAGE_PARSER_VERSION = 'language_parser'
 def get_language_summary(title_id):
     summary = database[BR_LANG_SUMMARY].find_one({'_id':title_id})
     if summary is None:
-        raise Exception("%s [%s] has no summary!" % (get_title_names()['title_id'],title_id))
+        print("%s [%s] has no summary!" % (get_any_title_by_id(title_id),title_id))
     return summary
 
 
@@ -150,13 +142,11 @@ class bcolors:
     UNDERLINE = '\033[4m'
 
 def get_user_set_words():
-    try: 
-        with open(user_set_word_ids_file,"r",encoding="utf-8") as f:
-            data = f.read()
-            return json.loads(data)
-    except:
-        print("User set word id file doesn't exist")
-        return []
+    words = database[BR_USER_SET_WORDS].find({'user_id':DEFAULT_USER_ID}).to_list()
+    wid_to_history = dict()
+    for w_data in words:
+        wid_to_history[w_data['wid']] = w_data['history']
+    return wid_to_history
 
 def get_chapter_name_by_id(id):
     return _chapter_id_to_chapter_name[id]
@@ -168,7 +158,14 @@ def get_jp_title_names():
     return _jp_title_names
 
 def get_title_by_id(id):
-    return _title_names[id]
+    return _title_names[id] 
+
+def get_any_title_by_id(id):
+    if id in _title_names:
+        return _title_names[id]
+    if id in _jp_title_names:
+        return _jp_title_names[id]
+    raise Exception("Name not found for %s" % id)
 
 def get_jp_title_by_id(id):
     md = get_metadata_by_title_id(id)

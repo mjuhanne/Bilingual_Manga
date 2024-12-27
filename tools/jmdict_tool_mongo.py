@@ -3,9 +3,7 @@ from jp_parser_helper import *
 from jp_parser import *
 import sys
 import argparse
-from mongo import *
-database =client['jmdict']
-
+from jmdict_mongo import *
 
 results = []
 result_seq_set = set()
@@ -42,11 +40,11 @@ else:
     target_class = None
 
 if force_exact:
-    re_results = database["re_lookup"].find({'_id':term})
-    ke_results = database["ke_lookup"].find({'_id':term})
+    re_results = jmdict_db["re_lookup"].find({'_id':term})
+    ke_results = jmdict_db["ke_lookup"].find({'_id':term})
 else:
-    re_results = database["re_lookup"].find({'_id':{ "$regex": term }})
-    ke_results = database["ke_lookup"].find({'_id':{ "$regex": term }})
+    re_results = jmdict_db["re_lookup"].find({'_id':{ "$regex": term }})
+    ke_results = jmdict_db["ke_lookup"].find({'_id':{ "$regex": term }})
     pass
 pass
 
@@ -57,7 +55,7 @@ for res in re_results:
     seqs.update(res['seqs'])
 seqs = list(seqs)
 
-results = database["entries"].find({"_id": {"$in": seqs}})
+results = jmdict_db["entries"].find({"_id": {"$in": seqs}})
 
 for res in results:
     k_elem_freq = ["%s(%d)" % (elem['t'],elem['f']) for elem in res['kl']]

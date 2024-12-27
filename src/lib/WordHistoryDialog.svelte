@@ -1,14 +1,40 @@
 <script>
 import Modal from './Modal.svelte';
+import { deserialize } from '$app/forms';
 import { STAGE, learning_stage_colors, source_to_name, 
     word_classes, timestamp2date 
 } from '$lib/LearningData.js'
-
+import { DEFAULT_USER_ID } from '$lib/UserDataTools.js'
 export let showModal;
 export let word = ''
-export let history = [];
+export let word_id = ''
+
+let history = [];
 let selected_index = -1;
 
+$: {
+    if (word_id != '') {
+        fetchWordHistory(word_id) 
+    }
+}
+
+async function fetchWordHistory(word_id) {
+    let body = JSON.stringify({
+        'func' : 'get_word_history', 
+        'param' : {
+            'user_id' : DEFAULT_USER_ID,
+            'word_id' : word_id,
+        }
+    });
+    const response = await fetch( "/user_data", {
+        headers: {"Content-Type" : "application/json" },
+        method: 'POST',
+        body: body,
+    });
+    const result = deserialize(await response.text());
+    history = result.history;
+    console.log(JSON.stringify(history))
+};
 
 export function openDialog() {
     showModal = true;

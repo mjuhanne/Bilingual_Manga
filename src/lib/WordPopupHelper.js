@@ -1,5 +1,6 @@
 import { learning_stage_colors, STAGE, SOURCE } from '$lib/LearningData.js';
 import { deserialize } from '$app/forms';
+import { DEFAULT_USER_ID } from './UserDataTools';
 
 
 export function setWordPopupToElementPosition(elem, container_elem, ocr_root) {
@@ -85,7 +86,8 @@ export function updateWordDecorations(ocr_root, word_id_list, word_learning_stag
 async function sendChangedLearningStage(word_id, block_id, learning_stage, cid, page_jp, page_ref) {
   let body = JSON.stringify({
     'func' : 'update_manually_set_word_learning_stage', 
-    'stage_data' : {
+    'param' : {
+      'user_id' : DEFAULT_USER_ID,
       'word_id' : word_id,
       'stage' : learning_stage,
       'metadata' : {

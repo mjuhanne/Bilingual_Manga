@@ -21,7 +21,6 @@ let showPriorityWordSelectionDialog = false;
 
 export let word_id_index_list;
 export let word_id_list;
-export let word_history = [];
 export let word_learning_stages;
 
 let first_meaning = '';
@@ -31,7 +30,6 @@ $: word_info_by_seq = [];
 
 let wide_dialog = true;
 
-let selected_word_history = []
 let selected_word_id = ''
 let selected_word_id_index = 0
 let selected_index = -1
@@ -141,7 +139,6 @@ async function on_priority_word_scope_selected(e) {
 }
 
 async function history_button_clicked() {
-    selected_word_history = word_history[selected_word_id_index];
     showWordHistoryDialog = true;
 }
 
@@ -156,7 +153,7 @@ async function anki_button_clicked() {
 
 </script>
 
-<WordHistoryDialog bind:showModal={showWordHistoryDialog} word={word_by_seq[selected_seq]} history={selected_word_history}/>
+<WordHistoryDialog bind:showModal={showWordHistoryDialog} word_id={selected_word_id} word={word_by_seq[selected_seq]}/>
 <PriorityWordScopeSelectionDialog bind:showModal={showPriorityWordSelectionDialog} on:priority_word_scope_selected={on_priority_word_scope_selected}/>
 
 <dialog id="popup-dialog" class="popup-dialog wide-dialog"

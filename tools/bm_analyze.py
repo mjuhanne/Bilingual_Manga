@@ -8,6 +8,7 @@ from mongo import *
 from helper import *
 from bm_learning_engine_helper import *
 from jmdict import *
+from br_mongo import *
 
 # Full history is just for debugging because the resulting data set becomes quickly too large.
 # Instead we keep history only for those events when the learning stage changes
@@ -250,7 +251,7 @@ def read_sentences(data_set, learning_dataset, results, save_showstopper_words=F
 
                     if learning_settings['automatic_learning_enabled']:
                         l_freq = l_freq + unknown_word_occurrences[wid]
-                        l_stage = get_stage_by_frequency_and_class(item_type, l_freq, class_list)
+                        l_stage = get_stage_by_frequency_and_class('words', l_freq, class_list)
                         if l_stage < old_stage:
                             # don't downgrade stage just by frequency
                             l_stage = old_stage
@@ -546,6 +547,7 @@ def get_next_unread_chapter(title_id):
 
     title_chapters = get_chapters_by_title_id(title_id)
     if len(title_chapters) == 0:
+        print(" * Warning! %s has no chapters" % title_id)
         return None
 
     # find next unread chapter
@@ -569,6 +571,8 @@ def get_next_unread_chapter(title_id):
                 valid_found = True
             else:
                 summary = get_language_summary(title_id)
+                if summary is None:
+                    return None
                 ns = summary['num_sentences']
                 if ns == 0:
                     print("Warning! %s has no content!" % get_title_by_id(title_id))
@@ -1128,19 +1132,13 @@ for path in needed_paths:
     if not os.path.exists(path):
         raise Exception("Required path [%s] not found!" % path)
 
-try: 
-    with open(learning_data_filename,"r",encoding="utf-8") as f:
-        data = f.read()
-        learning_data = json.loads(data)
+learning_data = database[BR_USER_LEARNING_DATA].find_one({'user_id':DEFAULT_USER_ID})
 
-        # the history information for further speculative analysis is unnecessary
-        for item_type in ['words','kanjis']:
-            for item in learning_data[item_type].keys():
-                del learning_data[item_type][item]['h']
-                del learning_data[item_type][item]['ltf']
+wordlist_cursor = database[BR_USER_WORD_LEARNING_STATUS].find({'user_id':DEFAULT_USER_ID},{'_id':False,'user_id':False})
+learning_data['words'] = {item['wid']:{'s':item['s'],'lf':item['lf']} for item in wordlist_cursor}
 
-except Exception as e:
-    print("Learning data not set! Update!")
+kanjilist_cursor = database[BR_USER_KANJI_LEARNING_STATUS].find({'user_id':DEFAULT_USER_ID},{'_id':False,'ltf':False,'user_id':False})
+learning_data['kanjis'] = {item['kanji']:{'s':item['s'],'lf':item['lf']} for item in kanjilist_cursor}
 
 
 parser = argparse.ArgumentParser(

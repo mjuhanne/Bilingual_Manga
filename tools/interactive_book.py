@@ -48,7 +48,6 @@ def create_interactive_book(input_files, parsed_input_file, output_file):
 
     # the lists and settings are kept as separate 'pages'. Ugly, but works.
     ignored_pages = ['parsed_data',
-                     #'word_learning_stages','word_history','settings',
                      'version','parser_version']
 
     debug_refs = set()
@@ -123,6 +122,6 @@ def create_interactive_book(input_files, parsed_input_file, output_file):
     print("Created " + output_file_name)
 
 
-print("Interactive book (%s) (%s) (%s)" % (output_file_name, str(debug_block_id), str(debug_page_ref)))
+print("Interactive book [%s] (%s) (%s) (%s)" % (chapter_id, output_file_name, str(debug_block_id), str(debug_page_ref)))
 
 create_interactive_book([], parsed_input_file, output_file_name)

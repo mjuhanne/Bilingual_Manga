@@ -39,6 +39,28 @@ export async function updateUserData(userid, field, value)
     return res
 }
 
+export async function getUserWordHistory(user_id, word_id)
+{
+    var search_query = {'user_id':user_id,'wid':word_id}
+    console.log("Querying",search_query)
+    const data = await db.collection("br_user_word_learning_history").findOne(search_query);
+    if (data == null) {
+        return [];
+    }
+    console.log(`getUserWordHistory ${word_id}: ` + JSON.stringify(data['history']))
+    return data['history'];
+}
+
+export async function updateUserSetWordHistory(user_id, word_id, history)
+{
+    var new_values = {'user_id':user_id,'wid':word_id,'history':history}
+    console.log("Updating",new_values)
+    var set_newvalues = { $set: new_values };
+    var myquery = { 'user_id': user_id, 'wid':word_id };
+    var res = await db.collection("br_user_set_words").updateOne(myquery, set_newvalues, { upsert: true } );
+    return res
+}
+
 
 export async function getBilingualMangaSettings()
 {

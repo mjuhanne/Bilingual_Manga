@@ -234,4 +234,3 @@ def insert_learning_data(pages, debug_refs):
             stage_history_cache[word_id] = (stage,history)
 
         pages['word_learning_stages'].append(stage)
-        pages['word_history'].append(history)

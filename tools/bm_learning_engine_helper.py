@@ -36,7 +36,7 @@ def get_stage_by_frequency_and_class(item_type, freq, class_list):
                 return STAGE_PRE_KNOWN
         elif freq >= _learning_settings['learning_word_threshold']:
             return STAGE_LEARNING
-    if item_type == 'kanjis':
+    elif item_type == 'kanjis':
         if freq >= _learning_settings['known_kanji_threshold']:
             if _learning_settings['automatic_graduation_to_known']:
                 return STAGE_KNOWN

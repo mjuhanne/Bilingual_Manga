@@ -9,7 +9,7 @@ import datetime
 
 from helper import *
 from bm_learning_engine_helper import *
-from jmdict import *
+from jmdict_mongo import *
 
 # Full history is just for debugging because the resulting data set becomes quickly too large.
 # Instead we keep history only for those events when the learning stage changes
@@ -23,10 +23,7 @@ user_word_occurrence_file = base_dir + 'lang/user/user_word_occurrence.tsv'
 user_kanji_occurrence_file = base_dir + 'lang/user/user_kanji_occurrence.tsv'
 anki_kanjis_file = base_dir + 'lang/user/anki_kanjis.json'
 
-# output files
-learning_data_filename = base_dir + 'lang/user/learning_data.json'
-
-needed_paths = [ chapter_analysis_dir, title_analysis_dir, jlpt_kanjis_file, jlpt_vocab_path, user_data_file]
+needed_paths = [ chapter_analysis_dir, title_analysis_dir, jlpt_kanjis_file, jlpt_vocab_path]
 for path in needed_paths:
     if not os.path.exists(path):
         raise Exception("Required path [%s] not found!" % path)
@@ -70,6 +67,9 @@ chapter_comprehension = dict()
 
 jlpt_kanjis = get_jlpt_kanjis()
 jlpt_word_jmdict_refs = get_jlpt_word_jmdict_references()
+print("Loading JMDICT readings and kanji elements")
+readings_by_seq = get_readings_by_all_seqs()
+kanji_elements_by_seq = get_kanji_elements_by_all_seqs()
 
 def TRACE_EVENT(e):
     d = datetime.datetime.fromtimestamp(e['t'])
@@ -619,9 +619,13 @@ def update(args):
             # knows the reading as well
             if stage != STAGE_KNOWN:
                 seq, word = get_seq_and_word_from_word_id(word_id)
-                readings = get_readings_by_seq(seq)
+                try:
+                    readings = readings_by_seq[seq]
+                except:
+                    # TODO: add custom words from load_manga_specific_adjustments
+                    readings = []
                 if word in readings:
-                    kanji_elements = get_kanji_elements_by_seq(seq)
+                    kanji_elements = kanji_elements_by_seq[seq]
                     for ke in kanji_elements:
                         word_id_ke = str(seq) + ':' + ke
                         if word_id_ke in event_history['words']:
@@ -713,13 +717,51 @@ def update(args):
 
     learning_data['chapter_ids'] = index_of_chapter_ids
 
+    def get_lifetime_frequency_for_words(user_id):
+        res = database[BR_USER_WORD_LEARNING_HISTORY].find({'user_id':DEFAULT_USER_ID},{'_id':False,'user_id':False,'history':False}).to_list()
+        w_to_ltf = dict()
+        for w_data in res:
+            w_to_ltf[ w_data['wid'] ] = w_data['ltf']
+        return w_to_ltf
+
+
+    previous_word_ltf = get_lifetime_frequency_for_words(DEFAULT_USER_ID)
+    saved_count = 0
     if trace_items is None:
-        o_f = open(learning_data_filename,"w",encoding="utf-8")
-        json_data = json.dumps(learning_data, ensure_ascii=False)
-        o_f.write(json_data)
-        o_f.close()
+        ##### save the data
+        print("Writing user learning data with %d word entries" % (len(learning_data['words'])))
+        learning_data_word_count = len(learning_data['words']) 
+        for i, (word_id, word_status) in enumerate(learning_data['words'].items()):
+            if i%1000 == 0:
+                print("[%d/%d] %d words written" % (i,learning_data_word_count,saved_count))
+            exists = False
+            save = True
+            if word_id in previous_word_ltf:
+                exists = True
+                if previous_word_ltf[word_id] == word_status['ltf']:
+                    save = False
+            else:
+                save = True
+            if save:
+                saved_count += 1
+                h_data = {'user_id':DEFAULT_USER_ID,'wid':word_id,'history':word_status['h'],'ltf':word_status['ltf']}
+                s_data = {'user_id':DEFAULT_USER_ID,'wid':word_id,'s':word_status['s'],'lf':word_status['lf']}
+                if exists:
+                    database[BR_USER_WORD_LEARNING_HISTORY].update_one({'user_id':DEFAULT_USER_ID,'wid':word_id},{'$set':h_data},upsert=True)
+                    database[BR_USER_WORD_LEARNING_STATUS].update_one({'user_id':DEFAULT_USER_ID,'wid':word_id},{'$set':s_data},upsert=True)
+                else:
+                    database[BR_USER_WORD_LEARNING_HISTORY].insert_one(h_data)
+                    database[BR_USER_WORD_LEARNING_STATUS].insert_one(s_data)
+        print("Writing user learning data with %d kanji entries" % (len(learning_data['kanjis'])))
+        for i, (kanji, kanji_status) in enumerate(learning_data['kanjis'].items()):
+            if i%1000 == 0:
+                print("%d kanjis written" % i)
+            k_data = {'user_id':DEFAULT_USER_ID,'kanji':kanji,'s':kanji_status['s'],'ltf':kanji_status['ltf'],'lf':kanji_status['lf']}
+            database[BR_USER_KANJI_LEARNING_STATUS].update_one({'user_id':DEFAULT_USER_ID,'kanji':kanji},{'$set':k_data},upsert=True)
+        del(learning_data['words'])
+        del(learning_data['kanjis'])
+        database[BR_USER_LEARNING_DATA].update_one({'user_id':DEFAULT_USER_ID},{'$set':learning_data},upsert=True)
     else:
-        #print(learning_data)
         print("Words:")
         for word_id,entry in learning_data['words'].items():
             print('%s [Stage: %s(%d)]' % (word_id, learning_stage_labels[entry['s']].upper(), entry['s']))
@@ -730,7 +772,6 @@ def update(args):
 
 read_manga_metadata()
 read_manga_data()
-load_jmdict()
 load_counter_word_ids()
 
 user_set_words = get_user_set_words()

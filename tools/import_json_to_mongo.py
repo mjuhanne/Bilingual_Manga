@@ -148,3 +148,44 @@ if os.path.exists(google_books_file__deprecated):
 else:
     print("Existing google_books.json not found")
 
+####### user set words
+
+if DROP_COLLECTIONS:
+    database[BR_USER_SET_WORDS].drop()
+
+if os.path.exists(user_set_word_ids_file__deprecated):
+    with open(user_set_word_ids_file__deprecated,"r",encoding="utf-8") as f:
+        data = f.read()
+        user_set_words = json.loads(data)
+        print("Writing %d word entries" % len(user_set_words))
+        for word_id, word_history in user_set_words.items():
+            w_data = {'user_id':DEFAULT_USER_ID,'wid':word_id,'history':word_history}
+            if database[BR_USER_SET_WORDS].find_one({'user_id':DEFAULT_USER_ID, 'wid':word_id}) is None:
+                database[BR_USER_SET_WORDS].insert_one(w_data)
+        print("Done!")
+else:
+    print("No user set words file %s found!" % user_set_word_ids_file__deprecated)
+
+
+####### user learning data 
+
+learning_data_filename__deprecated = base_dir + 'lang/user/learning_data.json'
+
+if DROP_COLLECTIONS:
+    database[BR_USER_LEARNING_DATA].drop()
+
+if os.path.exists(learning_data_filename__deprecated):
+    with open(learning_data_filename__deprecated,"r",encoding="utf-8") as f:
+        data = f.read()
+        learning_data = json.loads(data)
+        learning_data['user_id'] = DEFAULT_USER_ID
+        print("Writing user learning data with %d word entries" % (len(learning_data['words'])))
+        for word_id, word_history in learning_data['words'].items():
+            w_data = {'user_id':DEFAULT_USER_ID,'wid':word_id,'history':word_history}
+        print("Writing user learning data with %d kanji entries" % (len(learning_data['kanjis'])))
+        if database[BR_USER_LEARNING_DATA].find_one({'user_id':DEFAULT_USER_ID}) is None:
+            database[BR_USER_LEARNING_DATA].insert_one(learning_data)
+        print("Done!")
+else:
+    print("No learning data file %s found!" % learning_data_filename__deprecated)
+
