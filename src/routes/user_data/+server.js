@@ -7,7 +7,7 @@ import child_process from "node:child_process";
 import util from "node:util";
 const execSync = util.promisify(exec);
 import { EventEmitter } from 'node:events';
-import { getUserDataValue, updateUserData, updateUserSetWordHistory, getUserWordHistory } from '$lib/collections.js' 
+import { getUserDataValue, updateUserData, updateManuallySetWordLearningStateChanges, getManuallySetWordLearningStateChanges, getUserWordHistory } from '$lib/collections.js' 
 import { DEFAULT_USER_ID } from '../../lib/UserDataTools.js';
 
 // Overwrite the last history event if the change happened less than hour ago.
@@ -237,7 +237,7 @@ async function updateManuallySetWordLearningStage(data) {
     let timestamp = Math.trunc(Date.now()/1000);
     let history_entry = { 't' : timestamp, 's':stage, 'm':word_metadata};
     let replaced_last_entry = false;
-    let word_history = await getUserSetWordHistory(data.user_id, word_id)
+    let word_history = await getManuallySetWordLearningStateChanges(data.user_id, word_id)
     if (word_history !== null) {
         let last_timestamp = word_history[word_history.length-1].t;
         if (timestamp - last_timestamp < LEARNING_STAGE_CHANGE_REMORSE_PERIOD) {
@@ -249,7 +249,8 @@ async function updateManuallySetWordLearningStage(data) {
     } else {
         word_history = [history_entry];
     }
-    await updateUserSetWordHistory(data.user_id, word_id, word_history)
+    console.log(`Updated ${word_id} history to ${JSON.stringify(word_history)}`)
+    await updateManuallySetWordLearningStateChanges(data.user_id, word_id, word_history)
     return replaced_last_entry;
 }
 

@@ -1,7 +1,6 @@
 import json
 import os
 from helper import * 
-import shutil
 import argparse
 import re
 
@@ -17,8 +16,8 @@ verbose_update = True
 
 add_new_titles = True
 ask_confirmation_for_new_titles = True
-ask_confirmation_for_new_volumes = False
-ask_confirmation_for_new_chapters = False
+ask_confirmation_for_new_volumes = True
+ask_confirmation_for_new_chapters = True
 refresh_google_books_data = False
 ask_google_books_match_confirmation = True
 
@@ -63,7 +62,6 @@ if 'verbose' in args:
 if verbose:
     print("Args: ",args)
 
-
 j = 0
 
 read_manga_metadata()
@@ -80,7 +78,6 @@ def save_metadata(title_id, t_metadata, t_data, verbose):
     database[BR_METADATA].update_one({'_id':title_id},{'$set':t_metadata},upsert=True)
     t_data = json.loads(json.dumps(t_data))
     database[BR_DATA].update_one({'_id':title_id},{'$set':t_data},upsert=True)
-
 
 
 dir_regex = [
@@ -136,12 +133,12 @@ def recursive_scan(args, root_path, source_item, title=None, author=None, filter
         if title is not None and vol_info is not None:
             process_file(args, title, vol_info)
         else:
+            print("Missing file name processor: %s" % source_item)
             pass
-            #if '訳' in source_item:
-            #print("Missing file name processor: %s" % source_item)
 
 def create_new_title(title):
-    title_id = get_oid(title, add_new_titles, ask_confirmation=ask_confirmation_for_new_titles)
+
+    title_id = create_oid(title, "title", ask_confirmation=ask_confirmation_for_new_titles)
     if title_id is None:
         # oid not found and adding new one was manually skipped
         return None
@@ -163,6 +160,7 @@ def create_new_title(title):
     else:
         t_metadata['entit'] = clean_title
         t_metadata['jptit'] = PLACEHOLDER
+    t_metadata['title_from_filename'] = clean_title
 
     t_metadata['genres'] = []
     if publisher is not None:
@@ -234,7 +232,7 @@ def update_metadata_from_google_books(t_metadata, t_data, gb, force=False):
     t_data['syn_en_deepl'] = gb['en_synopsis_deepl']
     t_data['syn_jp'] = gb['volumeInfo']['description']
 
-def process_volume(title_id, title, vol_info):
+def process_volume(title_id, title, vol_info, vol_id=None):
     t_metadata = get_metadata_by_title_id(title_id)
     t_data = get_data_by_title_id(title_id)
 
@@ -292,10 +290,16 @@ def process_volume(title_id, title, vol_info):
     if gb is not None:
         update_metadata_from_google_books(t_metadata, t_data, gb)
 
+    if vol_id is None:
+        vol_id = create_oid("%s/%s/%s" % (title_id,lang,vol_name), "volume", ask_confirmation=ask_confirmation_for_new_volumes, title_id=title_id)
+        if vol_id is None:
+            print("Skipped creating new volume")
+            return None, None
+    else:
+        raise Exception("TODO! replace old vol/chapter info in t_data")
+
     if lang == 'en':
         #############  process english chapter
-        vol_id = get_oid(title_id + '/en/' + vol_name, ask_confirmation=ask_confirmation_for_new_volumes)
-
         print("\tVolume EN [%s]: %s " % (vol_id, vol_name))
 
         if t_metadata['coveren'] == PLACEHOLDER:
@@ -303,30 +307,33 @@ def process_volume(title_id, title, vol_info):
 
         t_data['en_data']['virtual_chapter_page_count'] = []
 
-        process_epub(t_data, title_id, book,'en', vol_id, vol_name, 0, args['verbose'])
+        process_result = process_epub(t_data, title_id, book,'en', vol_id, vol_name, 0, args['verbose'])
 
     elif lang == 'jp':
         if vol_info['type'] == 'epub':
-            vol_id = get_oid(title_id + '/jp/' + vol_name, ask_confirmation=ask_confirmation_for_new_volumes)
-            if vol_id is not None:
-                print("\tJP EPUB volume [%s]: %s " % (vol_id, vol_name))
-                process_epub(t_data, title_id, book,'jp', vol_id, vol_name, args['verbose'], ask_confirmation_for_new_chapters)
+            print("\tJP EPUB volume [%s]: %s " % (vol_id, vol_name))
+            process_result = process_epub(t_data, title_id, book,'jp', vol_id, vol_name, args['verbose'], ask_confirmation_for_new_chapters)
 
         elif vol_info['type'] == 'txt':
             jp_vol_title = vol_info['volume_name']
             jp_volume_f = vol_info['path'] + vol_info['filename']
-            vol_id = get_oid(title_id + '/jp/' + vol_name, ask_confirmation=ask_confirmation_for_new_volumes)
-            if vol_id is not None:
-                print("\tJP TXT volume [%s]: %s " % (vol_id, jp_vol_title))
-                process_txt_file(t_data, title_id, jp_volume_f ,'jp', vol_id, jp_vol_title, ask_confirmation_for_new_chapters)
+            print("\tJP TXT volume [%s]: %s " % (vol_id, jp_vol_title))
+            process_result = process_txt_file(t_data, title_id, jp_volume_f ,'jp', vol_id, jp_vol_title, ask_confirmation_for_new_chapters)
 
         # if cover is not yet fetched, try to get it from Google Books
-        if t_metadata['coverjp'] == PLACEHOLDER:
+        if process_result >= 0 and t_metadata['coverjp'] == PLACEHOLDER:
             if gb is not None:
                 fetch_cover_from_google_books(title_id, title, t_metadata, gb)
 
-    save_metadata(title_id, t_metadata, t_data, verbose_update)
-    return vol_id, lang
+    if process_result >= 0:
+        save_metadata(title_id, t_metadata, t_data, verbose_update)
+        return vol_id, lang
+    else:
+        print("Skipped title %s vol_id %s" % (title_id, vol_id))
+        ans = input("Delete possible references? ")
+        if ans == 'y':
+            remove_chapter_lookup_entry(title_id, vol_id, 'ALL')
+        return None, None
 
 def fetch_cover_from_google_books(title_id, title, t_metadata, gb, force=False):
     vi = gb['volumeInfo']
@@ -342,6 +349,10 @@ def fetch_cover_from_google_books(title_id, title, t_metadata, gb, force=False):
 
 
 def process_file(args, title, vol_info):
+
+    if args['keyword'] is not None and args['keyword'].lower() not in vol_info['filename']:
+        return 
+    
     path = vol_info['path'].split(args['source_dir'])[1]
     import_metadata = database[BR_VOL_IMPORT_METADATA].find_one({'filename':vol_info['filename'], 'path':path})
     if import_metadata is None:
@@ -349,6 +360,11 @@ def process_file(args, title, vol_info):
         import_metadata = database[BR_VOL_IMPORT_METADATA].find_one({'md5':md5digest})
 
     if import_metadata is None:
+
+        if args['simulate']:
+            if vol_info['verbose']:
+                print("Title: ",title)
+                print(vol_info)
 
         # new volume
         import_metadata = {
@@ -367,6 +383,8 @@ def process_file(args, title, vol_info):
             if title_metadata is None:
                 title_metadata = database[BR_METADATA].find_one({'jptit':title_with_translator,'translator':vol_info['translator']})
         if title_metadata is None:
+            title_metadata = database[BR_METADATA].find_one({'title_from_filename':title})
+        if title_metadata is None:
             title_metadata = database[BR_METADATA].find_one({'jptit':title})
 
             if vol_info['translator'] != '' and title_metadata is not None:
@@ -376,7 +394,20 @@ def process_file(args, title, vol_info):
                 title = title_with_translator
 
         if title_metadata is None:
-            # no match --> create new titlte
+            if args['simulate']:
+                if vol_info['verbose']:
+                    print(" * No title match")
+                return False
+
+            # no match --> create new title
+            print("New title:")
+            print("\tTitle: ",title)
+            print("\tVolume: ",vol_info['volume_name'])
+            print("\tAuthor: ",vol_info['author'])
+            if vol_info['translator'] != '':
+                print("\tTranslator: ",vol_info['translator'])
+            print("\tFilename: ",vol_info['filename'])
+            print("\tPath: ",vol_info['path'])
             title_id = create_new_title(title)
             if title_id is None:
                 # skipped creating new title
@@ -386,7 +417,12 @@ def process_file(args, title, vol_info):
                 return False
         else:
             title_id = title_metadata['_id']
-            
+
+        if args['simulate']:
+            if vol_info['verbose']:
+                print(" * Match with title [%s] %s" % (title_id,title_metadata['jptit']))
+            return False
+
         vol_id, lang = process_volume(title_id, title, vol_info)
         if vol_id is None:
             return False
@@ -405,8 +441,7 @@ def process_file(args, title, vol_info):
                     database[BR_VOL_IMPORT_METADATA].delete_one({'_id':vol_id})
                     print("Removed volume %s from processed list. Can now be re-imported")
             else:
-                process_volume(title_id, title, vol_info)
-
+                process_volume(title_id, title, vol_info, vol_id)
 
             pass
     return True

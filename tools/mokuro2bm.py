@@ -50,6 +50,8 @@ USAGE:
         python mokuro2bm.py search [keyword]
         
 """
+
+raise Exception("TODO! Needs refactoring to use Mongo!")
 import json
 import os
 from bs4 import BeautifulSoup
@@ -65,7 +67,8 @@ import logging
 import unicodedata as ud
 logging.captureWarnings(True) # repress HTML certificate verification warnings
 
-default_mokuro_path = '/mnt/Your/Mokuro/Directory'
+#default_mokuro_path = '/mnt/Your/Mokuro/Directory'
+default_mokuro_path = '/Volumes/torrent/mokuro'
 
 dw_file_path = 'json/dw.json'
 ext_mangaupdates_file = base_dir + "json/ext_mangaupdates.json"
@@ -87,6 +90,7 @@ parser_import.add_argument('--source_dir', '-src', type=str, default=default_mok
 parser_import.add_argument('--simulate', '-s', action='store_true', help='Scan only (do not create new OIDs or import)')
 parser_import.add_argument('keyword', nargs='?', type=str, default=None, help='Title has to (partially) match the keyword in order to processed')
 
+
 parser_fetch_metadata = subparsers.add_parser('fetch_metadata', help='Scan and import all the mokuro manga titles with placeholder metadata and process OCR files')
 parser_fetch_metadata.add_argument('--force', '-f', action='store_true', help='Force update')
 parser_fetch_metadata.add_argument('keyword', nargs='?', type=str, default=None, help='Title has to (partially) match the keyword in order to processed')
@@ -104,6 +108,9 @@ parser_search.add_argument('keyword', type=str, default=None, help='Keyword')
 parser_show = subparsers.add_parser('show', help='Show list of all imported manga')
 
 args = vars(parser.parse_args())
+
+#args={'command':'scan','force':True,'copy_images':True,'source_dir':default_mokuro_path,'simulate':False,'keyword':'pansuto'}
+
 cmd = args.pop('command')
 
 if cmd == 'scan':

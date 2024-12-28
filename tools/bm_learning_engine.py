@@ -727,6 +727,7 @@ def update(args):
 
     previous_word_ltf = get_lifetime_frequency_for_words(DEFAULT_USER_ID)
     saved_count = 0
+    skipped_count = 0
     if trace_items is None:
         ##### save the data
         print("Writing user learning data with %d word entries" % (len(learning_data['words'])))
@@ -738,7 +739,7 @@ def update(args):
             save = True
             if word_id in previous_word_ltf:
                 exists = True
-                if previous_word_ltf[word_id] == word_status['ltf']:
+                if previous_word_ltf[word_id] == word_status['ltf'] or previous_word_ltf[word_id] > 100:
                     save = False
             else:
                 save = True
@@ -752,6 +753,8 @@ def update(args):
                 else:
                     database[BR_USER_WORD_LEARNING_HISTORY].insert_one(h_data)
                     database[BR_USER_WORD_LEARNING_STATUS].insert_one(s_data)
+            else:
+                skipped_count += 1
         print("Writing user learning data with %d kanji entries" % (len(learning_data['kanjis'])))
         for i, (kanji, kanji_status) in enumerate(learning_data['kanjis'].items()):
             if i%1000 == 0:
@@ -761,6 +764,7 @@ def update(args):
         del(learning_data['words'])
         del(learning_data['kanjis'])
         database[BR_USER_LEARNING_DATA].update_one({'user_id':DEFAULT_USER_ID},{'$set':learning_data},upsert=True)
+        print("Wrote %d and skipped %d words" % (saved_count,skipped_count))
     else:
         print("Words:")
         for word_id,entry in learning_data['words'].items():

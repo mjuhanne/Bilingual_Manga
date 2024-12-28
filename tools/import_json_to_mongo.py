@@ -166,7 +166,6 @@ if os.path.exists(user_set_word_ids_file__deprecated):
 else:
     print("No user set words file %s found!" % user_set_word_ids_file__deprecated)
 
-
 ####### user learning data 
 
 learning_data_filename__deprecated = base_dir + 'lang/user/learning_data.json'
@@ -189,3 +188,34 @@ if os.path.exists(learning_data_filename__deprecated):
 else:
     print("No learning data file %s found!" % learning_data_filename__deprecated)
 
+############# title id <-> volume id <-> chapter id lookup
+
+database[BR_CHAPTER_LOOKUP_TABLE].drop()
+
+data = database[BR_DATA].find().to_list()
+for td in data:
+    title_id = td['_id']
+    for lang in ['jp','en']:
+        lang_data = lang + '_data'
+        vol_lang = 'vol_' + lang
+        chapter_ids_label = 'ch_' + lang + 'h'
+        chapter_names_label = 'ch_na' + lang
+        for vol_num, (vol_name, vol_data) in enumerate(td[lang_data][vol_lang].items()):
+            if 'id' in vol_data:
+                vol_id = vol_data['id']
+            else:
+                vol_id = ''
+            for ch_num, ch_idx in enumerate(range(vol_data['s'],vol_data['e']+1)):
+                ch_name = td[lang_data][chapter_names_label][ch_idx]
+                ch_id = td[lang_data][chapter_ids_label][ch_idx].split('/')[0]
+                d = {
+                    'title_id' : title_id,
+                    'vol_id' : vol_id,
+                    'vol_num' : vol_num,
+                    'vol_name' : vol_name,
+                    'ch_id' : ch_id,
+                    'ch_num' : ch_num,
+                    'ch_name' : ch_name,
+                    'lang' : lang
+                }
+                database[BR_CHAPTER_LOOKUP_TABLE].insert_one(d)

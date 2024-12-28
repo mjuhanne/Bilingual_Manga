@@ -51,7 +51,20 @@ export async function getUserWordHistory(user_id, word_id)
     return data['history'];
 }
 
-export async function updateUserSetWordHistory(user_id, word_id, history)
+export async function getManuallySetWordLearningStateChanges(user_id, word_id)
+{
+    var search_query = {'user_id':user_id,'wid':word_id}
+    console.log("Querying",search_query)
+    const data = await db.collection("br_user_set_words").findOne(search_query);
+    if (data == null) {
+        return [];
+    }
+    console.log(`getManuallySetWordLearningStateChanges ${word_id}: ` + JSON.stringify(data['history']))
+    return data['history'];
+}
+
+
+export async function updateManuallySetWordLearningStateChanges(user_id, word_id, history)
 {
     var new_values = {'user_id':user_id,'wid':word_id,'history':history}
     console.log("Updating",new_values)

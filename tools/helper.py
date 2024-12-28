@@ -534,3 +534,42 @@ def strip_sense_from_word_id(word_id):
 def get_stable_hash(thing):
     byte_digest = hashlib.md5(json.dumps(thing).encode('utf-8')).digest()
     return int.from_bytes(byte_digest)
+
+
+def add_chapter_lookup_entry(title_id, vol_id, vol_num, vol_name, ch_id, ch_num, ch_name, lang):
+    search_terms = {
+        'title_id' : title_id,
+        'vol_id' : vol_id,
+        'ch_id' : ch_id,
+    }
+    d = {
+        'title_id' : title_id,
+        'vol_id' : vol_id,
+        'vol_num' : vol_num,
+        'vol_name' : vol_name,
+        'ch_id' : ch_id,
+        'ch_num' : ch_num,
+        'ch_name' : ch_name,
+        'lang' : lang
+    }
+    database[BR_CHAPTER_LOOKUP_TABLE].update_one(search_terms,{'$set':d},upsert=True)
+
+def remove_chapter_lookup_entry(title_id, vol_id, chapter_id):
+    if vol_id == 'ALL':
+        search_terms = {
+            'title_id' : title_id
+        }
+    elif chapter_id == 'ALL':
+        search_terms = {
+            'title_id' : title_id,
+            'vol_id' : vol_id,
+            'ch_id' : chapter_id,
+        }
+    else:
+        search_terms = {
+            'title_id' : title_id,
+            'vol_id' : vol_id,
+            'ch_id' : chapter_id,
+        }
+    database[BR_CHAPTER_LOOKUP_TABLE].delete_many(search_terms)
+    

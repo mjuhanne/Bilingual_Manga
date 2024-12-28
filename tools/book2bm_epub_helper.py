@@ -369,12 +369,11 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, verbose, ask_co
         print("Title %s volume %s [%s] has no detected chapters!" % (title_id, vol_name, vol_id))
         return 0
 
+    vol_num = len(t_data[lang_data_field][vol_lang_field])
     t_data[lang_data_field][vol_lang_field][vol_name] = {'id':vol_id,'s':start_ch_idx,'e':start_ch_idx + len(chapter_titles)-1}
 
     ch_idx = 0
-    current_chapter = None
     target_ocr_file_path = None
-    target_page_file_path = None
     ch_name = None
     chapter_paragraphs = []
     chapter_pages = []
@@ -383,11 +382,16 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, verbose, ask_co
 
     for ch_idx, (ch_name, chapter_items) in enumerate(zip(chapter_titles, item_list_per_chapter)):
 
-        ch_id = get_oid(title_id + '/' + lang + '/' + vol_id + '/' + ch_name, ask_confirmation=ask_confirmation_for_new_chapters)
+        ch_id = create_oid("%s/%s/%s/%s" % (title_id,lang,vol_id,ch_name), "chapter", ask_confirmation=ask_confirmation_for_new_chapters, title_id=title_id, vol_id=vol_id)
+        if ch_id is None:
+            print("Skipping chapter and subsequent chapters")
+            return -1
         t_data[lang_data_field][ch_name_field].append(ch_name)
         t_data[lang_data_field][ch_lang_h_field].append(ch_id + '/%@rep@%')
         t_data[lang_data_field][ch_lang_field][start_ch_idx+ch_idx+1] = ['pages.html']
         print("Chapter %s [%s]: %s " % (lang, ch_id, ch_name))
+
+        add_chapter_lookup_entry(title_id, vol_id, vol_num, vol_name, ch_id, ch_idx, ch_name, lang)
 
         ocr_dict = dict()
         chapter_paragraphs = []

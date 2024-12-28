@@ -8,55 +8,51 @@ import hashlib
 
 PLACEHOLDER = 'Placeholder'
 
-target_ext_oid_path = 'json/ext.oids.json'
 target_ocr_path = 'ocr/'
 target_ipfs_path = 'ipfs/'
 
-ext_object_ids = dict()
-oid_to_title = dict()
-if os.path.exists(target_ext_oid_path):
-    with open(target_ext_oid_path,'r',encoding="UTF-8") as oid_f:
-        ext_object_ids = json.loads(oid_f.read())
-    for title,oid in ext_object_ids.items():
-        oid_to_title[oid] = title
+create_new_titles_override = False
+create_new_volumes_override = ''
+create_new_chapter_override = ''
 
-def get_oid(path_str, create_new_if_not_found=True, ask_confirmation=True):
-    # the path can be given in Unicode composed form (i.e. で)
-    # or decomposed (i.e. て　+　゙	 mark).  The strings are stored in composed form
-    path_str_composed = ud.normalize('NFC',path_str)
-    if path_str in ext_object_ids:
-        return ext_object_ids[path_str]
-    if path_str_composed in ext_object_ids:
-        return ext_object_ids[path_str_composed]
+def create_oid(path_str, oid_type, ask_confirmation=True, title_id=None, vol_id=None):
+    global create_new_titles_override, create_new_volumes_override, create_new_chapter_override
+    if ask_confirmation:
+        print("Creating new %s OID from '%s'" % (oid_type,path_str))
+        if oid_type == "title":
+            if not create_new_titles_override:
+                ans = input("OK (y=this title, n=no, a=all titles ?")
+                if ans == 'a':
+                    create_new_titles_override = True 
+                elif ans != 'y':
+                    return None
+        elif oid_type == "volume":
+            if create_new_volumes_override == 'all_volumes' or create_new_volumes_override == title_id:
+                pass
+            else:
+                ans = input("OK (y=this volume, n=no, a=all volumes in this title, A=all volumes in all titles?")
+                if ans == 'a':
+                    create_new_volumes_override = title_id
+                elif ans == 'A':
+                    create_new_volumes_override = 'all_volumes'
+                elif ans != 'y':
+                    return None
+        elif oid_type == "chapter":
+            if create_new_chapter_override == 'all_chapters' or create_new_chapter_override == title_id or create_new_chapter_override == vol_id:
+                pass
+            else:
+                ans = input("OK (y=this chapter, n=no, a=all chapters in this volume, A=all chapters in all volumes?")
+                if ans == 'a':
+                    create_new_chapter_override = vol_id
+                elif ans == 'A':
+                    create_new_chapter_override = 'all_chapters'
+                elif ans != 'y':
+                    return None
 
-    if create_new_if_not_found:
-        if ask_confirmation:
-            print("Creating new OID from '%s'" % path_str_composed)
-            ok = input("OK?")
-            if ok != 'y':
-                return None
-
-        oid = str(bson.objectid.ObjectId())
-        ext_object_ids[path_str_composed] = oid
-        oid_to_title[oid] = path_str_composed
-        print("\tNew OID [%s] %s" % (oid,path_str_composed))
-        with open(target_ext_oid_path,'w',encoding="UTF-8") as oid_f:
-            oid_f.write(json.dumps(ext_object_ids, ensure_ascii=False))
-        return oid
-    else:
-        return None
-
-
-def save_oid(oid, path_str):
-    # the path can be given in Unicode composed form (i.e. で)
-    # or decomposed (i.e. て　+　゙	 mark).  The strings are stored in composed form
-    path_str_composed = ud.normalize('NFC',path_str)
-    ext_object_ids[path_str_composed] = oid
-    oid_to_title[oid] = path_str_composed
-    print("\tSaved OID [%s] %s" % (oid,path_str_composed))
-    with open(target_ext_oid_path,'w',encoding="UTF-8") as oid_f:
-        oid_f.write(json.dumps(ext_object_ids, ensure_ascii=False))
+    oid = str(bson.objectid.ObjectId())
+    print("\tNew OID [%s] %s" % (oid,path_str))
     return oid
+
 
 def download_image(img_url,target_img_path):
     subprocess.run(['wget','--no-verbose',img_url,'-O',target_img_path])

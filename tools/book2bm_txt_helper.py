@@ -6,6 +6,7 @@ from book2bm_helper import *
 import os
 import re
 from helper import *
+import copy
 
 
 text_regex = [
@@ -37,6 +38,268 @@ text_regex = [
     # 村上春樹-世界の終りとハードボイルド・ワンダーランド (上).txt
     ["([^-]*)-([^\(]*) \((.)\)",['author','title','vol_name']],
 
+    # 滝沢馬琴-里見八犬伝 巻１.txt
+    ["([^-]+)-([^[１２３４５６７８９]*) (巻[１２３４５６７８９ノ一二三四]+)",['author','title','vol_name']],
+
+    # 高橋弥七郎-灼眼のシャナ 第08巻 (青空文庫対応txt形式).txt
+    ["([^-]+)-([^[第]*)\s(第\d*巻)",['author','title','vol_name']],
+
+    # 横溝正史-人形佐七捕物帳 12.txt
+    ['([^-]+)-(.*)\s(\d{2}).txt',['author','title','vol_name']],
+
+    # 九条公人-逆行ＥＶＡ劇場その７.txt
+    ['([^-]+)-(.*)(その\d+).txt',['author','title','vol_name']],
+
+    # 出口王仁三郎-霊界物語-rm-46-20080623.txt
+    ['([^-]+)-(.*)-rm-(\d+)-.*.txt',['author','title','vol_name']],
+
+    # 片山憲太郎-電波的な彼女01.txt
+    ['([^-]+)-(.*)(\d{2,}).txt',['author','title','vol_name']],
+
+    # 電車男-trainman1.txt
+    ['([^-]+)-(.*)(\d+).txt',['author','title','vol_name']],
+
+    #川上稔-AHEADシリーズ 05 終わりのクロニクル③〈上〉(挿絵付).txt
+    ['([^-]+)-\(*(.*シリーズ)\s(.*).txt',['author','title','vol_name']],
+    ['([^-]+)-\(*(.*シリーズ)(.*).txt',['author','title','vol_name']],
+
+    # 長部日出-鬼が来た 棟方志功伝（上） (青空文庫対応txt 表紙付)(校正07-11-16).txt
+    ['([^-]+)-(.*)(（[上下]+）).*',['author','title','vol_name']],
+
+    # 野村胡堂-銭形平次捕物控 07 (青空文庫対応txt)(校正07-07-17).txt
+    ['([^-]+)-(.*)\s(\d+)\s*\(青空文.*',['author','title','vol_name']],
+
+    # 香月日輪-大江戸妖怪かわら版① 異界から落ち来る者あり 上.txt
+    ['([^-]+)-(.*)([①②③④⑤⑥⑦⑧⑨].*).txt',['author','title','vol_name']],
+
+    # 高橋弥七郎-灼眼のシャナ 第08巻 (青空文庫対応txt形式).txt
+    ["([^-]+)-([^[第]*)\s*(第\d*巻)\s*\(青空文.*",['author','title','vol_name']],
+
+    # ラヴクラフト全集1-04-「闇に囁くもの」.txt
+    ["(ラヴクラフト)(全集)(.*).txt",['author','title','vol_name']],
+
+    # ヴィンジ-最果ての銀河船団(上).txt
+    ["([^-]+)-(.*)(\([上中下]\)).txt",['author','title','vol_name']],
+
+
+    # ウルフ／岡部宏之訳-新しい太陽の書2(青空形式ルビ付).txt
+    ["([^／]*)／([^訳]*)訳-(.*)(\d)\(青空.*.txt",['author','translator','title','volume']],
+
+    # ルイス／瀬田貞二訳-(ナルニア国物語3) 朝びらき丸東の海へ (青空文庫対応txt 表紙・挿絵付)(校正07-09-03).txt
+    ["([^／]*)／([^訳]*)訳-(.*)\(青空文.*.txt",['author','translator','extract_series']],
+
+    # アリグザンダー-(プリデイン物語２)タランと黒い魔法の釜(ルビ無TXT).txt
+    ["([^-]+)-\s*(.*).txt",['author','extract_series']],
+
+    # 夢枕獏-神々の山嶺 下.txt
+    ["([^-]+)-(.*)([上中下]).txt",['author','title','vol_name']],
+
+    # 池波正太郎-火の国の城 上 (青空文庫対応txt 表紙付)(校正07-11-16).txt
+    ["([^-]+)-(.*)\s([上中下])\s*\(青空文.*.txt",['author','title','vol_name']],
+
+    # 阿刀田高-空想列車(上) (表紙付).txt
+    ["([^-]+)-(.*)\s*(\([上中下]\))\s*\(表紙付\).txt",['author','title','vol_name']],
+
+    # アリグザンダー-(プリデイン物語２)タランと黒い魔法の釜(ルビ無TXT).txt
+    ["([^-]+)-\s*(.*).txt",['author','title']],
+
+    # シェイクスピア／福田恆存訳-ハムレット.TXT
+    ["([^／]*)／([^訳]*)訳-([^\(]*).*.TXT",['author','translator','title']],
+
+    # 松本清張-点と線.TXT
+    ["([^／]*)-([^\(]*).*.TXT",['author','title']],
+
+    # ハーバート-デューン・砂の惑星１.txt
+    #["([^-]+)-([^[１２３４５６７８９]*)([１２３４５６７８９]+)",['author','title','vol_name']],
+
+]
+
+explicit_aozora_series = [
+    'ナルニア国物語',
+    'CROSS†CHANNEL',
+    'Always ふと、気が付けばキミとの日常･･･',
+    'きゃんでぃそふと-つよきす',
+    '封仙娘娘追宝録',
+    'プリデイン物語',
+    'エレニア記',
+    'ベルガリアード物語',
+    'マロリオン物語',
+    '闇の戦い',
+    'カンピオーネ！',
+    '三上延-シャドウテイカー3',
+    '小説版MOTHER',
+    'SAO-Web',
+    '五王戦国志',
+    'スリピッシュ！',
+    'リア様がみてる',
+    '太平洋戦争日記',
+    'PATRONE',
+    'DADDYFACE',
+    '天槍の下のバシレイス',
+    '夕刊ツーカー 編集長伊集院光の一言',
+    '皇国の守護者',
+    '千一夜物語',
+    '嘘つきみーくん',
+    'マルドゥック・スクランブル',
+    'カイルロッドの苦難',
+    '覆面作家',
+    'アルス・マグナ',
+    '下町探偵局',
+    '産霊山秘録',
+    '付き馬屋おえん',
+    '山岡鉄舟',
+    '旅の短篇集',
+    'タツモリ家の食卓',
+    '三国志',
+    '宮本武蔵',
+    '新・水滸伝',
+    '新書太閤記',
+    '神州天馬侠',
+    '鳴門秘帖',
+    'ワンナイトミステリー',
+    'レイン',
+    '上杉謙信',
+    '東天の獅子',
+    '陰陽師',
+    '炎は流れる',
+    '名句歌ごよみ',
+    'グミ・チョコレート・パイン',
+    '蘇える金狼',
+    '黒豹の鎮魂歌',
+    'ゾアハンター',
+    '神曲奏界ポリフォニカ ポリ黒',
+    'ラーゼフォン',
+    'Fate／hollow',
+    'Fate／stay night',
+    'MELTY BLOOD',
+    '月姫',
+    '歌月十夜',
+    '空の境界',
+    '髪結い伊三次捕物余話',
+    '童話集',
+    '塀の中の懲りない面々',
+    '絶望の世界',
+    'クロスファイア',
+    'ブレイブ・ストーリー',
+    'オーラバトラー戦記',
+    'ガイア・ギア 1巻',
+    '機動戦士ガンダム',
+    'カメラマンたちの昭和史',
+    '明治の怪物経営者たち',
+    '日本沈没',
+    'モオツァルト',
+    '考えるヒント',
+    'ムーン・ファイアー・ストーン',
+    '十二国記',
+    '華麗なる一族',
+    'サーラの冒険',
+    '妖魔夜行',
+    '銀行 ',
+    '忍法',
+    '忍法破倭兵状',
+    '岡本綺堂伝奇小説集其',
+    '銀の共鳴',
+    '棒ふり',
+    '懐しき文士たち',
+    'ホーンテッド',
+    '御宿かわせみ',
+    '狼と香辛料',
+    'ROOM NO.1301',
+    'グリーン・レクイエム',
+    'きまぐれ',
+    'リリアとトレイズ',
+    'ショージ君',
+    '男子はじめて物語',
+    '千里眼',
+    '戦闘城塞マスラヲ',
+    '美女入門',
+    '銀月のソルトレージュ',
+    '遠野物語',
+    '柴錬立川文庫',
+    'グイン・サーガ',
+    '真夜中の天使',
+    '翼あるもの',
+    '愛人の掟',
+    'G ',
+    'X ',
+    '四季 ',
+    '-棟居刑事',
+    'ＤＩＶＥ!!',
+    '鬼籍通覧',
+    '神曲奏界ポリフォニカ',
+    'ンパレード・マーチ',
+    '金田一耕助',
+    '～ラベンダー書院物語～',
+    '勉強ができなくても恥ずかしくない',
+    '半分の月がのぼる空',
+    'カナリア・ファイル',
+    'ドス島伝説',
+    '江戸川乱歩全短編',
+    'シャングリ・ラ',
+    'テンペスト',
+    '剣客商売',
+    'プラパ・ゼータ',
+    '絶対少年 ～神隠しの秋～穴森 携帯版小説',
+    'ドラゴンキラー',
+    '列藩騒動録',
+    '天と地と',
+    '平将門',
+    '新太閤記',
+    '時載りリンネ！',
+    '私立伝奇学園高等学校民俗学研究会',
+    'アルスラーン',
+    'タイタニア',
+    '五代群雄伝',
+    '薬師寺涼子の怪奇事件簿',
+    '走無常',
+    '銀河英雄伝説',
+    'イブのおくれ毛',
+    '女の長風呂',
+    '不定期エスパー',
+    'あそびにいくヨ！',
+    '着信アリ',
+    '龍盤七朝DRAGONBUSTER',
+    'ひぐらしのなく頃に',
+    '上方落語100選',
+    '「七瀬」三部作',
+    'お隣の魔法使い1',
+    '無印',
+    '翔んでる警視正',
+    '古典落語',
+    '江戸小咄春夏秋冬',
+    '帝都物語',
+    '西の善き魔女',
+    'トレジャー・ハンター',
+    '吸血鬼ハンター',
+    '妖戦地帯',
+    '攻殻機動隊',
+    'Fate／Zero',
+    '沙耶の唄',
+    '特急',
+    '神の系譜',
+    'ルメタル・パニック！',
+    'おやすみ、テディ・ベア',
+    'くちづけ ',
+    'こちら、団地探偵局',
+    'やさしい季節',
+    'エロトピア',
+    'クレギオン ',
+    '文学少女の今日のおやつ',
+    '龍時（リュウジ）',
+    '日本の中の朝鮮文化',
+    '耳の物語',
+    'ヤバ市ヤバ町雀鬼伝',
+    '鋼殻のレギオス',
+    '彩雲国物語',
+    '不夜城',
+    '中国怪奇物語',
+    '灼眼のシャナ',
+    'カーリー ',
+    '銃姫 ',
+    'ザンヤルマの剣士',
+    '落語百選',
+    '白鳥の王子 ヤマトタケル',
+    '東方儚月抄',
 ]
 
 
@@ -51,6 +314,7 @@ def get_info_from_txt_file_name(root_path,source_item, og_title, og_author):
             translator = ''
             title = og_title
             author = og_author
+            explicit_series_found = False
             for field, value in zip(reg[1], res.groups()):
                 if author is None and field == 'author':
                     author = value
@@ -60,6 +324,15 @@ def get_info_from_txt_file_name(root_path,source_item, og_title, og_author):
                     vol_name = value
                 if field == 'translator':
                     translator = value
+                if field == 'extract_series':
+                    for series in explicit_aozora_series:
+                        if series in value:
+                            title = series.strip()
+                            vol_name = value.replace(series,'').strip()
+                            explicit_series_found = True
+            if 'extract_series' in reg[1] and not explicit_series_found:
+                # explicit series name wasn't found
+                continue
 
             if vol_name == '':
                 if '（上）' in source_item:
@@ -73,8 +346,18 @@ def get_info_from_txt_file_name(root_path,source_item, og_title, og_author):
             if translator != '':
                 vol_name += ' (%s訳)' % translator
 
+            if '(青空文庫' in title:
+                title = title.split('(青空文庫')[0]
+            if '(青空文庫' in vol_name:
+                vol_name = vol_name.split('(青空文庫')[0]
+
+            if len(reg)==3:
+                verbose = reg[2]
+            else:
+                verbose = False
+
             if title != '' and author != '':
-                return title, {'type':'txt','author':author,'volume_name':vol_name,'path':root_path,'filename': source_item,'translator':translator}
+                return title, {'type':'txt','author':author,'volume_name':vol_name,'path':root_path,'filename': source_item,'translator':translator,'verbose':verbose}
 
     return None, None
 
@@ -302,11 +585,18 @@ def get_chapters_from_txt_file(path):
         # divide into chapters by page breaks
         chapters = divide_chapters(chapters, 'page_break')
 
+    old_chapters = copy.deepcopy(chapters)
+
     if len(chapters) < 2:
         chapters = divide_chapters(chapters, 'isolated_double_line_with_number')
 
     if len(chapters) < 2:
         chapters = divide_chapters(chapters, 'isolated_line')
+
+    if len(chapters) > 50:
+        # there's just too many chapters in one volume so most likely the previous method
+        # failed. Just keep the volume as 1 chapter and separate them manually if needed
+        return old_chapters
 
     return chapters
 
@@ -444,10 +734,10 @@ def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, ask_con
         print("Title %s volume %s [%s] has no detected chapters!" % (title_id, vol_name, vol_id))
         return 0
 
+    vol_num = len(t_data[lang_data_field][vol_lang_field])
     t_data[lang_data_field][vol_lang_field][vol_name] = {'id':vol_id,'s':start_ch_idx,'e':start_ch_idx + len(chapters)-1}
 
     target_ocr_file_path = None
-    target_page_file_path = None
     chapter_paragraphs = []
     chapter_pages = []
     total_num_characters = 0
@@ -456,12 +746,17 @@ def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, ask_con
 
         ch_name = chapter['name']
 
-        ch_id = get_oid(title_id + '/' + lang + '/' + vol_id + '/' + ch_name, ask_confirmation=ask_confirmation_for_new_chapters)
-        ch_ipfs_path = target_ipfs_path + ch_id
+        ch_id = create_oid("%s/%s/%s/%s" % (title_id,lang,vol_id,ch_name), "chapter", ask_confirmation=ask_confirmation_for_new_chapters, title_id=title_id, vol_id=vol_id)
+        if ch_id is None:
+            print("Skipping chapter and subsequent chapters")
+            return -1
+        #ch_ipfs_path = target_ipfs_path + ch_id
         t_data[lang_data_field][ch_name_field].append(ch_name)
         t_data[lang_data_field][ch_lang_h_field].append(ch_id + '/%@rep@%')
         t_data[lang_data_field][ch_lang_field][start_ch_idx+ch_idx+1] = ['pages.html']
         print("Chapter %s [%s]: %s " % (lang, ch_id, ch_name))
+
+        add_chapter_lookup_entry(title_id, vol_id, vol_num, vol_name, ch_id, ch_idx, ch_name, lang)
 
         target_ocr_file_path = target_ocr_path + ch_id + '.json'
         ocr_dict = dict()
