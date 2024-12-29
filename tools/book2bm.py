@@ -450,17 +450,33 @@ def scan(args):
 
 
 def remove(args):
-    md = database[BR_METADATA].find_one(({'_id':args['title_id']}))
-    if md is None:
-        print("Couldn't find %s" % args['title_id'])
-        return
 
-    d = database[BR_METADATA].delete_one({'_id':args['title_id']})
-    d = database[BR_DATA].delete_one({'_id':args['title_id']})
-    d = database[BR_CUSTOM_LANG_ANALYSIS].delete_one({'_id':args['title_id']})
-    d = database[BR_LANG_SUMMARY].delete_one({'_id':args['title_id']})
-    d = database[BR_LANG_SUMMARY].delete_one({'_id':args['title_id']})
+    title = get_title_by_id(args['title_id'])
+    jp_title = get_jp_title_by_id(args['title_id'])
+    print("Title: %s / %s " % (title, jp_title))
+    volumes = get_volumes_by_title_id(args['title_id'])
+    for vol in volumes:
+        print("\tVol [%s] %s" % (vol,get_volume_name(vol)))
+        chapters = get_chapters_by_volume_id(vol)
+        for cid in chapters:
+            print("\t\tChapter [%s] %s" % (cid,get_chapter_name_by_id(cid)))
 
+    ans = input("Delete this?")
+    if ans == 'y':
+        md = database[BR_METADATA].find_one(({'_id':args['title_id']}))
+        if md is None:
+            print("Couldn't find %s" % args['title_id'])
+            return
+
+        d = database[BR_METADATA].delete_one({'_id':args['title_id']})
+        d = database[BR_DATA].delete_one({'_id':args['title_id']})
+        d = database[BR_CUSTOM_LANG_ANALYSIS].delete_one({'_id':args['title_id']})
+        d = database[BR_LANG_SUMMARY].delete_one({'_id':args['title_id']})
+        d = database[BR_LANG_SUMMARY].delete_one({'_id':args['title_id']})
+        for vol in volumes:
+            ref = database[BR_VOL_IMPORT_METADATA].find_one({'_id':vol})
+            print("Vol %s: Freeing reference for %s" % (vol, ref['filename']))
+            d = database[BR_LANG_SUMMARY].delete_one({'_id':vol})
 
 def search(args):
     print("TODO")
@@ -532,14 +548,17 @@ def remove_duplicates():
 #remove_duplicates()
 
 #TESTING
-args = {'command':'scan','keyword':None,'force':False,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':False,'skip_content':False, 'only_epub':False,'only_txt':False}
+#args = {'command':'scan','keyword':None,'force':False,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':False,'skip_content':False, 'only_epub':False,'only_txt':False}
 #args = {'command':'scan','keyword':'銀河鉄道の','force':True,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':False,'skip_content':False, 'only_epub':False,'only_txt':False}
 #args = {'command':'scan','keyword':'Musk','force':False,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':True,'skip_content':False, 'only_epub':False,'only_txt':False}
 #args = {'command':'set_en_vol','title_id':'66981f12534685524f9e373a','file':'/Users/markojuhanne/Documents/books/import/Murakami, Haruki (29 books)/Underground/Murakami, Haruki - Underground (Vintage, 2000).epub'}
 #args = {'command':'scan','keyword':None,'force':False,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':True,'skip_content':False, 'only_epub':False,'only_txt':False}
+#args = {'command':'remove','title_id':'67711de48e4f10d52f22cb06'}
 
 cmd = args.pop('command')
 
+if not os.path.exists(target_ocr_path):
+    os.mkdir(target_ocr_path)
 
 if cmd != None:
   locals()[cmd](args)

@@ -26,8 +26,7 @@ Source code of bilingual manga(home)
     python tools/import_json_to_mongo.py 
 
 
-
-4. Run these commands in the main directory
+6. Run these commands in the main directory
 - `npm install`
 - `node --env-file=.env app.js`
 - `npm run dev`

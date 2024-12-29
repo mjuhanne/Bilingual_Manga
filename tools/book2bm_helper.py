@@ -71,6 +71,8 @@ def save_chapter_pages(chapter_id, chapter_pages):
     text = ''.join(chapter_pages)
     text = text.replace('<body>','<div class="page">')
     text = text.replace('</body>','</div>')
+    if not os.path.exists(target_ipfs_path):
+        os.mkdir(target_ipfs_path)
     ch_ipfs_path = target_ipfs_path + chapter_id
     if not os.path.exists(ch_ipfs_path):
         os.mkdir(ch_ipfs_path)
