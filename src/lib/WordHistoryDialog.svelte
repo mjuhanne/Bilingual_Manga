@@ -20,7 +20,7 @@ $: {
 
 async function fetchWordHistory(word_id) {
     let body = JSON.stringify({
-        'func' : 'get_word_history', 
+        'func' : 'get_word_learning_history', 
         'param' : {
             'user_id' : DEFAULT_USER_ID,
             'word_id' : word_id,

@@ -1,4 +1,5 @@
 import { getDB } from '$lib/mongo';
+import { SOURCE } from '$lib/LearningData';
 const db = getDB();
 
 export async function getCollection(collection_name, skip, limit)
@@ -39,16 +40,73 @@ export async function updateUserData(userid, field, value)
     return res
 }
 
-export async function getUserWordHistory(user_id, word_id)
+export async function getUserWordLearningHistory(user_id, word_id)
 {
     var search_query = {'user_id':user_id,'wid':word_id}
     console.log("Querying",search_query)
-    const data = await db.collection("br_user_word_learning_history").findOne(search_query);
-    if (data == null) {
+    var word_data = await db.collection("br_user_word_learning_history").findOne(search_query);
+    if (word_data == null) {
         return [];
     }
-    console.log(`getUserWordHistory ${word_id}: ` + JSON.stringify(data['history']))
-    return data['history'];
+    for (let entry of word_data['history']) {
+        let e_meta = entry['m']
+        var ch_data = await db.collection("br_chapter_lookup_table").findOne({'ch_id':e_meta['cid']});
+        let comment = ''
+        if (ch_data !== null) {
+            var title_metadata = await db.collection("br_metadata").findOne({'_id':ch_data['title_id']});
+            var name = title_metadata['entit']
+            if (name == 'Placeholder') {
+                name = title_metadata['jptit']
+            }
+            comment += name
+            if (ch_data['vol_name'] != '' && (ch_data['vol_name'] != 'No Volume')) {
+                comment += ' ' + ch_data['vol_name']
+            }
+            comment += ' ' + ch_data['ch_name']
+            if (e_meta['src'] == SOURCE.USER && e_meta['p' != -1]) {
+                comment += ' / page ' + (e_meta['p'])
+            }
+            if ('comment' in e_meta) {
+                comment += e_meta['comment']
+            }
+            e_meta['comment'] = comment
+        }
+    }
+
+    console.log(`getUserWordLearningHistory ${word_id}: ` + JSON.stringify(word_data['history']))
+    return word_data['history'];
+}
+
+export async function updateLearningDataWordStatus(user_id, word_id, history_entry)
+{
+    var search_query = {'user_id':user_id,'wid':word_id}
+    console.log("Querying",search_query)
+    var new_word_status = {
+        'user_id':user_id,
+        'wid':word_id,
+        's' : history_entry['s'], // stage
+        'lf' : 0
+    }
+    const previous_word_status = await db.collection("br_user_word_learning_status").findOne(search_query);
+    if (previous_word_status != null) {
+        new_word_status['lf'] = previous_word_status['lf']
+    }
+    await db.collection("br_user_word_learning_status").updateOne(search_query, {$set:new_word_status}, { upsert: true } );
+
+    var new_word_history = {
+        'user_id':user_id,
+        'wid':word_id,
+        'ltf' : 0,
+        'history' : []
+    }
+    const previous_word_history_data = await db.collection("br_user_word_learning_history").findOne(search_query);
+    if (previous_word_history_data != null) {
+        new_word_history['history'] = previous_word_history_data['history']
+        new_word_history['ltf'] = previous_word_history_data['ltf']
+    }
+    new_word_history['history'].push(history_entry)
+    await db.collection("br_user_word_learning_history").updateOne(search_query, {$set:new_word_history}, { upsert: true } );
+    console.log(`updateLearningDataWordStatus ${word_id}: ` + JSON.stringify(new_word_history))
 }
 
 export async function getManuallySetWordLearningStateChanges(user_id, word_id)

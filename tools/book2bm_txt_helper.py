@@ -454,7 +454,7 @@ def read_txt_file(path):
                 pass
     return txt_lines
 
-def get_chapters_from_txt_file(path):
+def get_chapters_from_txt_file(path, process_as_one_chapter):
 
     txt_lines = read_txt_file(path)
     chapter_paragraphs = []
@@ -576,6 +576,8 @@ def get_chapters_from_txt_file(path):
         'num_pages' : get_virtual_page_count_from_characters(num_characters)
     })
 
+    if process_as_one_chapter:
+        return chapters
 
     if len(chapters) == 1:
         # divide into chapters by page breaks
@@ -717,7 +719,7 @@ def get_publisher_from_txt_file(filepath):
                 return publisher
     return None
 
-def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, ask_confirmation_for_new_chapters ):
+def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, ask_confirmation_for_new_chapters, process_as_one_chapter ):
 
     lang_data_field = lang + '_data'
     ch_name_field = 'ch_na' + lang
@@ -728,7 +730,7 @@ def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, ask_con
 
     print("Process vol/book %s [%s]" % (vol_name,vol_id))
 
-    chapters = get_chapters_from_txt_file(filepath)
+    chapters = get_chapters_from_txt_file(filepath, process_as_one_chapter)
 
     if len(chapters) == 0:
         print("Title %s volume %s [%s] has no detected chapters!" % (title_id, vol_name, vol_id))

@@ -319,10 +319,6 @@ def check_chapters(args):
                 c_c, w_c, k_c, skipped_c, mismatch_last_chapter = process_chapter(title_id, chapter_id, input_ocr_file, parsed_ocr_filename, chapter_data)
 
 
-read_manga_metadata()
-read_manga_data()
-
-
 parser = argparse.ArgumentParser(
     prog="check_parser_changes",
     description="",

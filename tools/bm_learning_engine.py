@@ -243,7 +243,7 @@ def update_item_stage(item_type, item, stage, timestamp, metadata ):
                 print(' - ' + item_str + ' Passing through during ignored stage')
 
         elif last_event['m']['src'] == SOURCE_USER and \
-            last_event['m']['ci'] == metadata['ci']:
+            last_event['m']['cid'] == metadata['cid']:
                 # skip implicit/automatic event because user has already
                 # choosed the learning stage of this word in this very chapter
                 # (but its timestamp would have been slightly in the past compared 
@@ -442,7 +442,7 @@ def update(args):
     learning_data['num_pages'] = 0
 
     # to save space chapters ids are referred by index number
-    index_of_chapter_ids = []
+    #index_of_chapter_ids = []
 
     current_timestamp = int(time.time())
 
@@ -510,16 +510,6 @@ def update(args):
             for entry in history:
                 entry['m']['src'] = SOURCE_USER
 
-                # to save space replace the chapter id with index number 
-                cid = entry['m']['cid']
-                if cid in index_of_chapter_ids:
-                    idx = index_of_chapter_ids.index(cid)
-                else:
-                    index_of_chapter_ids.append(cid)
-                    idx = len(index_of_chapter_ids)-1
-                del(entry['m']['cid'])
-                entry['m']['ci'] = idx
-
                 create_manual_event('words', word_id, entry['s'], entry['t'], entry['m'])
     
     if trace_items is not None:
@@ -544,7 +534,7 @@ def update(args):
                 continue
 
             if 'completion_timestamp' not in reading_data:
-                print("Warning! Skipping " + get_manga_chapter_name(chapter_id) + " because no completion timestamp set!", file=sys.stderr)
+                print("Warning! Skipping " + get_chapter_name_by_id(chapter_id) + " because no completion timestamp set!", file=sys.stderr)
                 continue
 
             chapter_timestamps[chapter_id] = reading_data['completion_timestamp']
@@ -565,13 +555,7 @@ def update(args):
 
             print("[%s] Read %s [chapter %d]" % (datetime.datetime.fromtimestamp(timestamp), title_name, chapter))
 
-            if chapter_id in index_of_chapter_ids:
-                idx = index_of_chapter_ids.index(chapter_id)
-            else:
-               index_of_chapter_ids.append(chapter_id)
-               idx = len(index_of_chapter_ids)-1
-
-            word_metadata = {'src':SOURCE_CHAPTER,'ci':idx}
+            word_metadata = {'src':SOURCE_CHAPTER,'cid':chapter_id}
 
             if os.path.exists(chapter_filename):
                 o_f = open(chapter_filename,"r",encoding="utf-8")
@@ -715,7 +699,7 @@ def update(args):
     learning_data['timestamp'] = timestamp
     learning_data['learning_settings'] = learning_settings
 
-    learning_data['chapter_ids'] = index_of_chapter_ids
+    #learning_data['chapter_ids'] = index_of_chapter_ids
 
     def get_lifetime_frequency_for_words(user_id):
         res = database[BR_USER_WORD_LEARNING_HISTORY].find({'user_id':DEFAULT_USER_ID},{'_id':False,'user_id':False,'history':False}).to_list()
@@ -774,8 +758,6 @@ def update(args):
             print('%s [Stage: %s(%d)]' % (kanji, learning_stage_labels[entry['s']].upper(), entry['s']))
         pass
 
-read_manga_metadata()
-read_manga_data()
 load_counter_word_ids()
 
 user_set_words = get_user_set_words()

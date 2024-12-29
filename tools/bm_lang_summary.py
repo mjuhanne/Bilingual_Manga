@@ -6,8 +6,7 @@ import json
 import argparse
 INVALID_VALUE = -1
 from helper import *
-
-volume_count_per_title = dict()
+import time
 
 jlpt_kanjis = get_jlpt_kanjis()
 jlpt_word_levels = get_jlpt_word_levels()
@@ -20,22 +19,9 @@ volume_count_corrections = {
     'City Hunter' : 37,
 }
 
-parser = argparse.ArgumentParser(
-    prog="bm_lang_summary",
-    description="Bilingual Manga Language data summary generator",
-)
-parser.add_argument('--force', '-f', action='store_true', help='Force update')
-parser.add_argument('--update', '-u', action='store_true', help='Update summary (normally only add missing titles)')
-args = vars(parser.parse_args())
+def calculate_volume_count_per_title(title_id):
+    m = get_data_by_title_id(title_id)
 
-
-read_manga_metadata()
-read_manga_data()
-
-
-manga_data = get_manga_data()
-
-for m in manga_data:
     title_id = m['_id']
     volume_ids = m['jp_data']['ch_jph']
     volume_ids = [vid.split('/')[0] for vid in volume_ids]
@@ -86,7 +72,7 @@ for m in manga_data:
                     volume_count += 1
             print("  ",name," has total ",volume_count," volumes")
 
-    volume_count_per_title[title_id] = volume_count
+    return volume_count
 
 
 # This calculates word and kanji distribution for each JLPT levels (1-5)
@@ -198,167 +184,180 @@ def calculate_stats(title_data, calc, total=True):
         calc['num_non_jlpt_kanjis_per_v'] = INVALID_VALUE
 
 
-def save_summary():
+def calculate_summary_for_title(title_id):
+    # recalculate the title summary
+    title_filename = title_analysis_dir + title_id + ".json"
 
-    title_names = get_title_names()
+    if not os.path.exists(title_filename):
+        print("%s data file %s doesn't exist!" % (title_id,title_filename))
+        return
 
-    single_value_field_keys = None
-    for title_idx, (title_id, title_name) in enumerate(title_names.items()):
+    o_f = open(title_filename,"r",encoding="utf-8")
+    title_data = json.loads(o_f.read())
+    o_f.close()
 
-        # check if summary needs recalculation
-        title_data = None
-        if not args['force']:
-            old_data = database[BR_LANG_SUMMARY].find_one({'_id':title_id})
+    if title_data['version'] != get_version(OCR_SUMMARY_VERSION):
+        raise Exception("Old version of title [%s] summary file %s! Please rerun bm_ocr_prosessor.py" % (title_name,title_filename))
 
-            if args['update']:
-                if old_data is not None and 'parser_version' in old_data and 'version' in old_data:
-                    if old_data['parser_version'] == get_version(LANUGAGE_PARSER_VERSION) and \
-                        old_data['version'] == get_version(OCR_SUMMARY_VERSION):
-                            title_data = old_data
-            else:
-                title_data = old_data
+    title_data['num_volumes'] = calculate_volume_count_per_title(title_id)
 
-        if title_data is None:
+    # Average tankobon volume page count is 180, but it might vary considerable by
+    # manga, so to make those statistics more comparable we calculate virtual volume
+    # count and use that for those variables that rely on # of volumes.
+    title_data['num_virtual_volumes'] = round(title_data['num_pages'] / AVERAGE_PAGES_PER_VOLUME,2)
 
-            # recalculate the title summary
-            print("%d/%d [%s]" % (title_idx, len(title_names), title_name))
-            title_filename = title_analysis_dir + title_id + ".json"
+    total_calc = dict()
+    unique_calc = dict()
 
-            if not os.path.exists(title_filename):
-                print("%s data file %s doesn't exist!" % (title_name,title_filename))
-                continue
+    total_calc['num_words'] = title_data['num_words']
+    total_calc['num_kanjis'] = title_data['num_kanjis']
+    total_calc['num_characters'] = title_data['num_characters']
+    
+    unique_calc['num_words'] = title_data['num_unique_words']
+    unique_calc['num_kanjis'] = title_data['num_unique_kanjis']
+    unique_calc['num_characters'] = -1
 
-            o_f = open(title_filename,"r",encoding="utf-8")
-            title_data = json.loads(o_f.read())
-            o_f.close()
+    fetch_jlpt_levels(title_data, total_calc, total=True)
+    fetch_jlpt_levels(title_data, unique_calc, total=False)
 
-            if title_data['version'] != get_version(OCR_SUMMARY_VERSION):
-                raise Exception("Old version of title [%s] summary file %s! Please rerun bm_ocr_prosessor.py" % (title_name,title_filename))
+    calculate_stats(title_data, total_calc, total=True)
+    calculate_stats(title_data, unique_calc, total=False)
 
-            title_data['num_volumes'] = volume_count_per_title[title_id]
+    # drop the detailed frequency data for the summary
+    del(title_data['word_frequency'])
+    del(title_data['kanji_frequency'])
+    del(title_data['word_id_list'])
+    del(title_data['word_class_list'])
+    del(title_data['sentence_list'])
+    if 'lemmas' in title_data:
+        del(title_data['lemmas']) # redundant
 
-            # Average tankobon volume page count is 180, but it might vary considerable by
-            # manga, so to make those statistics more comparable we calculate virtual volume
-            # count and use that for those variables that rely on # of volumes.
-            title_data['num_virtual_volumes'] = round(title_data['num_pages'] / AVERAGE_PAGES_PER_VOLUME,2)
+    title_data['total_statistics'] = total_calc
+    title_data['unique_statistics'] = unique_calc
 
-            total_calc = dict()
-            unique_calc = dict()
-
-            total_calc['num_words'] = title_data['num_words']
-            total_calc['num_kanjis'] = title_data['num_kanjis']
-            total_calc['num_characters'] = title_data['num_characters']
-            
-            unique_calc['num_words'] = title_data['num_unique_words']
-            unique_calc['num_kanjis'] = title_data['num_unique_kanjis']
-            unique_calc['num_characters'] = -1
-
-            fetch_jlpt_levels(title_data, total_calc, total=True)
-            fetch_jlpt_levels(title_data, unique_calc, total=False)
-
-            calculate_stats(title_data, total_calc, total=True)
-            calculate_stats(title_data, unique_calc, total=False)
-
-            # drop the detailed frequency data for the summary
-            del(title_data['word_frequency'])
-            del(title_data['kanji_frequency'])
-            del(title_data['word_id_list'])
-            del(title_data['word_class_list'])
-            del(title_data['sentence_list'])
-            if 'lemmas' in title_data:
-                del(title_data['lemmas']) # redundant
-
-            title_data['total_statistics'] = total_calc
-            title_data['unique_statistics'] = unique_calc
-
-            single_value_field_keys = total_calc.keys()
-
-            title_data['version'] = get_version(OCR_SUMMARY_VERSION)
-            title_data['parser_version'] == get_version(LANUGAGE_PARSER_VERSION)
-            title_data['_id'] = title_id
-            title_data['is_book'] = is_book(title_id)
-            database[BR_LANG_SUMMARY].update_one({'_id':title_id},{'$set':title_data},upsert=True)
+    title_data['version'] = get_version(OCR_SUMMARY_VERSION)
+    title_data['parser_version'] == get_version(LANUGAGE_PARSER_VERSION)
+    title_data['_id'] = title_id
+    title_data['is_book'] = is_book(title_id)
+    title_data['updated_timestamp'] = int(time.time())
+    database[BR_LANG_SUMMARY].update_one({'_id':title_id},{'$set':title_data},upsert=True)
+    return title_data
 
 
-    if single_value_field_keys is not None:
-        # recalculate averages
-        single_value_fields = list(total_calc.keys())
+def calculate_averages():
+
+    total_manga_pages = 0
+    total_manga_volumes = 0
+    valid_manga_titles = 0
+    total_book_pages = 0
+    valid_books = 0
+    for category in ['average_manga','average_book']:
+
+        if category == 'average_manga':
+            summary = database[BR_LANG_SUMMARY].find({'is_book':False}).to_list()
+            for title_data in summary:
+                if title_data['num_pages']>0:
+                    valid_manga_titles += 1
+                    total_manga_pages += title_data['num_pages']
+                    total_manga_volumes += title_data['num_virtual_volumes']
+        else:
+            summary = database[BR_LANG_SUMMARY].find({'is_book':True}).to_list()
+            for title_data in summary:
+                if title_data['num_pages']>0:
+                    total_book_pages += title_data['num_pages']
+                    valid_books += 1
+
+        num_valid_titles = len(summary)
+
+        single_value_fields = list(summary[-1]['total_statistics'].keys())
         single_value_fields.remove('jlpt_word_level_pct')
         single_value_fields.remove('jlpt_word_level_per_v')
         single_value_fields.remove('jlpt_kanji_level_pct')
         single_value_fields.remove('jlpt_kanji_level_per_v')
+        
+        avg_calc = dict()
+        for calc_f in ['total_statistics','unique_statistics']:
+            avg_calc[calc_f] = dict()
 
-        total_manga_pages = 0
-        total_manga_volumes = 0
-        valid_manga_titles = 0
-        valid_books = 0
-        for category in ['average_manga','average_book']:
-
-            if category == 'average_manga':
-                summary = database[BR_LANG_SUMMARY].find({'is_book':False}).to_list()
+            # averages for single value vields
+            for f in single_value_fields:
+                val = 0
                 for title_data in summary:
-                    if title_data['num_pages']>0:
-                        valid_manga_titles += 1
-                        total_manga_pages += title_data['num_pages']
-                        total_manga_volumes += title_data['num_virtual_volumes']
-            else:
-                summary = database[BR_LANG_SUMMARY].find({'is_book':True}).to_list()
-                if title_data['num_pages']>0:
-                    valid_books += 1
+                    val += title_data[calc_f][f]
 
-            num_valid_titles = len(summary)
+                val /= num_valid_titles
+                if 'pct' in f or 'pts' in f:
+                    val = round(val,1)
+                else:
+                    val = int(val)
+                avg_calc[calc_f][f] = val
 
-            avg_calc = dict()
-            for calc_f in ['total_statistics','unique_statistics']:
-                avg_calc[calc_f] = dict()
-
-                # averages for single value vields
-                for f in single_value_fields:
-                    val = 0
-                    for title_data in summary:
-                        val += title_data[calc_f][f]
-
-                    val /= num_valid_titles
-                    if 'pct' in f or 'pts' in f:
-                        val = round(val,1)
-                    else:
-                        val = int(val)
-                    avg_calc[calc_f][f] = val
-
-                # averages for JLPT word/kanji level bins
-                jlpt_w_level_pct = [ 0 for i in range(7) ]
-                jlpt_w_level_per_v = [ 0 for i in range(7) ]
-                jlpt_k_level_pct = [ 0 for i in range(6) ]
-                jlpt_k_level_per_v = [ 0 for i in range(6) ]
-                for title_data in summary:
-                    for i in range(7):
-                        jlpt_w_level_pct[i] += title_data[calc_f]['jlpt_word_level_pct'][i]
-                        jlpt_w_level_per_v[i] += title_data[calc_f]['jlpt_word_level_per_v'][i]
-                    for i in range(6):
-                        jlpt_k_level_pct[i] += title_data[calc_f]['jlpt_kanji_level_pct'][i]
-                        jlpt_k_level_per_v[i] += title_data[calc_f]['jlpt_kanji_level_per_v'][i]
+            # averages for JLPT word/kanji level bins
+            jlpt_w_level_pct = [ 0 for i in range(7) ]
+            jlpt_w_level_per_v = [ 0 for i in range(7) ]
+            jlpt_k_level_pct = [ 0 for i in range(6) ]
+            jlpt_k_level_per_v = [ 0 for i in range(6) ]
+            for title_data in summary:
                 for i in range(7):
-                    jlpt_w_level_pct[i] = round(jlpt_w_level_pct[i]/num_valid_titles,1)
-                    jlpt_w_level_per_v[i] = round(jlpt_w_level_per_v[i]/num_valid_titles,1)
+                    jlpt_w_level_pct[i] += title_data[calc_f]['jlpt_word_level_pct'][i]
+                    jlpt_w_level_per_v[i] += title_data[calc_f]['jlpt_word_level_per_v'][i]
                 for i in range(6):
-                    jlpt_k_level_pct[i] = round(jlpt_k_level_pct[i]/num_valid_titles,1)
-                    jlpt_k_level_per_v[i] = round(jlpt_k_level_per_v[i]/num_valid_titles,1)
+                    jlpt_k_level_pct[i] += title_data[calc_f]['jlpt_kanji_level_pct'][i]
+                    jlpt_k_level_per_v[i] += title_data[calc_f]['jlpt_kanji_level_per_v'][i]
+            for i in range(7):
+                jlpt_w_level_pct[i] = round(jlpt_w_level_pct[i]/num_valid_titles,1)
+                jlpt_w_level_per_v[i] = round(jlpt_w_level_per_v[i]/num_valid_titles,1)
+            for i in range(6):
+                jlpt_k_level_pct[i] = round(jlpt_k_level_pct[i]/num_valid_titles,1)
+                jlpt_k_level_per_v[i] = round(jlpt_k_level_per_v[i]/num_valid_titles,1)
 
-                avg_calc[calc_f]['jlpt_word_level_pct'] = jlpt_w_level_pct
-                avg_calc[calc_f]['jlpt_word_level_per_v'] = jlpt_w_level_per_v
-                avg_calc[calc_f]['jlpt_kanji_level_pct'] = jlpt_k_level_pct
-                avg_calc[calc_f]['jlpt_kanji_level_per_v'] = jlpt_k_level_per_v
+            avg_calc[calc_f]['jlpt_word_level_pct'] = jlpt_w_level_pct
+            avg_calc[calc_f]['jlpt_word_level_per_v'] = jlpt_w_level_per_v
+            avg_calc[calc_f]['jlpt_kanji_level_pct'] = jlpt_k_level_pct
+            avg_calc[calc_f]['jlpt_kanji_level_per_v'] = jlpt_k_level_per_v
 
-            avg_calc['_id'] = category
-            database[BR_LANG_SUMMARY].update_one({'_id':category},{'$set':avg_calc},upsert=True)
+        avg_calc['_id'] = category
+        database[BR_LANG_SUMMARY].update_one({'_id':category},{'$set':avg_calc},upsert=True)
 
+        if category == 'average_manga':
             avg_page_count = total_manga_pages/total_manga_volumes
-            print("Valid %d manga titles / %d books (total %d) with average page count %d / volume" 
-                % (valid_manga_titles, valid_books, len(title_names.keys()), avg_page_count))
+            print("Valid %d manga titles (from total %d titles) with average page count %d / volume" 
+                % (valid_manga_titles, len(get_title_names().keys()), avg_page_count))
+        else:
+            avg_page_count = total_book_pages/valid_books
+            print("Valid %d books (from total %d titles) with average page count %d / volume" 
+                % (valid_books, len(get_title_names().keys()), avg_page_count))
 
-    else:
-        # nothing changed 
-        print("No changes")
+
+def save_summary():
+
+    title_names = get_title_names()
+
+    for title_idx, (title_id, title_name) in enumerate(title_names.items()):
+
+        # check if summary needs recalculation
+        update = True
+        if not args['force']:
+            old_data = database[BR_LANG_SUMMARY].find_one({'_id':title_id})
+
+            if old_data is not None and 'parser_version' in old_data and 'version' in old_data:
+                if old_data['parser_version'] == get_version(LANUGAGE_PARSER_VERSION) and \
+                    old_data['version'] == get_version(OCR_SUMMARY_VERSION):
+                        update = False
+
+        if update:
+            print("%d/%d [%s]" % (title_idx, len(title_names), title_name))
+            calculate_summary_for_title(title_id)
+    calculate_averages()
 
 
-save_summary()
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        prog="bm_lang_summary",
+        description="Bilingual Manga Language data summary generator",
+    )
+    parser.add_argument('--force', '-f', action='store_true', help='Force update')
+    parser.add_argument('--update', '-u', action='store_true', help='Update summary (normally only add missing titles)')
+    args = vars(parser.parse_args())
+
+    save_summary()

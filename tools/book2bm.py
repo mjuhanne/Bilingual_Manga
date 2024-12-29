@@ -8,8 +8,12 @@ from book2bm_helper import *
 from book2bm_epub_helper import *
 from book2bm_txt_helper import *
 from google_books_tools import get_google_books_entry, search_records_and_select_one, clean_google_books_title, match_googleid, is_title_ignored_for_google_books, ignore_google_book_matching_for_title, match_googleid
+from jp_parser import *
+from bm_ocr_processor import do_process_title
+from bm_lang_summary import calculate_summary_for_title, calculate_averages
 
-default_book_path = '/mnt/Your/Book/Directory'
+#default_book_path = '/mnt/Your/Book/Directory'
+default_book_path = '/Users/markojuhanne/Documents/books/import/'
 
 verbose = False
 verbose_update = True
@@ -20,6 +24,8 @@ ask_confirmation_for_new_volumes = True
 ask_confirmation_for_new_chapters = True
 refresh_google_books_data = False
 ask_google_books_match_confirmation = True
+parse_chapters_automatically = True
+process_aozora_books_initially_as_one_chapter = True
 
 titles = dict()
 
@@ -63,10 +69,6 @@ if verbose:
     print("Args: ",args)
 
 j = 0
-
-read_manga_metadata()
-read_manga_data()
-
 
 def save_metadata(title_id, t_metadata, t_data, verbose):
     old_metadata = get_metadata_by_title_id(title_id)
@@ -159,7 +161,7 @@ def create_new_title(title):
         t_metadata['entit'] = PLACEHOLDER
     else:
         t_metadata['entit'] = clean_title
-        t_metadata['jptit'] = PLACEHOLDER
+        t_metadata['jptit'] = clean_title
     t_metadata['title_from_filename'] = clean_title
 
     t_metadata['genres'] = []
@@ -285,6 +287,8 @@ def process_volume(title_id, title, vol_info, vol_id=None):
                         ignore_google_book_matching_for_title(title_id)
                     elif ans != '':
                         gb = match_googleid({'title':title_id, 'googleid':ans})
+            else:
+                print("Skipping Google Books search because insufficient info. Author %s, jptit: %s" % (author, t_metadata['jptit']))
 
     # try to fill the remaining missing data from Google books
     if gb is not None:
@@ -318,7 +322,7 @@ def process_volume(title_id, title, vol_info, vol_id=None):
             jp_vol_title = vol_info['volume_name']
             jp_volume_f = vol_info['path'] + vol_info['filename']
             print("\tJP TXT volume [%s]: %s " % (vol_id, jp_vol_title))
-            process_result = process_txt_file(t_data, title_id, jp_volume_f ,'jp', vol_id, jp_vol_title, ask_confirmation_for_new_chapters)
+            process_result = process_txt_file(t_data, title_id, jp_volume_f ,'jp', vol_id, jp_vol_title, ask_confirmation_for_new_chapters, process_aozora_books_initially_as_one_chapter)
 
         # if cover is not yet fetched, try to get it from Google Books
         if process_result >= 0 and t_metadata['coverjp'] == PLACEHOLDER:
@@ -346,6 +350,13 @@ def fetch_cover_from_google_books(title_id, title, t_metadata, gb, force=False):
         if not os.path.exists(target_img_path) or force:
             print("\tFetching cover image %s" % img_url)
             download_image(img_url,target_img_path)
+
+def parse_volume_contents(title_id, title_name, vol_id):
+    args = {'force':False, 'chapter':None, 'read':False, 'first':False, 'start_index':False }
+    do_process_title(args, title_id, title_name, counter_str='')
+
+    calculate_summary_for_title(title_id)
+
 
 
 def process_file(args, title, vol_info):
@@ -400,7 +411,7 @@ def process_file(args, title, vol_info):
                 return False
 
             # no match --> create new title
-            print("New title:")
+            print("\nNew title:")
             print("\tTitle: ",title)
             print("\tVolume: ",vol_info['volume_name'])
             print("\tAuthor: ",vol_info['author'])
@@ -417,6 +428,7 @@ def process_file(args, title, vol_info):
                 return False
         else:
             title_id = title_metadata['_id']
+            print("Existing title found: [%s] [%s] (%s)" % (title_id, title_metadata['entit'], title_metadata['jptit']))
 
         if args['simulate']:
             if vol_info['verbose']:
@@ -429,6 +441,8 @@ def process_file(args, title, vol_info):
         import_metadata['lang'] = lang
         import_metadata['_id'] = vol_id
         database[BR_VOL_IMPORT_METADATA].insert_one(import_metadata)
+        if lang == 'jp':
+            parse_volume_contents(title_id, title, vol_id)
     else:
         if (args['force'] and (args['keyword'].lower() in title.lower() or args['keyword']==import_metadata['_id'])):
             # re-process existing volume
@@ -442,6 +456,8 @@ def process_file(args, title, vol_info):
                     print("Removed volume %s from processed list. Can now be re-imported")
             else:
                 process_volume(title_id, title, vol_info, vol_id)
+                if lang == 'jp':
+                    parse_volume_contents(title_id, title, vol_id)
 
             pass
     return True
@@ -454,6 +470,9 @@ def scan(args):
         filtered_file_type = '.txt'
     else:
         filtered_file_type = None
+    if parse_chapters_automatically:
+        init_parser(load_meanings=True)
+        
     recursive_scan(args, args['source_dir'], 'jp', filtered_file_type=filtered_file_type)
 
 

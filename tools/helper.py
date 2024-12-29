@@ -98,30 +98,6 @@ def get_version(version_type):
         return _versions[version_type]
     raise Exception("Unknown version type '%s' !" % version_type)
 
-_manga_metadata_processed = False
-_manga_data_processed = False
-
-_title_names = dict()
-_jp_title_names = dict()
-_authors = dict()
-_publishers = dict()
-_title_name_to_id = dict()
-_chapter_id_to_title_id = dict()
-_chapter_id_to_chapter_number = dict()
-_chapter_id_to_chapter_name = dict()
-_chapter_id_to_chapter_files = dict()
-_title_chapters = dict()
-_title_volumes = dict()
-_volume_chapters = dict()
-_volume_names = dict()
-_chapter_id_to_vol_id = dict()
-_volume_id_to_volume_number = dict()
-_volume_id_to_title_id = dict()
-_chapter_page_count = dict()
-_virtual_ch_page_count = dict()
-_verified_ocr = dict()
-_is_book = dict()
-
 _jlpt_word_jmdict_references = None
 _jlpt_word_levels = None
 _jlpt_word_reading_levels = None
@@ -149,85 +125,110 @@ def get_user_set_words():
     return wid_to_history
 
 def get_chapter_name_by_id(id):
-    return _chapter_id_to_chapter_name[id]
+    res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'ch_id':id})
+    return res['ch_name']
 
 def get_title_names():
-    return _title_names
+    res =  database[BR_METADATA].find({},{'entit':True})
+    title_names = {entry['_id']:entry['entit'] for entry in res}
+    return title_names
 
 def get_jp_title_names():
-    return _jp_title_names
+    res =  database[BR_METADATA].find({},{'jptit':True})
+    jp_title_names = {entry['_id']:entry['jptit'] for entry in res}
+    return jp_title_names
 
 def get_title_by_id(id):
-    return _title_names[id] 
+    md = get_metadata_by_title_id(id)
+    return md['jptit']
 
 def get_any_title_by_id(id):
-    if id in _title_names:
-        return _title_names[id]
-    if id in _jp_title_names:
-        return _jp_title_names[id]
-    raise Exception("Name not found for %s" % id)
+    name = get_title_by_id(id)
+    if name == 'Placeholder':
+        name = get_jp_title_by_id(id)
+    return name
 
 def get_jp_title_by_id(id):
     md = get_metadata_by_title_id(id)
     return md['jptit']
 
 def get_title_id_by_title_name(name):
-    return _title_name_to_id[name]
+    res = database[BR_METADATA].find_one({'entit':name})
+    if res is not None:
+        return res['_id']
+    res = database[BR_METADATA].find_one({'jptit':name})
+    if res is not None:
+        return res['_id']
+    return None
 
 def get_title_id_by_chapter_id(id):
-    return _chapter_id_to_title_id[id]
-
-def get_chapter_id_to_title_id():
-    return _chapter_id_to_title_id
+    res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'ch_id':id})
+    return res['title_id']
 
 def get_chapter_number_by_chapter_id(id):
-    return _chapter_id_to_chapter_number[id]
+    res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'ch_id':id})
+    return res['ch_num'] + 1
 
 def get_chapters_by_title_id(id):
-    return _title_chapters[id]
+    res = database[BR_CHAPTER_LOOKUP_TABLE].find({'title_id':id},{'ch_id':True}).to_list()
+    chapter_ids = [entry['ch_id'] for entry in res ]
+    return chapter_ids
 
 def get_volumes_by_title_id(id):
-    return _title_volumes[id]
+    res = database[BR_CHAPTER_LOOKUP_TABLE].find({'title_id':id},{'vol_id':True}).to_list()
+    volume_ids = set([entry['vol_id'] for entry in res ])
+    return list(volume_ids)
 
-def get_volume_name(id):
-    return _volume_names[id]
+def get_volume_name(vol_id):
+    res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'vol_id':vol_id})
+    return res['vol_name']
 
-def get_volume_number_by_volume_id(id):
-    return _volume_id_to_volume_number[id]
+def get_volume_number_by_volume_id(vol_id):
+    res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'vol_id':vol_id})
+    return res['vol_num'] + 1
 
-def get_chapters_by_volume_id(id):
-    return _volume_chapters[id]
+def get_chapters_by_volume_id(vol_id):
+    res = database[BR_CHAPTER_LOOKUP_TABLE].find({'vol_id':vol_id},{'ch_id':True}).to_list()
+    ch_ids = [entry['ch_id'] for entry in res ]
+    return ch_ids
 
-def get_volume_id_by_chapter_id(id):
-    if id in _chapter_id_to_vol_id:
-        return _chapter_id_to_vol_id[id]
+def get_volume_id_by_chapter_id(ch_id):
+    res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'ch_id':ch_id})
+    if res is not None:
+        return res['vol_id']
     return None
 
-def get_title_id_by_volume_id(id):
-    if id in _volume_id_to_title_id:
-        return _volume_id_to_title_id[id]
+def get_title_id_by_volume_id(vol_id):
+    res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'vol_id':vol_id})
+    if res is not None:
+        return res['title_id']
     return None
 
-def get_chapter_page_count(id):
-    title_id = get_title_id_by_chapter_id(id)
+def get_chapter_page_count(ch_id):
+    title_id = get_title_id_by_chapter_id(ch_id)
+    data = get_data_by_title_id(title_id)
     if is_book(title_id):
-        chapter = get_chapter_number_by_chapter_id(id)
-        return _virtual_ch_page_count[title_id][chapter-1]
-    return _chapter_page_count[id]
+        chapter_number = get_chapter_number_by_chapter_id(ch_id)
+        return data['jp_data']['virtual_chapter_page_count'][chapter_number-1]
+    else:
+        pages = data['jp_data']['ch_jp']
+        return len(pages[str(chapter_number)])
 
 def is_ocr_verified(id):
-    return _verified_ocr[id]
+    md = get_metadata_by_title_id(id)
+    return md['verified_ocr']
 
 def is_book(id):
-    return _is_book[id]
+    md = get_metadata_by_title_id(id)
+    return md['is_book']
 
 def get_authors(id):
-    return _authors[id]
+    md = get_metadata_by_title_id(id)
+    return md['authors']
 
 def get_publisher(id):
-    if id in _publishers:
-        return _publishers[id]
-    return ''
+    md = get_metadata_by_title_id(id)
+    return md['publishers']
 
 def get_metadata_by_title_id(id):
     return database[BR_METADATA].find_one({'_id':id})
@@ -235,112 +236,18 @@ def get_metadata_by_title_id(id):
 def get_data_by_title_id(id):
     return database[BR_DATA].find_one({'_id':id})
 
-def get_chapter_files_by_chapter_id(id):
-    return _chapter_id_to_chapter_files[id]
+def get_chapter_files_by_chapter_id(ch_id):
+    title_id = get_title_id_by_chapter_id(ch_id)
+    chapter_number = get_chapter_number_by_chapter_id(ch_id)
+    data = get_data_by_title_id(title_id)
+    pages = data['jp_data']['ch_jp']
+    return pages[str(chapter_number)]
 
-def read_manga_metadata():
-    global _title_names, _jp_title_names, _title_name_to_id
-    global _verified_ocr, _is_book, _authors, _publishers
-    global _manga_metadata_processed
-
-    if not _manga_metadata_processed:
-        manga_titles = database[BR_METADATA].find({}).to_list()
-        for t in manga_titles:
-            title_id = t['enid']
-            title_name = t['entit']
-            if title_name == 'Placeholder':
-                title_name = t['jptit']
-            _title_names[title_id] = title_name
-            _jp_title_names[title_id] = t['jptit']
-            _title_name_to_id[title_name] = title_id
-            _title_name_to_id[t['jptit']] = title_id
-            _authors[title_id] = t['Author']
-            if 'Publisher' in t:
-                _publishers[title_id] = t['Publisher']
-            if 'verified_ocr' in t:
-                _verified_ocr[title_id] = t['verified_ocr']
-            else:
-                _verified_ocr[title_id] = False
-            if 'is_book' in t:
-                _is_book[title_id] = t['is_book']
-            else:
-                _is_book[title_id] = False
-        _manga_metadata_processed = True
-
-
-def read_manga_data(read_chapter_files=False):
-    global _manga_data
-    global _chapter_id_to_title_id, _chapter_id_to_chapter_number, _chapter_id_to_chapter_name
-    global _chapter_page_count, _title_chapters, _virtual_ch_page_count
-    global _title_volumes, _volume_chapters, _volume_names, _chapter_id_to_vol_id, _volume_id_to_volume_number, _volume_id_to_title_id
-
-    global _manga_data_processed
-
-    if _manga_data_processed:
-        return
-    
-    _manga_data = database[BR_DATA].find({}).to_list()
-           
-    for m in _manga_data:
-        title_id = m['_id']
-
-        _chapter_ids = m['jp_data']['ch_jph']
-        _chapter_ids = [cid.split('/')[0] for cid in _chapter_ids]
-        chapter_ids = []
-        for cid in _chapter_ids:
-            if cid not in chapter_ids:
-                chapter_ids.append(cid)
-
-        volumes = m['jp_data']['vol_jp']
-        _title_volumes[title_id] = []
-
-        for i, (vol_name,vol_data) in enumerate(volumes.items()):
-            if 'id' in vol_data:
-                try:
-                    vol_id = vol_data['id']
-                    _volume_names[vol_id] = vol_name
-                    _title_volumes[title_id].append(vol_id)
-                    _volume_id_to_volume_number[vol_id] = i
-                    _volume_id_to_title_id[vol_id] = title_id
-                    _volume_chapters[vol_id] = []
-                    for ch_i in range(vol_data['s'],vol_data['e']+1):
-                        _volume_chapters[vol_id].append(chapter_ids[ch_i])
-                        _chapter_id_to_vol_id[chapter_ids[ch_i]] = vol_id
-                except:
-                    title = get_title_by_id(title_id)
-                    print("Error in metadata (%s: title '%s' volume '%s')" % (title_id,title, vol_name))
-                    print(m)
-                    raise Exception()
-            else:
-                if is_book(title_id):
-                    print("Warning! %s:%s (vol %s) has no volume_id set!" % (title_id, get_title_by_id(title_id), vol_name))
-
-        pages = m['jp_data']['ch_jp']
-        _title_chapters[title_id] = chapter_ids
-        chapter_names = m['jp_data']['ch_najp']
-        chapter_number = 1
-        for cid in chapter_ids:
-            _chapter_id_to_title_id[cid] = title_id
-            _chapter_id_to_chapter_number[cid] = chapter_number
-            _chapter_id_to_chapter_name[cid] = chapter_names[chapter_number-1]
-            _chapter_page_count[cid] = len(pages[str(chapter_number)])
-            if read_chapter_files:
-                _chapter_id_to_chapter_files[cid] = pages[str(chapter_number)]
-            chapter_number += 1
-
-        if 'virtual_chapter_page_count' in m['jp_data']:
-            _virtual_ch_page_count[title_id] = m['jp_data']['virtual_chapter_page_count']
-
-
-def get_manga_data():
-    return _manga_data
-
-def get_manga_chapter_name(chapter_id):
-    return _title_names[_chapter_id_to_title_id[chapter_id]] + '/' + str(_chapter_id_to_chapter_number[chapter_id])
 
 def get_title_id(item):
-    if item in _title_name_to_id:
-        return _title_name_to_id[item]
+    title_id = get_title_id_by_title_name(item)
+    if title_id is not None:
+        return title_id
     
     mt = database[BR_METADATA].find_one({'_id':item})
     if mt is not None:

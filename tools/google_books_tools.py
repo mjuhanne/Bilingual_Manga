@@ -13,7 +13,7 @@ from deepl_helper import deepl_translate
 import unicodedata as ud
 import urllib
 from br_mongo import *
-from helper import get_metadata_by_title_id, read_manga_data, read_manga_metadata, get_jp_title_names, get_jp_title_by_id, get_authors, get_publisher, get_data_by_title_id, is_book, get_title_id
+from helper import get_metadata_by_title_id, get_jp_title_names, get_jp_title_by_id, get_authors, get_publisher, get_data_by_title_id, is_book, get_title_id
 
 
 base_dir = "./"
@@ -24,9 +24,6 @@ headers = {'Content-Type': 'application/json'}
 
 def get_google_books_entry(title_id):
     return database[BR_GOOGLE_BOOKS].find_one({'_id':title_id})
-
-read_manga_metadata()
-read_manga_data()
 
 def get_title_name(title_id):
     t = get_metadata_by_title_id(title_id)

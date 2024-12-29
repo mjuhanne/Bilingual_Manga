@@ -5,6 +5,7 @@ import bson
 import re
 import subprocess
 import hashlib
+import shutil
 
 PLACEHOLDER = 'Placeholder'
 

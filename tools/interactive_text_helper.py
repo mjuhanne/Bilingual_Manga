@@ -1,10 +1,11 @@
 from helper import *
 from bm_learning_engine_helper import *
 import datetime
+from br_mongo import *
 
-metadata_cache_file = base_dir + "json/metadata_cache.json"
-learning_data_filename = base_dir + 'lang/user/learning_data.json'
-learning_data = dict()
+learning_data = database[BR_USER_LEARNING_DATA].find_one({'user_id':DEFAULT_USER_ID})
+wordlist_cursor = database[BR_USER_WORD_LEARNING_STATUS].find({'user_id':DEFAULT_USER_ID},{'_id':False,'user_id':False})
+learning_data['words'] = {item['wid']:{'s':item['s'],'lf':item['lf']} for item in wordlist_cursor}
 
 user_set_words = get_user_set_words()
 user_settings = read_user_settings()
@@ -20,63 +21,26 @@ if os.path.exists(OCR_CORRECTIONS_FILE):
 else:
     ocr_corrections = {'block_errata' : {}, 'word_id_errata': {}}
 
-if os.path.exists(learning_data_filename):
-    with open(learning_data_filename,"r",encoding="utf-8") as f:
-        learning_data = json.loads(f.read())
-else:
-    print("Learning data not calculated! Update!")
-
-# During every page change in MangaReader causes a new OCR file fetch via interactive_ocr.py.
-# Because we decorate it ith word stage data and history, we like to cache the 
-# chapter/volume names here to avoid the need to process the 70+MB admin.manga_data.json 
-# every page flip
-metadata_cache = {'chapter_metadata':{}}
-
-
-if os.path.exists(metadata_cache_file):
-    with open(metadata_cache_file,"r",encoding="utf-8") as f:
-        md_cache = json.loads(f.read())
-        if md_cache['version'] == get_version(METADATA_CACHE_VERSION):
-            metadata_cache = md_cache
 
 def get_metadata(source_chapter_id):
-    if source_chapter_id not in metadata_cache['chapter_metadata']:
+    chapter_data = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'ch_id':source_chapter_id})
+    if chapter_data is None:
+        raise Exception("Chapter %s not found in lookup table!" % source_chapter_id)
+    title_metadata = database[BR_METADATA].find_one({'_id':chapter_data['title_id']})
+    if title_metadata['entit'] != 'Placeholder':
+        title = title_metadata['entit']
+    else:
+        title = title_metadata['jptit']
+    return {
+        'id' : chapter_data['title_id'],
+        'name' : "%s (%s)" % (title, chapter_data['ch_name'])
+    }
 
-        read_manga_metadata()
-        read_manga_data()
-
-        chapter_metadata = dict()
-        for cid,id in get_chapter_id_to_title_id().items():
-            name = "%s (%s)" % (
-                get_title_by_id(id),
-                get_chapter_name_by_id(cid),
-            )
-            chapter_metadata[cid] = dict()
-            chapter_metadata[cid]['name'] = name
-            chapter_metadata[cid]['id'] = id
-        metadata_cache['chapter_metadata'] = chapter_metadata
-
-        # just in case we need more info later
-        metadata_cache['version'] = get_version(METADATA_CACHE_VERSION) 
-
-        if source_chapter_id not in metadata_cache['chapter_metadata']:
-            # The referred chapter or title was removed. 
-            metadata_cache['chapter_metadata'][source_chapter_id] = {
-                'name' : 'Removed', 'id' : -1
-            }
-
-        with open(metadata_cache_file,"w",encoding="utf-8") as f:
-            f.write(json.dumps(metadata_cache))
-
-    return metadata_cache['chapter_metadata'][source_chapter_id]
-    
 
 def get_chapter_info(event_metadata):
     comment = ''
     cid = ''
-    if 'ci' in event_metadata:
-        cid = learning_data['chapter_ids'][event_metadata['ci']]
-    elif 'cid' in event_metadata:
+    if 'cid' in event_metadata:
         cid = event_metadata['cid']
     if cid != '':
         ch_metadata = get_metadata(cid)
@@ -88,32 +52,13 @@ def get_chapter_info(event_metadata):
     return comment, cid
 
 
-def get_word_id_stage_and_history(word_id):
+def get_word_id_stage(word_id):
     stage = STAGE_UNKNOWN
-    history = []
-    last_timestamp = 0
     if word_id in learning_data['words']:
         wd = learning_data['words'][word_id]
         stage = wd['s']
-        history = wd['h']
-        for h in history:
-            h['m']['comment'], h['m']['cid'] = get_chapter_info(h['m'])
-        last_timestamp = history[-1]['t']
 
-    last_history_from_user = False
-    if word_id in user_set_words:
-        user_set_history = user_set_words[word_id]
-        user_timestamp = user_set_history[-1]['t']
-        if user_timestamp > last_timestamp:
-            # the learning stage was changed by the user after the
-            # last learning_data update so propagate the change
-            stage = user_set_words[word_id][-1]['s']
-            metadata = user_set_history[-1]['m']
-            metadata['src'] = SOURCE_USER
-            metadata['comment'], metadata['cid'] = get_chapter_info(metadata)
-            history = history + [user_set_history[-1]]
-            last_history_from_user = True
-    return stage, history, last_history_from_user
+    return stage
 
 def TRACE_EVENT(e):
     d = datetime.datetime.fromtimestamp(e['t'])
@@ -182,17 +127,16 @@ def insert_learning_data(pages, debug_refs):
     # insert learning settings, word learning stages and history
     pages['settings'] = get_learning_settings()
     pages['word_learning_stages'] = []
-    pages['word_history'] = []
-    stage_history_cache = dict()
+    stage_cache = dict()
 
     for i, word_id_with_sense in enumerate(pages['parsed_data']['word_id_list']):
 
         word_id = strip_sense_from_word_id(word_id_with_sense)
-        if word_id in stage_history_cache:
-            stage, history = stage_history_cache[word_id]
+        if word_id in stage_cache:
+            stage = stage_cache[word_id]
         else:
 
-            stage, history, last_history_from_user = get_word_id_stage_and_history(word_id)
+            stage = get_word_id_stage(word_id)
 
             # set all numerical 'words' known
             seq,word = get_seq_and_word_from_word_id(word_id)
@@ -200,7 +144,8 @@ def insert_learning_data(pages, debug_refs):
                 stage = STAGE_KNOWN
 
             if i in debug_refs:
-                pretty_print_word_history(i,word_id,stage,history,last_history_from_user)
+                print("TODO! Print word history")
+                #pretty_print_word_history(i,word_id,stage,history,last_history_from_user)
 
             # set words (e.g. 一枚) consisting of a numerical + counter word
             # as KNOWN if the counter word (枚) is also KNOWN
@@ -209,9 +154,10 @@ def insert_learning_data(pages, debug_refs):
             if word_id != root_word_id:
                 root_word_id = strip_sense_from_word_id(root_word_id)
 
-                root_stage, root_history, root_last_history_from_user = get_word_id_stage_and_history(root_word_id)
+                root_stage = get_word_id_stage(root_word_id)
                 if i in debug_refs:
-                    pretty_print_word_history(i,root_word_id,root_stage,root_history,root_last_history_from_user)
+                    print("TODO! Print word history")
+                    #pretty_print_word_history(i,root_word_id,root_stage,root_history,root_last_history_from_user)
 
                 overwrite = False
                 if root_stage > stage:
@@ -229,8 +175,7 @@ def insert_learning_data(pages, debug_refs):
                     if i in debug_refs:
                         print("%s stage changed from %d to %d due to %s" % (word_id,stage,root_stage, root_word_id))
                     stage = root_stage
-                    history = root_history
 
-            stage_history_cache[word_id] = (stage,history)
+            stage_cache[word_id] = stage
 
         pages['word_learning_stages'].append(stage)

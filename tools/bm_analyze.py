@@ -10,10 +10,6 @@ from bm_learning_engine_helper import *
 from jmdict import *
 from br_mongo import *
 
-# Full history is just for debugging because the resulting data set becomes quickly too large.
-# Instead we keep history only for those events when the learning stage changes
-RETAIN_FULL_WORD_HISTORY = False  
-
 #input files
 jlpt_kanjis_file = base_dir + "lang/jlpt/jlpt_kanjis.json"
 jlpt_vocab_file =  base_dir + "lang/jlpt/jlpt_vocab.json"
@@ -24,8 +20,6 @@ user_word_occurrence_file = base_dir + 'lang/user/user_word_occurrence.tsv'
 user_kanji_occurrence_file = base_dir + 'lang/user/user_kanji_occurrence.tsv'
 
 # output files
-learning_data_filename = base_dir + 'lang/user/learning_data.json'
-output_analysis_file = base_dir + 'json/custom_lang_analysis.json'
 suggested_preread_dir = base_dir + 'lang/suggested_preread/'
 
 # Up/downgrade the word frequency by chapter(volume) comprehension/effort
@@ -1168,8 +1162,6 @@ progress_output = False
 if 'progress_output' in args:
     progress_output = args['progress_output']
 
-read_manga_metadata()
-read_manga_data()
 load_jmdict(verbose=not progress_output)
 
 user_set_words = get_user_set_words()

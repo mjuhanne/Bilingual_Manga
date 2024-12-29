@@ -78,9 +78,6 @@ def download_titles(keyword):
         if downloaded_count == 0:
             print(title_name + " was fully downloaded")
 
-read_manga_metadata()
-read_manga_data()
-
 if len(sys.argv)>1:
     keyword = sys.argv[1]
 else:

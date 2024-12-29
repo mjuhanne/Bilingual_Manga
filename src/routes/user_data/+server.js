@@ -7,7 +7,7 @@ import child_process from "node:child_process";
 import util from "node:util";
 const execSync = util.promisify(exec);
 import { EventEmitter } from 'node:events';
-import { getUserDataValue, updateUserData, updateManuallySetWordLearningStateChanges, getManuallySetWordLearningStateChanges, getUserWordHistory } from '$lib/collections.js' 
+import { getUserDataValue, updateUserData, updateManuallySetWordLearningStateChanges, getManuallySetWordLearningStateChanges, getUserWordLearningHistory, updateLearningDataWordStatus } from '$lib/collections.js' 
 import { DEFAULT_USER_ID } from '../../lib/UserDataTools.js';
 
 // Overwrite the last history event if the change happened less than hour ago.
@@ -237,25 +237,27 @@ async function updateManuallySetWordLearningStage(data) {
     let timestamp = Math.trunc(Date.now()/1000);
     let history_entry = { 't' : timestamp, 's':stage, 'm':word_metadata};
     let replaced_last_entry = false;
-    let word_history = await getManuallySetWordLearningStateChanges(data.user_id, word_id)
-    if (word_history !== null) {
-        let last_timestamp = word_history[word_history.length-1].t;
+    let manual_changes = await getManuallySetWordLearningStateChanges(data.user_id, word_id)
+    if (manual_changes.length>0) {
+        let last_timestamp = manual_changes[manual_changes.length-1].t;
         if (timestamp - last_timestamp < LEARNING_STAGE_CHANGE_REMORSE_PERIOD) {
-            word_history[word_history.length-1] = history_entry
+            manual_changes[manual_changes.length-1] = history_entry
             replaced_last_entry = true;
         } else {
-            word_history.push(history_entry);
+            manual_changes.push(history_entry);
         }
     } else {
-        word_history = [history_entry];
+        manual_changes = [history_entry];
     }
-    console.log(`Updated ${word_id} history to ${JSON.stringify(word_history)}`)
-    await updateManuallySetWordLearningStateChanges(data.user_id, word_id, word_history)
+    console.log(`Updated ${word_id} history to ${JSON.stringify(manual_changes)}`)
+    await updateManuallySetWordLearningStateChanges(data.user_id, word_id, manual_changes)
+    // update also word history to avoid having to launch learning engine
+    await updateLearningDataWordStatus(data.user_id, word_id, history_entry);
     return replaced_last_entry;
 }
 
-async function getWordHistory(data) {
-    let word_history = await getUserWordHistory(data.user_id, data.word_id)
+async function getWordLearningHistory(data) {
+    let word_history = await getUserWordLearningHistory(data.user_id, data.word_id)
     if (word_history == null) {
         word_history = [];
     }
@@ -332,10 +334,10 @@ export async function POST({ request }) {
             success : true, 
             'replaced_last_entry' : await updateManuallySetWordLearningStage(data.param)
         };
-    } else if (data.func == 'get_word_history') {
+    } else if (data.func == 'get_word_learning_history') {
         ret= {
             success : true, 
-            'history' : await getWordHistory(data.param)
+            'history' : await getWordLearningHistory(data.param)
         };
     } else if (data.func == 'update_anki_settings') {
         await updateAnkiSettings(data.settings);

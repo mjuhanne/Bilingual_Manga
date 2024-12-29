@@ -114,11 +114,6 @@ def process_chapters():
         o_f.close()
 
 
-
-
-read_manga_metadata()
-read_manga_data()
-
 load_jmdict()
 
 process_chapters()
