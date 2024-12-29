@@ -479,7 +479,7 @@ if __name__ == '__main__':
     #args['chapter'] = 12
 
     if not os.path.exists(title_analysis_dir):
-        os.mkdir(chapter_analysis_dir)
+        os.mkdir(title_analysis_dir)
     if not os.path.exists(volume_analysis_dir):
         os.mkdir(volume_analysis_dir)
     if not os.path.exists(chapter_analysis_dir):

@@ -303,7 +303,7 @@ explicit_aozora_series = [
 ]
 
 
-def get_info_from_txt_file_name(root_path,source_item, og_title, og_author):
+def get_info_from_txt_file_name(root_path,source_item):
     vol_name = None
 
     for reg in text_regex:
@@ -312,8 +312,8 @@ def get_info_from_txt_file_name(root_path,source_item, og_title, og_author):
             gr = res.groups()
             vol_name = ''
             translator = ''
-            title = og_title
-            author = og_author
+            title = None
+            author = None
             explicit_series_found = False
             for field, value in zip(reg[1], res.groups()):
                 if author is None and field == 'author':

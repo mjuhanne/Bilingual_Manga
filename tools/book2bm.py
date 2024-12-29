@@ -12,8 +12,7 @@ from jp_parser import *
 from bm_ocr_processor import do_process_title
 from bm_lang_summary import calculate_summary_for_title, calculate_averages
 
-#default_book_path = '/mnt/Your/Book/Directory'
-default_book_path = '/Users/markojuhanne/Documents/books/import/'
+default_book_path = '/mnt/Your/Book/Directory'
 
 verbose = False
 verbose_update = True
@@ -82,61 +81,33 @@ def save_metadata(title_id, t_metadata, t_data, verbose):
     database[BR_DATA].update_one({'_id':title_id},{'$set':t_data},upsert=True)
 
 
-dir_regex = [
-    "\(一般小説\)+\s+\[([^\]]+)\]\s+([^（\(\s\)]+)"
-]
+def recursive_scan(args, root_path, filtered_file_type=None):
 
-def get_info_from_directory(source_item):
-    # extract info from directory names such as:
-    # (一般小説) [藤沢周平] よろずや平四郎活人剣（上）（下） (青空文庫対応txt 表紙付)(校正08-11-04)
-    author = None
-    title = source_item
-    for reg in dir_regex:
-        res = re.search(reg,source_item)
-        if res is not None:
-            author = res.groups()[0]
-            title = res.groups()[1]
-            return title, author
-    return title, author
-
-def recursive_scan(args, root_path, source_item, title=None, author=None, filtered_file_type=None):
-    global titles
-    new_path = root_path + source_item + '/'
-
-    if os.path.isdir(new_path):
-        if filtered_file_type is None:
-            sub_items = [f_name for f_name in os.listdir(new_path) if '.epub' in f_name.lower() or '.txt' in f_name.lower() or os.path.isdir(new_path + f_name)]
-        else:
-            sub_items = [f_name for f_name in os.listdir(new_path) if filtered_file_type in f_name.lower() or os.path.isdir(new_path + f_name)]
-        sub_items.sort()
-        if source_item[:2] == '__':
-            # skip
-            pass
-        elif source_item[0] == '_' or source_item == 'jp':
-            # just a simple sub-directory which doesn't infer a title 
-            # e.g.  _science_fiction/  or _murakami
-            for sub_item in sub_items:
-                recursive_scan(args, new_path, sub_item, filtered_file_type=filtered_file_type)
-        else:
-            # a subdirectory from which we can infer the title (and maybe the author)
-            title, author = get_info_from_directory(source_item)
-            for sub_item in sub_items:
-                recursive_scan(args, new_path, sub_item, title, author, filtered_file_type)
+    if filtered_file_type is None:
+        sub_items = [f_name for f_name in os.listdir(root_path) if '.epub' in f_name.lower() or '.txt' in f_name.lower() or os.path.isdir(root_path + f_name)]
     else:
-        vol_info = None
-        if '.epub' in source_item:
-            new_title, vol_info = get_info_from_epub_file_name(root_path,source_item)
-            if title is None:
-                title = new_title
-        elif '.txt' in source_item.lower():
-            new_title, vol_info = get_info_from_txt_file_name(root_path,source_item,title,author)
-            if title is None:
-                title = new_title
-        if title is not None and vol_info is not None:
-            process_file(args, title, vol_info)
+        sub_items = [f_name for f_name in os.listdir(root_path) if filtered_file_type in f_name.lower() or os.path.isdir(root_path + f_name)]
+    sub_items.sort()
+
+    for sub_item in sub_items:
+        new_path = root_path + sub_item
+        if os.path.isdir(new_path):
+            if len(sub_item)>2 and sub_item[:2] == '__':
+                # skip
+                pass
+            else:
+                recursive_scan(args, new_path + '/', filtered_file_type=filtered_file_type)
         else:
-            print("Missing file name processor: %s" % source_item)
-            pass
+            vol_info = None
+            if '.epub' in sub_item:
+                title, vol_info = get_info_from_epub_file_name(root_path,sub_item)
+            elif '.txt' in sub_item.lower():
+                title, vol_info = get_info_from_txt_file_name(root_path,sub_item)
+            if title is not None and vol_info is not None:
+                process_file(args, title, vol_info)
+            else:
+                print("Missing file name processor: %s" % sub_item)
+                pass
 
 def create_new_title(title):
 
@@ -473,7 +444,9 @@ def scan(args):
     if parse_chapters_automatically:
         init_parser(load_meanings=True)
         
-    recursive_scan(args, args['source_dir'], 'jp', filtered_file_type=filtered_file_type)
+    if args['source_dir'][-1] != '/':
+        args['source_dir'] += '/'
+    recursive_scan(args, args['source_dir'], filtered_file_type=filtered_file_type)
 
 
 def remove(args):
@@ -559,7 +532,7 @@ def remove_duplicates():
 #remove_duplicates()
 
 #TESTING
-#args = {'command':'scan','keyword':None,'force':False,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':False,'skip_content':False, 'only_epub':False,'only_txt':False}
+args = {'command':'scan','keyword':None,'force':False,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':False,'skip_content':False, 'only_epub':False,'only_txt':False}
 #args = {'command':'scan','keyword':'銀河鉄道の','force':True,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':False,'skip_content':False, 'only_epub':False,'only_txt':False}
 #args = {'command':'scan','keyword':'Musk','force':False,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':True,'skip_content':False, 'only_epub':False,'only_txt':False}
 #args = {'command':'set_en_vol','title_id':'66981f12534685524f9e373a','file':'/Users/markojuhanne/Documents/books/import/Murakami, Haruki (29 books)/Underground/Murakami, Haruki - Underground (Vintage, 2000).epub'}

@@ -8,3 +8,4 @@ mv JMdict_e lang/
 mv JMnedict.xml lang/
 python tools/process_jmdict.py
 python tools/process_jmnedict.py
+python tools/process_jmnedict_mongo.py
