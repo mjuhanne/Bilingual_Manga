@@ -39,7 +39,7 @@ parser_import.add_argument('--force', '-f', action='store_true', help='Force imp
 parser_import.add_argument('--source_dir', '-src', type=str, default=default_book_path, help='Source mokuro directory (with jp/ and en/ subdirectories)')
 parser_import.add_argument('--simulate', '-s', action='store_true', help='Scan only (do not create new OIDs or import)')
 parser_import.add_argument('--refresh_metadata', '-rm', action='store_true', help='Refresh metadata from Google books')
-parser_import.add_argument('--skip_content', '-sk', action='store_true', help="Don't process actual content, just metadata")
+parser_import.add_argument('--automatic', '-a', action='store_true', help="Do not ask for confirmation for adding titles/volumes/chapters or Google Books matching")
 parser_import.add_argument('--only_epub', '-oe', action='store_true', help="Process only epubs")
 parser_import.add_argument('--only_txt', '-ot', action='store_true', help="Process only txt files")
 parser_import.add_argument('-v', '--verbose', action='store_true', help='Verbose')
@@ -247,17 +247,20 @@ def process_volume(title_id, title, vol_info, vol_id=None):
                     'publisher' : t_metadata['Publisher']
                 }
                 gb = search_records_and_select_one(title_id, search_metadata, -1, manual_confirmation=ask_google_books_match_confirmation)
-                if gb is None and ask_google_books_match_confirmation:
-                    print("Author: " + author)
-                    if t_metadata['translator'] != '':
-                        print("Translator: " + t_metadata['translator'])
-                    if t_metadata['Publisher']  != PLACEHOLDER:
-                        print("Publisher: " + t_metadata['Publisher'])
-                    ans = input("Input Google book id: ")
-                    if ans == '-':
-                        ignore_google_book_matching_for_title(title_id)
-                    elif ans != '':
-                        gb = match_googleid({'title':title_id, 'googleid':ans})
+                if gb is None:
+                    if ask_google_books_match_confirmation:
+                        print("Author: " + author)
+                        if t_metadata['translator'] != '':
+                            print("Translator: " + t_metadata['translator'])
+                        if t_metadata['Publisher']  != PLACEHOLDER:
+                            print("Publisher: " + t_metadata['Publisher'])
+                        ans = input("Input Google book id: ")
+                        if ans == '-':
+                            ignore_google_book_matching_for_title(title_id)
+                        elif ans != '':
+                            gb = match_googleid({'title':title_id, 'googleid':ans})
+                    else:
+                        print("No Google books match found with ",search_metadata)
             else:
                 print("Skipping Google Books search because insufficient info. Author %s, jptit: %s" % (author, t_metadata['jptit']))
 
@@ -435,6 +438,13 @@ def process_file(args, title, vol_info):
 
 
 def scan(args):
+    global ask_confirmation_for_new_titles, ask_confirmation_for_new_volumes, ask_confirmation_for_new_chapters, ask_google_books_match_confirmation
+    if args['automatic']:
+        ask_confirmation_for_new_titles = False
+        ask_confirmation_for_new_volumes = False
+        ask_confirmation_for_new_chapters = False
+        ask_google_books_match_confirmation = False
+
     if args['only_epub']:
         filtered_file_type = '.epub'
     elif args['only_txt']:
@@ -475,8 +485,11 @@ def remove(args):
         d = database[BR_LANG_SUMMARY].delete_one({'_id':args['title_id']})
         for vol in volumes:
             ref = database[BR_VOL_IMPORT_METADATA].find_one({'_id':vol})
-            print("Vol %s: Freeing reference for %s" % (vol, ref['filename']))
-            d = database[BR_LANG_SUMMARY].delete_one({'_id':vol})
+            if ref is None:
+                print("Vol %s: No file reference to be freed(?)" % (vol))
+            else:
+                print("Vol %s: Freeing reference for %s" % (vol, ref['filename']))
+                d = database[BR_LANG_SUMMARY].delete_one({'_id':vol})
 
 def search(args):
     print("TODO")

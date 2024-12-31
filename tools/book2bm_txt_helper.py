@@ -369,7 +369,7 @@ def wide_numbers_to_int(txt):
         if ch in wide_numbers.keys():
             new_txt += wide_numbers[ch]
         else:
-            raise Exception("Invalid number" % txt)
+            raise Exception("Invalid number %s" % txt)
     return int(new_txt)
 
 
@@ -403,10 +403,18 @@ def process_note(line,note,note2,rice,txt_line):
         elif 'この行' in note:
             # TODO
             pass
+        elif '次の行も' in note:
+            pass
+        elif 'この改' in note:
+            pass
         else:
-            num_chars_str = note[0:note.find('字下げ')]
-            num_chars = wide_numbers_to_int(num_chars_str)
-            line += '\u3000' * num_chars
+            try:
+                num_chars_str = note[0:note.find('字下げ')]
+                num_chars = wide_numbers_to_int(num_chars_str)
+                line += '\u3000' * num_chars
+            except:
+                print("Unexpected note: %s" % note)
+                pass
     elif len(note) == 1 and is_katakana_word(note):
         # TODO: # add small okurigana (訓点送り仮名 in https://www.aozora.gr.jp/annotation/kunten.html)
         pass

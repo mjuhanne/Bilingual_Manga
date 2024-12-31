@@ -15,6 +15,8 @@ import urllib
 from br_mongo import *
 from helper import get_metadata_by_title_id, get_jp_title_names, get_jp_title_by_id, get_authors, get_publisher, get_data_by_title_id, is_book, get_title_id
 
+QUOTA_EXCEEDED = "quota_exceeded"
+quota_exceeded_timeout_counter = -1
 
 base_dir = "./"
 
@@ -23,7 +25,10 @@ get_volume_url = "https://www.googleapis.com/books/v1/volumes/"
 headers = {'Content-Type': 'application/json'}
 
 def get_google_books_entry(title_id):
-    return database[BR_GOOGLE_BOOKS].find_one({'_id':title_id})
+    entry = database[BR_GOOGLE_BOOKS].find_one({'_id':title_id})
+    if entry is not None and entry['google_book_id'] == QUOTA_EXCEEDED:
+        return None
+    return entry
 
 def get_title_name(title_id):
     t = get_metadata_by_title_id(title_id)
@@ -63,6 +68,13 @@ def show(args):
 
 def search_records_and_select_one(title_id, search_metadata, index, manual_confirmation=False):
 
+    if quota_exceeded_timeout_counter >= 0:
+        print("[%s] %s: Google Books quota exceeded for the day. Retrying after %d queries" % (title_id, keyword, quota_exceeded_timeout_counter))
+        j = {'google_book_id' : QUOTA_EXCEEDED}
+        database[BR_GOOGLE_BOOKS].update_one({'_id':title_id},{'$set':j},upsert=True)
+        quota_exceeded_timeout_counter -= 1
+        return None
+
     keyword = search_metadata['title']
     author = search_metadata.get('author')
     translator = search_metadata.get('translator')
@@ -80,86 +92,100 @@ def search_records_and_select_one(title_id, search_metadata, index, manual_confi
     url = urllib.parse.quote(url, safe='+/:?=', encoding=None, errors=None)
     response = requests.get(url, headers=headers, verify=False)
     r = response.json()
-    hits = r['totalItems']
-    if hits>0:
-        if index != -1:
-            j = r['items'][index]
-            # for some reason the search result doesn't contain always all the information
-            #  (author or description. Try to fetch these with a separate query)
-            url = j['selfLink']
-            response = requests.get(url, headers=headers, verify=False)
-            j = response.json()
-            return save_record(title_id,j)
-        else:
-            index = 0
-            while index <len(r['items']):
+    if r is not None and 'totalItems' in r:
+        quota_exceeded_timeout_counter = -1
+        hits = r['totalItems']
+        if hits>0:
+            if index != -1:
                 j = r['items'][index]
-                vi = j['volumeInfo']
-                title_candidates = set()
-                if 'title' in vi:
-                    title = ud.normalize('NFKC',vi['title'])
-                    title_candidates.update([title])
-                    title_candidates.update([title.replace('（上）','')])
-                    title_candidates.update([title.replace('(上)','')])
-                found = False
-                for keyword_candidate in keyword_candidates:
-                    for title_candidate in title_candidates:
-                        if title_candidate in keyword_candidate:
-                            found = True
-                        if keyword_candidate in title_candidate:
-                            found = True
-                if found:
-                    # for some reason the search result doesn't contain always all the information (author or description. Try to fetch these with a separate query)
-                    url = j['selfLink']
-                    response = requests.get(url, headers=headers, verify=False)
-                    j = response.json()
+                # for some reason the search result doesn't contain always all the information
+                #  (author or description. Try to fetch these with a separate query)
+                url = j['selfLink']
+                response = requests.get(url, headers=headers, verify=False)
+                j = response.json()
+                return save_record(title_id,j)
+            else:
+                index = 0
+                while index <len(r['items']):
+                    j = r['items'][index]
                     vi = j['volumeInfo']
-                    authors = []
-                    detected_translator = ''
-                    if 'authors' in vi:
-                        for author in vi['authors']:
-                            if '／' in author:
-                                auth_tr = author.split('／')
-                                if '訳' == auth_tr[1][-1]:
-                                    detected_translator = auth_tr[1][:-1]
-                                    authors.append(auth_tr[0])
+                    title_candidates = set()
+                    if 'title' in vi:
+                        title = ud.normalize('NFKC',vi['title'])
+                        title_candidates.update([title])
+                        title_candidates.update([title.replace('（上）','')])
+                        title_candidates.update([title.replace('(上)','')])
+                    found = False
+                    for keyword_candidate in keyword_candidates:
+                        for title_candidate in title_candidates:
+                            if title_candidate in keyword_candidate:
+                                found = True
+                            if keyword_candidate in title_candidate:
+                                found = True
+                    if found:
+                        # for some reason the search result doesn't contain always all the information (author or description. Try to fetch these with a separate query)
+                        url = j['selfLink']
+                        response = requests.get(url, headers=headers, verify=False)
+                        j = response.json()
+                        vi = j['volumeInfo']
+                        authors = []
+                        detected_translator = ''
+                        if 'authors' in vi:
+                            for author in vi['authors']:
+                                if '／' in author:
+                                    auth_tr = author.split('／')
+                                    if '訳' == auth_tr[1][-1]:
+                                        detected_translator = auth_tr[1][:-1]
+                                        authors.append(auth_tr[0])
+                                    else:
+                                        authors.append(auth_tr[0])
+                                        authors.append(auth_tr[1])
                                 else:
-                                    authors.append(auth_tr[0])
-                                    authors.append(auth_tr[1])
-                            else:
-                                authors.append(author)
-                    vi['authors'] = authors
-                    if 'description' in vi and vi['language'] == 'ja':
-                        if author is None or len(authors)>0:
-                            if translator is None or translator == detected_translator:
-                                print("[match #%d]" % (index+1))
-                                ok = True
-                                if manual_confirmation:
-                                    translate_metadata(j)
-                                    print("Title: ",vi['title'])
-                                    print("Authors: ",vi['authors'])
-                                    print("Authors (en): ",j['en_authors_deepl'])
-                                    if detected_translator != '':
-                                        print("Detected translator:",detected_translator)
-                                    if translator is not None:
-                                        print("Translator:",translator)
-                                    if publisher is not None:
-                                        print("Publisher:",publisher)
-                                    print("Description: ",vi['description'])
-                                    print("Description (en): ",j['en_synopsis_deepl'])
-                                    print("Publisher: ",vi['publisher'])
-                                    ans = input("Is this ok? ")
-                                    if ans != 'y':
-                                        ok = False
-                                if ok:
-                                    return save_record(title_id,j)
-                                else:
-                                    print("Skipped")
-                                    return None
-                index += 1
+                                    authors.append(author)
+                        vi['authors'] = authors
+                        if 'description' in vi and vi['language'] == 'ja':
+                            if author is None or len(authors)>0:
+                                if translator is None or translator == detected_translator:
+                                    print("[match #%d]" % (index+1))
+                                    ok = True
+                                    if manual_confirmation:
+                                        translate_metadata(j)
+                                        print("Title: ",vi['title'])
+                                        print("Authors: ",vi['authors'])
+                                        print("Authors (en): ",j['en_authors_deepl'])
+                                        if detected_translator != '':
+                                            print("Detected translator:",detected_translator)
+                                        if translator is not None:
+                                            print("Translator:",translator)
+                                        if publisher is not None:
+                                            print("Publisher:",publisher)
+                                        print("Description: ",vi['description'])
+                                        print("Description (en): ",j['en_synopsis_deepl'])
+                                        print("Publisher: ",vi['publisher'])
+                                        ans = input("Is this ok? ")
+                                        if ans != 'y':
+                                            ok = False
+                                    if ok:
+                                        return save_record(title_id,j)
+                                    else:
+                                        print("Skipped")
+                                        return None
+                    index += 1
+    elif 'error' in r:
+        if r['error']['code'] == 429:
+            print("[%s] %s: Google Books quota exceeded for the day. Retry later" % (title_id, keyword))
+            j = {'google_book_id' : QUOTA_EXCEEDED}
+            database[BR_GOOGLE_BOOKS].update_one({'_id':title_id},{'$set':j},upsert=True)
+            quota_exceeded_timeout_counter = 50
+            return None
+        else:
+            print("[%s] %s: Error %s" % (title_id, keyword, str(r)))
+    else:
+        print("Unknown response %s" % str(r))
 
     print("\t",get_jp_title_by_id(title_id) + " with keyword " + keyword+ " not found")
     return None
+
     
 def clean_google_books_title(title):
     vols = ['上','中','下']
@@ -293,6 +319,13 @@ def is_title_ignored_for_google_books(title_id):
         return False
     else:
         return j['google_book_id'] == -1
+
+def was_google_books_quota_exceeded_for_title(title_id):
+    j = database[BR_GOOGLE_BOOKS].find_one({'_id':title_id})
+    if j is None:
+        return False
+    else:
+        return j['google_book_id'] == QUOTA_EXCEEDED
 
 def ignore_google_book_matching_for_title(title_id):
     j = dict()

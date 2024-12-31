@@ -104,6 +104,7 @@ export async function updateLearningDataWordStatus(user_id, word_id, history_ent
         new_word_history['history'] = previous_word_history_data['history']
         new_word_history['ltf'] = previous_word_history_data['ltf']
     }
+    history_entry['m']['src'] = SOURCE.USER;
     new_word_history['history'].push(history_entry)
     await db.collection("br_user_word_learning_history").updateOne(search_query, {$set:new_word_history}, { upsert: true } );
     console.log(`updateLearningDataWordStatus ${word_id}: ` + JSON.stringify(new_word_history))
