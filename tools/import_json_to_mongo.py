@@ -190,7 +190,8 @@ else:
 
 ############# title id <-> volume id <-> chapter id lookup
 
-database[BR_CHAPTER_LOOKUP_TABLE].drop()
+
+#database[BR_CHAPTER_LOOKUP_TABLE].drop()
 
 data = database[BR_DATA].find().to_list()
 for td in data:
@@ -218,4 +219,5 @@ for td in data:
                     'ch_name' : ch_name,
                     'lang' : lang
                 }
-                database[BR_CHAPTER_LOOKUP_TABLE].insert_one(d)
+                if database[BR_CHAPTER_LOOKUP_TABLE].find_one({'ch_id':ch_id}) is None:
+                    database[BR_CHAPTER_LOOKUP_TABLE].insert_one(d)

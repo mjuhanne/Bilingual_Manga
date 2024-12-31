@@ -68,8 +68,10 @@ def show(args):
 
 def search_records_and_select_one(title_id, search_metadata, index, manual_confirmation=False):
 
+    global quota_exceeded_timeout_counter
+
     if quota_exceeded_timeout_counter >= 0:
-        print("[%s] %s: Google Books quota exceeded for the day. Retrying after %d queries" % (title_id, keyword, quota_exceeded_timeout_counter))
+        print("[%s]: Google Books quota exceeded for the day. Retrying after %d queries" % (title_id, quota_exceeded_timeout_counter))
         j = {'google_book_id' : QUOTA_EXCEEDED}
         database[BR_GOOGLE_BOOKS].update_one({'_id':title_id},{'$set':j},upsert=True)
         quota_exceeded_timeout_counter -= 1

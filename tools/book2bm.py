@@ -209,6 +209,9 @@ def process_volume(title_id, title, vol_info, vol_id=None):
     t_metadata = get_metadata_by_title_id(title_id)
     t_data = get_data_by_title_id(title_id)
 
+    if 'Publisher' not in t_metadata:
+        t_metadata['Publisher'] = PLACEHOLDER
+
     # first try to get the metadata from epub or vol_info
     if vol_info['type'] == 'epub':
         book = epub.read_epub(vol_info['path'] + vol_info['filename'])

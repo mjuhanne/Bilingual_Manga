@@ -548,8 +548,7 @@ def get_next_unread_chapter(title_id):
     highest_read_chapter = 0
     highest_read_chapter_id = None
     for chapter_id, _ in chapter_comprehension.items():
-        tid = get_title_id_by_chapter_id(chapter_id)
-        if tid == title_id:
+        if chapter_id in title_chapters:
             chapter = get_chapter_number_by_chapter_id(chapter_id)
             if chapter > highest_read_chapter:
                 highest_read_chapter = chapter
