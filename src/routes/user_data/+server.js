@@ -7,7 +7,7 @@ import child_process from "node:child_process";
 import util from "node:util";
 const execSync = util.promisify(exec);
 import { EventEmitter } from 'node:events';
-import { getUserDataValue, updateUserData, updateManuallySetWordLearningStateChanges, getManuallySetWordLearningStateChanges, getUserWordLearningHistory, updateLearningDataWordStatus } from '$lib/collections.js' 
+import { getUserDataValue, updateUserData, updateManuallySetWordLearningStateChanges, getManuallySetWordLearningStateChanges, getUserWordLearningHistory, updateLearningDataWordStatus, getSuggestedPrereadForTitle } from '$lib/collections.js' 
 import { DEFAULT_USER_ID } from '../../lib/UserDataTools.js';
 
 // Overwrite the last history event if the change happened less than hour ago.
@@ -166,21 +166,12 @@ function LaunchLanguageTool_Spawn(cmd, args, exit_cb, progress_cb, error_cb) {
 }
 
 
-async function getSuggestedPreread(title_id) {
+async function getSuggestedPreread(title_id, target_selection, source_selection) {
     console.log(`getSuggestedPreread ${title_id}`);
-    let preread_dir = 'lang/suggested_preread/';
-    let filename = preread_dir + title_id + '.json';
-    if (fs.existsSync(filename)) {
-        let data = fs.readFileSync(filename, "utf8");
-        let json_data = JSON.parse(data);
-        return {
-            success : true,
-            'suggested_preread' : json_data,
-        }
-    }
+    var suggested_preread = await getSuggestedPrereadForTitle(DEFAULT_USER_ID, title_id, target_selection, source_selection)
     return {
-        success : false,
-        error_message : "Analysis not yet done",
+        success : true,
+        'suggested_preread' : suggested_preread,
     }
 }
 
@@ -321,7 +312,7 @@ export async function POST({ request }) {
         await massSetChapterReadingStatus(data.status_list),
         ret= {success : true};
     } else if (data.func == 'get_suggested_preread') {
-        ret= await getSuggestedPreread(data.title_id);
+        ret= await getSuggestedPreread(data.title_id,data.target_selection,data.source_selection);
         return json(ret);
     } else if (data.func == 'calculate_suggested_preread') {
         ret= await calculateSuggestedPreread(data.title_id,data.target_selection,data.source_selection,data.source_filter);

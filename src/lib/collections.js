@@ -2,6 +2,8 @@ import { getDB } from '$lib/mongo';
 import { SOURCE } from '$lib/LearningData';
 const db = getDB();
 
+const SUGGESTED_PREREAD_ANALYSIS_VERSION = 1
+
 export async function getCollection(collection_name, skip, limit)
 {
     // get repositories from MongoDB with skip and limit
@@ -156,7 +158,7 @@ const AugmentMetadataWithMangaupdatesCategories = (manga_titles) => {
         let id = element.enid;
 
         if (element['mangaupdates_data'] !== undefined) {
-            if (ext_mangaupdates[id]['series_id'] != -1) {
+            if (element['mangaupdates_data']['series_id'] != -1) {
                 let mangaupdates_data = element['mangaupdates_data']
                 let avg_votes = 0;
                 let category_list = [];
@@ -207,10 +209,10 @@ export async function getMetadata(user_id, skip, limit)
 
     var title_metadata = await db.collection("br_metadata").aggregate([
         {
-            $lookup: { from:"br_mangaupdates", localField:"_id", foreignField:"_id", as:"mangaupdates"}
+            $lookup: { from:"br_mangaupdates", localField:"_id", foreignField:"_id", as:"mangaupdates_data"}
         },
         {
-            $unwind: { path:"$mangaupdates", preserveNullAndEmptyArrays:true }
+            $unwind: { path:"$mangaupdates_data", preserveNullAndEmptyArrays:true }
         },
         {
             $lookup: { from:"br_lang_summary", localField:"_id", foreignField:"_id", as:"series"}
@@ -277,10 +279,10 @@ export async function getMangaMetadataForSingleTitle(user_id, title_id)
     var title_metadata = undefined
     title_metadata = await db.collection("br_metadata").aggregate([
         {
-            $lookup: { from:"br_mangaupdates", localField:"_id", foreignField:"_id", as:"mangaupdates"}
+            $lookup: { from:"br_mangaupdates", localField:"_id", foreignField:"_id", as:"mangaupdates_data"}
         },
         {
-            $unwind: { path:"$mangaupdates", preserveNullAndEmptyArrays:true }
+            $unwind: { path:"$mangaupdates_data", preserveNullAndEmptyArrays:true }
         },
         {
             $lookup: { from:"br_lang_summary", localField:"_id", foreignField:"_id", as:"series"}
@@ -339,4 +341,28 @@ export async function getMangaMetadataForSingleTitle(user_id, title_id)
     AugmentMetadataWithMangaupdatesCategories([title_metadata])
 
     return title_metadata;
+}
+
+
+export async function getSuggestedPrereadForTitle(user_id, title_id, target_selection, source_selection)
+{
+    var suggested_preread = await db.collection("br_metadata").aggregate([
+        {
+            $lookup: { from:"br_suggested_preread", localField:"_id", foreignField:"source_title_id", as:"suggestion"}
+        },
+        {
+            $unwind: { path:"$suggestion", preserveNullAndEmptyArrays:false }
+        },
+        {
+            $match: {'suggestion.version':SUGGESTED_PREREAD_ANALYSIS_VERSION,'suggestion.user_id':user_id,'suggestion.target_title_id':title_id,'suggestion.target_selection':target_selection,'suggestion.source_selection':source_selection}
+        },
+        {
+            $lookup: { from:"br_mangaupdates", localField:"_id", foreignField:"_id", as:"mangaupdates_data"}
+        },
+        {
+            $unwind: { path:"$mangaupdates_data", preserveNullAndEmptyArrays:true }
+        },
+    ]).project({_id:0}).toArray();
+
+    return suggested_preread;
 }

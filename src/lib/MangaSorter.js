@@ -36,11 +36,11 @@ export let download_view_sort_options = {
 
 export let suggested_preread_sort_options = {
     ...{
-        'Common unknown words':     { sc:false, field: 'ncuuw',   type:'val', subheading_template:'_', rev:true },
-        'Common unknown words/vol': { sc:false, field: 'ncuuw_per_vol',   type:'val', subheading_template:'_', rev:true },
-        'Comprehension % improvement': { sc:false, field: 'improvement_pct',   type:'val', subheading_template:'_', rev:true },
-        'Relative improvement'      : { sc:false, field: 'relative_improvement',   type:'val', subheading_template:'_', rev:true },
-        'Relative CI improvement'   : { sc:false, field: 'relative_ci_improvement',   type:'val', subheading_template:'_', rev:true },
+        'Common unknown words':     { sc:false, field: 'suggestion.num_common_unique_weak_words',   type:'val', subheading_template:'_', rev:true },
+        'Common unknown words/vol': { sc:false, field: 'suggestion.num_common_unique_weak_words_per_vol',   type:'val', subheading_template:'_', rev:true },
+        'Comprehension % improvement': { sc:false, field: 'suggestion.improvement_pct',   type:'val', subheading_template:'_', rev:true },
+        'Relative improvement'      : { sc:false, field: 'suggestion.relative_improvement',   type:'val', subheading_template:'_', rev:true },
+        'Relative CI improvement'   : { sc:false, field: 'suggestion.relative_ci_improvement',   type:'val', subheading_template:'_', rev:true },
     },
     ...common_sort_options,
 }

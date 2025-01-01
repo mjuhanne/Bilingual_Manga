@@ -6,9 +6,6 @@ import MangaSortDashboard from '$lib/MangaSortDashboard.svelte';
 import { suggested_preread_sort_options, sortManga } from '$lib/MangaSorter.js';
 import { EVENT_TYPE } from "$lib/UserDataTools.js";
 
-let all_meta_data;
-obj.subscribe(value => { all_meta_data=value[0].manga_titles;});
-
 let sort_criteria='Relative CI improvement' //'Newly added';
 let sort_reverse=false;
 
@@ -59,8 +56,6 @@ let suggested_preread = [];
 
 $: sorted_suggested_preread = sortManga(suggested_preread, sort_criteria, sort_scope, sort_reverse, "None",undefined);
 
-let fetched = false;
-
 async function fetchData() {
     const response = await fetch( "/user_data", {
             headers: {"Content-Type" : "application/json" },
@@ -73,36 +68,14 @@ async function fetchData() {
     if (result.success == false) {
         message = result.error_message;
     } else {
-        let suggested_preread_data = result.suggested_preread;
-        if (target_selection in suggested_preread_data) {
-            if (source_selection in suggested_preread_data[target_selection]) {
-                let data = suggested_preread_data[target_selection][source_selection];
-                suggested_preread = [];
-                for (let title_data of all_meta_data) {
-                    if (title_data.enid in data.analysis) {
-                        let preread = data.analysis[title_data.enid];
-                        title_data.num_analyzed_pages = preread['num_analyzed_pages'];
-                        title_data.num_analyzed_volumes = preread['num_analyzed_volumes'];
-                        title_data.ncuuw = preread['num_common_unique_weak_words'];
-                        title_data.ncuuw_per_vol = preread['num_common_unique_weak_words_per_vol'];
-                        title_data.improvement_ci_pct = preread['improvement_ci_pct'];
-                        title_data.improvement_pct = preread['improvement_pct'];
-                        title_data.relative_improvement = preread['relative_improvement'];
-                        title_data.relative_ci_improvement = preread['relative_ci_improvement'];
-                        title_data.unread_volume = preread['volume'];
-
-                        suggested_preread.push(title_data);
-                    }
-                }
-                suggested_preread=suggested_preread;
-                fetched = true;
-            } else {
-                message = 'Not yet calculated'
-            }
+        if (result.suggested_preread.length > 0) {
+            suggested_preread = result.suggested_preread;
         } else {
             message = 'Not yet calculated'
+            suggested_preread = [];
         }
     }
+    console.log(result.suggested_preread.length)
 }
 
 
@@ -239,7 +212,7 @@ function get_value(item,value_fields) {
 </div>
 
 
-{#if fetched}
+{#if suggested_preread.length > 0}
 <div class="container">
     <div class="subcontainer">
         <MangaSortDashboard {sort_criteria} {sort_scope} {sort_reverse} 
@@ -283,24 +256,26 @@ function get_value(item,value_fields) {
                 <td><a href="/manga/{title_data.enid}?lang=jp" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">{title_data.jptit}</a></td>
                 {/if}
                 {#if source_filter == 'book'}
-                    <td>{title_data.num_analyzed_pages}</td>
+                    <td>{title_data.suggestion.num_analyzed_pages}</td>
                 {:else}
-                    <td>{title_data.num_analyzed_volumes}</td>
+                    <td>{title_data.suggestion.num_analyzed_volumes}</td>
                 {/if}
+                {#if ('mangaupdates_data' in title_data)}
                 <td>{title_data.mangaupdates_data.rating}</td>
-                {#if source_selection == 'next_unread_volume'}
-                    <td>{title_data.unread_volume}</td>
-                    <td>{title_data.next_unread_volume.comprehensible_input_pct}</td>
                 {:else}
-                    <td>{title_data.series.comprehensible_input_pct}</td>
+                <td>N/A</td>
                 {/if}
-                <td>{title_data.series.total_statistics.words.pct_known_pre_known}</td>
-                <td>{title_data.ncuuw}</td>
-                <td>{title_data.ncuuw_per_vol}</td>
-                <td>{title_data.improvement_ci_pct}</td>
-                <td>{title_data.improvement_pct}</td>
-                <td>{title_data.relative_ci_improvement}</td>
-                <td>{title_data.relative_improvement}</td>
+                {#if source_selection == 'next_unread_volume'}
+                    <td>{title_data.suggestion.volume}</td>
+                {/if}
+                <td>{title_data.suggestion.comprehensible_input_pct}</td>
+                <td>{title_data.suggestion.pct_known_pre_known_word}</td>
+                <td>{title_data.suggestion.num_common_unique_weak_words}</td>
+                <td>{title_data.suggestion.num_common_unique_weak_words_per_vol}</td>
+                <td>{title_data.suggestion.improvement_ci_pct}</td>
+                <td>{title_data.suggestion.improvement_pct}</td>
+                <td>{title_data.suggestion.relative_ci_improvement}</td>
+                <td>{title_data.suggestion.relative_improvement}</td>
             </tr>
             {/each}
             {/key}

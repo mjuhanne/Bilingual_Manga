@@ -9,6 +9,7 @@
 .vscode/
 .DS_Store
 /lang/*
+!/lang/jlpt
 !jlpt_*
 !Conju*
 !counter_word_ids*
