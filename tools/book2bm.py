@@ -81,7 +81,7 @@ def save_metadata(title_id, t_metadata, t_data, verbose):
     database[BR_DATA].update_one({'_id':title_id},{'$set':t_data},upsert=True)
 
 
-def recursive_scan(args, root_path, filtered_file_type=None):
+def recursive_scan(args, root_path, filtered_file_type=None, verbose_recursion_depth=''):
 
     if filtered_file_type is None:
         sub_items = [f_name for f_name in os.listdir(root_path) if '.epub' in f_name.lower() or '.txt' in f_name.lower() or os.path.isdir(root_path + f_name)]
@@ -89,14 +89,17 @@ def recursive_scan(args, root_path, filtered_file_type=None):
         sub_items = [f_name for f_name in os.listdir(root_path) if filtered_file_type in f_name.lower() or os.path.isdir(root_path + f_name)]
     sub_items.sort()
 
-    for sub_item in sub_items:
+    for sub_item_idx, sub_item in enumerate(sub_items):
+        verbose_recursion_depth_iter = verbose_recursion_depth + ' [%d/%d]' % (sub_item_idx+1,len(sub_items))
         new_path = root_path + sub_item
         if os.path.isdir(new_path):
             if len(sub_item)>2 and sub_item[:2] == '__':
                 # skip
                 pass
             else:
-                recursive_scan(args, new_path + '/', filtered_file_type=filtered_file_type)
+                recursive_scan(args, new_path + '/', 
+                    filtered_file_type=filtered_file_type,  verbose_recursion_depth=verbose_recursion_depth_iter
+                )
         else:
             vol_info = None
             if '.epub' in sub_item:
@@ -104,6 +107,7 @@ def recursive_scan(args, root_path, filtered_file_type=None):
             elif '.txt' in sub_item.lower():
                 title, vol_info = get_info_from_txt_file_name(root_path,sub_item)
             if title is not None and vol_info is not None:
+                vol_info['verbose_recursion_depth'] = verbose_recursion_depth_iter
                 process_file(args, title, vol_info)
             else:
                 print("Missing file name processor: %s" % sub_item)
@@ -349,6 +353,7 @@ def process_file(args, title, vol_info):
 
     if import_metadata is None:
 
+        print("%s Processing %s" % (vol_info['verbose_recursion_depth'], vol_info['path'] + vol_info['filename']))
         if args['simulate']:
             if vol_info['verbose']:
                 print("Title: ",title)
@@ -378,8 +383,16 @@ def process_file(args, title, vol_info):
             if vol_info['translator'] != '' and title_metadata is not None:
                 # ok, so a title with a different translator found. We have to make a separate title
                 # and name it explicitely with the translator
+                print("Existing title found but with other translator (%s). Creating new title.." % (title_metadata['translator']))
                 title_metadata = None
                 title = title_with_translator
+
+        if title_metadata is not None and title_metadata['is_book'] == False:
+            # existing title found but it is manga. Create a new title
+            print("Existing title found but it is manga [%s]. Creating new title.." % (title_metadata['_id']))
+            title_metadata = None
+            title += ' (book)'
+
 
         if title_metadata is None:
             if args['simulate']:
@@ -469,10 +482,11 @@ def remove(args):
     print("Title: %s / %s " % (title, jp_title))
     volumes = get_volumes_by_title_id(args['title_id'])
     for vol in volumes:
-        print("\tVol [%s] %s" % (vol,get_volume_name(vol)))
-        chapters = get_chapters_by_volume_id(vol)
-        for cid in chapters:
-            print("\t\tChapter [%s] %s" % (cid,get_chapter_name_by_id(cid)))
+        if vol != '':
+            print("\tVol [%s] %s" % (vol,get_volume_name(vol)))
+            chapters = get_chapters_by_volume_id(vol)
+            for cid in chapters:
+                print("\t\tChapter [%s] %s" % (cid,get_chapter_name_by_id(cid)))
 
     ans = input("Delete this?")
     if ans == 'y':
