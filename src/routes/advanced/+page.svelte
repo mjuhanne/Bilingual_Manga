@@ -1,64 +1,27 @@
 <script>
+import { fetchMetadataFieldVariations } from '$lib/MetadataHelper.js';
+import { onMount } from 'svelte';
 import {obj} from '$lib/store.js';
+
+const metadata_fields = ["genres","Release","Status","Author","Artist"]
+const groups = ["All Genres","All Years","All Status","All Authors","All Artists"]
+
 let fd=0;
 let genarrf=[]
 let meta;
 let nbk="All Genres";
 obj.subscribe(value => { meta=value;});
-let x = meta['0'].manga_titles;
-let genarr=[];
-let genarr1=[];
-let genarr2=[];
-let genarr3=[];
-let genarr4=[];
-const check=(a,b)=>{
-    let cc=b;
-    a.forEach((el)=>{
-        if(!(b.includes(el)))
-        {
-            cc.push(el);
-        }
-    })
-    return cc;
 
+async function chdgw() {
+    nbk = groups[fd];
+    genarrf = await fetchMetadataFieldVariations(metadata_fields[fd]);
+    genarrf.sort()
 }
 
-const check1=(a,b)=>{
-    if(!(b.includes(a)))
-    {
-        b.push(a);
-    }
-    return b;
-}
-
-x.forEach(ele => {
-    genarr=check(ele.genres,genarr);
-    genarr1=check(ele.Author,genarr1);
-    genarr2=check(ele.Artist,genarr2);
-    genarr3=check1(ele.Release,genarr3);
-    genarr4=check1(ele.Status,genarr4);
-    
+onMount(() => {
+    chdgw();
 });
-genarr.sort();
-genarr1.sort();
-genarr2.sort();
-genarr3.sort();
-genarr4.sort();
 
-genarrf=genarr;
-
-const chdgw=(sss=true)=>{
-if(fd==0)
-{nbk="All Genres";genarrf=genarr;}
-else if(fd==3)
-{nbk="All Authors";genarrf=genarr1;}
-else if(fd==4)
-{nbk="All Artists";genarrf=genarr2;}
-else if(fd==1)
-{nbk="All Years";genarrf=genarr3;}
-else if(fd==2)
-{nbk="All Status";genarrf=genarr4;}
-}
 </script>
 <svelte:head>
 <title> Advanced Search - Bilingual Manga</title>

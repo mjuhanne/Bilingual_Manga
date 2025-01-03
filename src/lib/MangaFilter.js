@@ -6,10 +6,20 @@ export let available_filters = {
         'Category': { sc:false, field: 'mangaupdates_data.category_list',   type:'list'},
         'Author': { sc:false, field: 'Author',   type:'list'},
         'Artist': { sc:false, field: 'Artist',   type:'list'},
+        'Status': { sc:false, field: 'Status',   type:'list'},
         'Book': { sc:false, field: 'is_book',   type:'boolean'},
+        'Favourite': { sc:false, field: 'favourite',   type:'boolean'},
     },
     ...showcase_sort_options,
 }
+
+export function getFixedFilter(filter_name, filter_value) {
+    if (filter_name in available_filters) {
+        return {'field':available_filters[filter_name].field,'op':'=','value':filter_value,'type':available_filters[filter_name].type}
+    }
+    return {}
+}
+
 
 const getFilterValue = (elem, filter_params, scope) => {
     let filter_value = getValue(elem, filter_params, scope)

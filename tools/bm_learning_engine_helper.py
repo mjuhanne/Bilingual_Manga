@@ -6,6 +6,24 @@ _user_settings = dict()
 _learning_settings = dict()
 _counter_word_ids = dict()
 
+def is_chapter_read(cid):
+    chapter_comprehension = _user_settings['chapter_reading_status']
+
+    for chapter_id, reading_data in chapter_comprehension.items():
+        if chapter_id == cid:
+            if reading_data['status'] == 'Read':
+                return True
+            if reading_data['status'] == 'Reading':
+                return True
+    return False
+
+# is title (partly) read?
+def is_title_read(id):
+    chapter_ids = get_chapters_by_title_id(id)
+    for cid in chapter_ids:
+        if is_chapter_read(cid):
+            return True
+
 def read_user_settings():
     global _user_settings, _learning_settings
 

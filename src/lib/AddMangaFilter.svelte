@@ -1,7 +1,8 @@
 <script>
 import Modal from './Modal.svelte';
 import { createEventDispatcher } from "svelte";
-import { getValue, scopes } from '$lib/MangaSorter.js';
+import { getValue, scopes, resolveScopeFieldName } from '$lib/MangaSorter.js';
+import { fetchMetadataFieldVariations } from '$lib/MetadataHelper.js';
 
 let dispatch = createEventDispatcher();
 
@@ -24,31 +25,15 @@ function saveStatus() {
     showModal = false;
 }
 
-function onFilterChanged() {
+async function onFilterChanged() {
     let fo = filter_options[new_filter['f']];
     if (fo.type != 'val') {
-        filter_values = [];
-        for (let m of manga_titles) {
-            let val = undefined;
-            if (fo.sc) {
-                    val = getValue(m, fo, new_filter['sc'])
-                } else {
-                    val = getValue(m, fo, '')
-                }
-            if (val !== undefined) {
-                if (fo.type == 'list') {
-                    for (v of values) {
-                        if (filter_values.indexOf(v) == -1) {
-                            filter_values.push(v);
-                        }
-                    }
-                }
-            } else {
-                if (filter_values.indexOf(val) == -1) {
-                    filter_values.push(val);
-                }
-            } 
+        let filter_field = fo.field
+        if (fo.sc) {
+            filter_field = resolveScopeFieldName(filter_field, new_filter['sc'])
         }
+
+        filter_values = await fetchMetadataFieldVariations(filter_field)
         
         if (new_filter['op'] != '=' && new_filter['op'] != '!=') {
             new_filter['op'] = '=';

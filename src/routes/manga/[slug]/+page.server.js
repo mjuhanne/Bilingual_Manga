@@ -48,7 +48,6 @@ export async function load({params,url}) {
             }
         }   
     }
-    //console.log(JSON.stringify(meta_data))
 
     meta_data = await getMangaMetadataForSingleTitle(DEFAULT_USER_ID, id)
 
@@ -60,9 +59,6 @@ export async function load({params,url}) {
             const title_data = data[0];
 
             const settings = await getBilingualMangaSettings();
-            console.log(`Title data for ${meta_data.entit} / ${meta_data.jptit}: ` + JSON.stringify(title_data))
-            console.log(JSON.stringify(title_data))
-
             const user_data = await getUserData(DEFAULT_USER_ID);
 
             let jsonc;

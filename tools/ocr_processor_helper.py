@@ -3,7 +3,6 @@ import os
 from helper import *
 
 user_settings = read_user_settings()
-chapter_comprehension = user_settings['chapter_reading_status']
 ocr_corrections_file = base_dir + "json/ocr_corrections.json"
 
 ocr_corrections = {}
@@ -12,20 +11,6 @@ if os.path.exists(ocr_corrections_file):
     ocr_corrections = json.loads(f.read())
     f.close()
 
-def is_chapter_read(cid):
-    for chapter_id, reading_data in chapter_comprehension.items():
-        if chapter_id == cid:
-            if reading_data['status'] == 'Read':
-                return True
-            if reading_data['status'] == 'Reading':
-                return True
-    return False
-
-def is_title_read(id):
-    chapter_ids = get_chapters_by_title_id(id)
-    for cid in chapter_ids:
-        if is_chapter_read(cid):
-            return True
         
 def apply_ocr_correction(chapter_id,page_id,block_num,lines):
     if chapter_id in ocr_corrections['block_errata']:

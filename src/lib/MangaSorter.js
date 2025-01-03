@@ -1,29 +1,34 @@
 
+export const scope_field_prefixes = {'series':'analysis.series','volume':'analysis.next_unread_volume','chapter':'analysis.next_unread_chapter'}
 export const scopes = {'series':'series','volume':'next unread volume','chapter':'next unread chapter'}
 
+export function resolveScopeFieldName(field_name, scope) {
+    return scope_field_prefixes[scope] + '.' + field_name
+}
+
 let common_sort_options = {
-    'Newly added'   : { sc:false, field: '',         type:'str', subheading_template:'', rev:false },
+    'Newly added'   : { sc:false, field: '_id',         type:'str', subheading_template:'', rev:true },
     'A-Z'           : { sc:false, field: 'entit',    type:'str', subheading_template:'', rev:false },
     'Release'       : { sc:false, field: 'Release',  type:'val', subheading_template:'Release _', rev:true },
     'Rating'        : { sc:false, field: 'mangaupdates_data.rating', type:'val', subheading_template:'Rating: _', rev:true },
     'Status'        : { sc:false, field: 'Status',   type:'str', subheading_template:'_', rev:false },
-    'Read status'   : { sc:false, field: 'read_chapter_pct',   type:'val', subheading_template:'Read _ %', rev:true },
-    'JLPT content'  : { sc:false, field: 'total_statistics.jlpt_word_content_pct',  type:'val', subheading_template:'JLPT _ %', rev:true },
-    'Advanced JLPT' : { sc:false, field: 'total_statistics.advanced_jlpt_word_content_pct',   type:'val', subheading_template:'JLPT1 _ %', rev:true },
-    'Intermediate JLPT (w)': { sc:false, field: 'total_statistics.weighted_intermediate_jlpt_word_content_pts',   type:'val', subheading_template:'JLPT2-3 _', rev:true },
-    'non-JLPT words/vol': { sc:false, field: 'unique_statistics.num_non_jlpt_words_per_v',   type:'val', subheading_template:'non-JLPT w/v _', rev:false },
-    'Volumes'       : { sc:false, field: 'num_volumes',type:'val', subheading_template:'_ volumes', rev:true },
-    'Pages'         : { sc:true, field: 'num_pages',     type:'val', subheading_template:'_ pages', rev:true },
-    'Total words'   : { sc:true, field: 'total_statistics.words.num_all',     type:'val', subheading_template:'_ words', rev:true },
-    'Words/page'    : { sc:false, field: 'total_statistics.w_per_p',       type:'val', subheading_template:'_ words/page', rev:true },
-    'Kanji/word'    : { sc:false, field: 'total_statistics.k_per_w_pct',  type:'val', subheading_template:'Kanjis/word _ %', rev:true },
+    'Read status'   : { sc:false, field: 'reading_pct',   type:'val', subheading_template:'Read _ %', rev:true },
+    'JLPT content'  : { sc:false, field: 'analysis.summary.total_statistics.jlpt_word_content_pct',  type:'val', subheading_template:'JLPT _ %', rev:true },
+    'Advanced JLPT' : { sc:false, field: 'analysis.summary.total_statistics.advanced_jlpt_word_content_pct',   type:'val', subheading_template:'JLPT1 _ %', rev:true },
+    'Intermediate JLPT (w)': { sc:false, field: 'analysis.summary.total_statistics.weighted_intermediate_jlpt_word_content_pts',   type:'val', subheading_template:'JLPT2-3 _', rev:true },
+    'non-JLPT words/vol': { sc:false, field: 'analysis.summary.unique_statistics.num_non_jlpt_words_per_v',   type:'val', subheading_template:'non-JLPT w/v _', rev:false },
+    'Volumes'       : { sc:false, field: 'analysis.summary.num_volumes',type:'val', subheading_template:'_ volumes', rev:true },
+    'Pages'         : { sc:false, field: 'analysis.summary.num_pages',     type:'val', subheading_template:'_ pages', rev:true },
+    'Total words'   : { sc:false, field: 'analysis.summary.num_words',     type:'val', subheading_template:'_ words', rev:true },
+    'Words/page'    : { sc:false, field: 'analysis.summary.total_statistics.w_per_p',       type:'val', subheading_template:'_ words/page', rev:true },
+    'Kanji/word'    : { sc:false, field: 'analysis.summary.total_statistics.k_per_w_pct',  type:'val', subheading_template:'Kanjis/word _ %', rev:true },
     'Comp input pct': { sc:true, field: 'comprehensible_input_pct',  type:'val', subheading_template:'CI _ %', rev:true },
     'Comp input ex kk pct': { sc:true, field: 'comprehensible_input_ex_katakana_pct',  type:'val', subheading_template:'CI(-K) _ %', rev:true },
     'Comp input score': { sc:true, field: 'comprehensible_input_score',  type:'val', subheading_template:'CI score _', rev:true },
     'Known w %'     : { sc:true, field: 'total_statistics.words.pct_known_pre_known',  type:'val', subheading_template:'Known w _ %', rev:true },
     'Unknown words' : { sc:true, field: 'unique_statistics.words.num_unknown_unfamiliar',  type:'val', subheading_template:'_ unk words', rev:true },
     'Unkn JLPT kanjis': { sc:true, field: 'unique_statistics.kanjis.jlpt_unknown_num',  type:'val', subheading_template:'_ unk JLPT kanjis', rev:true },
-    'JLPT improvement': { sc:false, field: 'series_analysis_for_jlpt.relative_improvement_pts',  type:'val', subheading_template:'_ pts', rev:true },
+    'JLPT improvement': { sc:false, field: 'analysis.series_analysis_for_jlpt.relative_improvement_pts',  type:'val', subheading_template:'_ pts', rev:true },
 };
 
 
@@ -64,7 +69,7 @@ export const getValue = (elem, params, sort_scope) => {
     let value = undefined;
     let value_path = params['field'].split('.');
     if (params.sc) {
-        value_path = [sort_scope, ...value_path]
+        value_path = [...scope_field_prefixes[sort_scope].split('.'), value_path]
     }
 
     let i = 0;
@@ -153,4 +158,31 @@ export const sortManga = (x, sort_criteria, sort_scope, sort_reverse, extra_labe
         }
     }
     return sorted_manga_list;
+};
+
+
+export const addLabeling = (title_metadata, sort_criteria, extra_label, extra_label_scope) => {
+ 
+    // Add primary labeling based on the selected sort criteria+value (subheading)
+    // and additional optional labeling (subheading2)
+    for(let i = 0; i < title_metadata.length; i++) {
+        let metadata = title_metadata[i];
+        let sort_value = metadata.sort_value;
+        if ((sort_value == -1) || (sort_value == '-')) {
+            sort_value = "NA";
+        }
+        metadata['subheading'] = 
+            sort_options[sort_criteria].subheading_template.replace('_', String(sort_value));
+
+        if (extra_label != 'None') {
+            let label_value = getSortValue(metadata, extra_label, extra_label_scope);
+            if ((label_value == -1) || (sort_value == '-')) {
+                label_value = "NA";
+            }
+            metadata['subheading2'] = 
+                sort_options[extra_label].subheading_template.replace('_', String(label_value));
+        } else {
+            metadata['subheading2'] = '';
+        }
+    }
 };

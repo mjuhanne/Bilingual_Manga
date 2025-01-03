@@ -23,6 +23,9 @@ user_known_kanjis_file = base_dir + 'lang/user/user_known_kanjis.csv'
 user_word_occurrence_file = base_dir + 'lang/user/user_word_occurrence.tsv'
 user_kanji_occurrence_file = base_dir + 'lang/user/user_kanji_occurrence.tsv'
 
+user_settings = read_user_settings()
+chapter_comprehension = user_settings['chapter_reading_status']
+
 # output files
 suggested_preread_dir = base_dir + 'lang/suggested_preread/'
 
@@ -47,6 +50,7 @@ def print_progress(i,title_count,msg):
 
 def calculate_average_summary(custom_lang_analysis_metadata):
 
+    print("Calculating average summary..")
     avg_ci_sentence_count = [0] * 8
                 
     cursor = database[BR_CUSTOM_LANG_ANALYSIS].find(
@@ -68,16 +72,17 @@ def calculate_average_summary(custom_lang_analysis_metadata):
     # TODO: rest of the average values
     summary = dict()
     summary['series'] = {'avg_ci_sentence_count':avg_ci_sentence_count}
-    summary['title_id'] = "average_manga"
+    summary['title_id'] = "average_title"
     summary['type'] = "summary"
     summary['user_id'] = DEFAULT_USER_ID
     summary['custom_lang_analysis_metadata'] = custom_lang_analysis_metadata
     summary = json.loads(json.dumps(summary)) # make sure all integer keys are converted to strings
 
-    database[BR_CUSTOM_LANG_ANALYSIS].replace_one(
-        {'user_id':DEFAULT_USER_ID,'type':'summary','title_id':"average"},
+    database[BR_CUSTOM_LANG_ANALYSIS_SUMMARY].replace_one(
+        {'user_id':DEFAULT_USER_ID,'title_id':"average_title"},
         summary, upsert=True
     )
+    print("Done!")
 
 
 def do_analyze(filename, title_name, an_type):
@@ -587,6 +592,18 @@ def calculate_due_update_time(analysis):
     due_timestamp = (int(time.time()) + 60*60*24*due_days )*1000
     return due_timestamp
     
+def calculate_reading_completion_percentage(title_id):
+    all_chapters = get_chapters_by_title_id(title_id, lang='jp')
+    if len(all_chapters) == 0:
+        return 0
+
+    read_chapters = []
+    for ch in all_chapters:
+        if ch in chapter_comprehension.keys():
+            read_chapters.append(ch)
+
+    return round(100*len(read_chapters)/len(all_chapters),1)
+
 
 def analyze(args):
     global old_analysis
@@ -606,12 +623,24 @@ def analyze(args):
 
     title_names = get_title_names()
     title_count = len(title_names)
+
+    timestamp = int(time.time())*1000
+    custom_lang_analysis_metadata = {
+        'version':get_version(OCR_SUMMARY_VERSION),
+        'parser_version': get_version(LANUGAGE_PARSER_VERSION),
+        'timestamp' : timestamp,
+    }
+
     for i, (title_id, title_name) in enumerate(title_names.items()):
 
         print_progress(i,title_count,"Analyzing")
 
         if args['title'] is not None and args['title'].lower() not in title_name.lower():
             continue
+
+        if args['read']:
+            if not is_title_read(title_id):
+                continue
 
         d = dict()
         if is_book(title_id):
@@ -634,62 +663,57 @@ def analyze(args):
                     updated = True
 
         if updated:
-            timestamp = int(time.time())*1000
             update_due = calculate_due_update_time(d['series'])
 
-            custom_lang_analysis_metadata = {
-                'version':get_version(OCR_SUMMARY_VERSION),
-                'parser_version': get_version(LANUGAGE_PARSER_VERSION),
-                'timestamp' : timestamp,
-                'update_due' : update_due
-            }
+            custom_lang_analysis_metadata['update_due'] = update_due
 
             summary = dict()
             summary_fields = ['pct_known_pre_known','comprehensible_input_pct','comprehensible_input_ex_katakana_pct','comprehensible_input_score','num_unknown_unfamiliar','jlpt_unknown_num','relative_improvement_pts']
             for an_type in an_types:
                 summary[an_type] = dict()
-                an = d[an_type]
-                if an is not None:
-                    an['title_id'] = title_id
-                    an['type'] = an_type
-                    an['user_id'] = DEFAULT_USER_ID
-                    an['custom_lang_analysis_metadata'] = custom_lang_analysis_metadata
-                    an = json.loads(json.dumps(an)) # make sure all integer keys are converted to strings
-                    if args['title'] is not None:
-                        print("Saving %s:%s" % (title_id, an_type))
-                    database[BR_CUSTOM_LANG_ANALYSIS].replace_one(
-                        {'user_id':an['user_id'],'type':an_type,'title_id':title_id},
-                        an, upsert=True
-                    )
+                if an_type in d:
+                    an = d[an_type]
+                    if an is not None:
+                        an['title_id'] = title_id
+                        an['type'] = an_type
+                        an['user_id'] = DEFAULT_USER_ID
+                        an['custom_lang_analysis_metadata'] = custom_lang_analysis_metadata
+                        an = json.loads(json.dumps(an)) # make sure all integer keys are converted to strings
+                        if args['title'] is not None:
+                            print("Saving %s:%s" % (title_id, an_type))
+                        database[BR_CUSTOM_LANG_ANALYSIS].replace_one(
+                            {'user_id':an['user_id'],'type':an_type,'title_id':title_id},
+                            an, upsert=True
+                        )
 
-                    # pick only few data points from each analysis for summary 
-                    def recursive_selective_copy(input_branch, output_branch):
-                        for key,val in input_branch.items():
-                            if key in summary_fields:
-                                output_branch[key] = val
-                            elif isinstance(val,dict):
-                                output_branch[key] = dict()
-                                recursive_selective_copy(input_branch[key], output_branch[key])
-                                if len(output_branch[key]) == 0:
-                                    del(output_branch[key])
+                        # pick only few data points from each analysis for summary 
+                        def recursive_selective_copy(input_branch, output_branch):
+                            for key,val in input_branch.items():
+                                if key in summary_fields:
+                                    output_branch[key] = val
+                                elif isinstance(val,dict):
+                                    output_branch[key] = dict()
+                                    recursive_selective_copy(input_branch[key], output_branch[key])
+                                    if len(output_branch[key]) == 0:
+                                        del(output_branch[key])
 
-                    recursive_selective_copy(an, summary[an_type])
-                    if len(summary[an_type]) == 0:
-                        del(summary[an_type])
+                        recursive_selective_copy(an, summary[an_type])
+                        if len(summary[an_type]) == 0:
+                            del(summary[an_type])
 
             # save the summary
             summary['title_id'] = title_id
-            summary['type'] = "summary"
             summary['user_id'] = DEFAULT_USER_ID
             summary['custom_lang_analysis_metadata'] = custom_lang_analysis_metadata
+            summary['reading_pct'] = calculate_reading_completion_percentage(title_id)
             if args['title'] is not None:
                 print("Saving %s:%s" % (title_id, 'summary'))
-            database[BR_CUSTOM_LANG_ANALYSIS].replace_one(
-                {'user_id':DEFAULT_USER_ID,'type':'summary','title_id':title_id},
+            database[BR_CUSTOM_LANG_ANALYSIS_SUMMARY].replace_one(
+                {'user_id':DEFAULT_USER_ID,'title_id':title_id},
                 summary, upsert=True
             )
 
-    if args['title'] is not None:
+    if args['title'] is None:
         calculate_average_summary(custom_lang_analysis_metadata)
 
 
@@ -713,6 +737,7 @@ parser_analyze = subparsers.add_parser('analyze', help='Do comprehension analysi
 parser_analyze.add_argument('--title', '-t', type=str, default=None, help='Target manga title')
 parser_analyze.add_argument('--force', '-f', action='store_true', help='Force update')
 parser_analyze.add_argument('--progress-output', '-po', action='store_true', help='Output only progress')
+parser_analyze.add_argument('--read', '-r', action='store_true', help='Process only read titles')
 
 parser_suggest_preread = subparsers.add_parser('suggest_preread', help='Analyze given title and then suggest beneficial pre-read titles which increase comprehension')
 parser_suggest_preread.add_argument('title', type=str, help='Target manga title')

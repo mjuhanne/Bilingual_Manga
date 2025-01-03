@@ -1,18 +1,34 @@
 <script>
+import { deserialize } from '$app/forms';
 export let datav;
 export let val;
 export let blurring;
 let marr =datav[0].manga_titles;
 let ser=[];
 const blur_off=()=>{blurring=false;}
-$:{
-ser=[];
-marr.forEach(m => {
-    let xv = `${m.entit}${m.jptit}${m.search}`
-    xv=xv.toLowerCase()
-    if(xv.indexOf(val)!=-1)
-    {ser.push(m)}        
-});}
+
+async function doTitleSearch(search_term) {
+    let body = JSON.stringify({
+        'func' : 'search',
+        'param' : {
+            'search_term' : search_term,
+            'limit' : 50,
+        }
+    });
+    const response = await fetch( "/titles", {
+        headers: {"Content-Type" : "application/json" },
+        method: 'POST',
+        body: body,
+    });
+    var res = deserialize(await response.text());
+    if (res.success) {
+        ser = res.response
+    } else {
+        ser = [];
+    }
+};
+
+$: doTitleSearch(val)
 
 </script>
 {#if (val!=""&&val!=undefined)}

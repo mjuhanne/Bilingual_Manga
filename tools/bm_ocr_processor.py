@@ -40,7 +40,7 @@ from jp_parser import (
     get_flat_class_list_by_seq, load_manga_specific_adjustments,
     unidic_class_list, ignored_classes_for_freq
 )
-from bm_learning_engine_helper import read_user_settings
+from bm_learning_engine_helper import is_chapter_read, is_title_read
 from ocr_processor_helper import *
 
 parsed_ocr_dir = base_dir + "parsed_ocr/"

@@ -4,16 +4,26 @@
     import MangaLabelDashboard from '$lib/MangaLabelDashboard.svelte';
     import MangaFilterDashboard from '$lib/MangaFilterDashboard.svelte';
     import AddMangaFilter from './AddMangaFilter.svelte';
+    import { deserialize } from '$app/forms';
     import { page } from '$app/stores';
     import { goto } from "$app/navigation";
-    import { showcase_sort_options, category_showcase_sort_options, sortManga } from '$lib/MangaSorter.js';
-    import { available_filters, filterManga } from '$lib/MangaFilter.js';
+    import { showcase_sort_options, category_showcase_sort_options, addLabeling, resolveScopeFieldName } from '$lib/MangaSorter.js';
+    import { available_filters, filterManga, getFixedFilter } from '$lib/MangaFilter.js';
 	import { onMount } from 'svelte';
+    import {DEFAULT_USER_ID} from '$lib/UserDataTools.js'
     export let x;
     export let cdncdn;
     export let cdncdn1;
     export let selected_category = '';
-    
+    export let fixed_filter_name = '';
+    export let fixed_filter_value = '';
+
+    let title_metadata = [];
+    let title_count = 0;
+    let filtered_title_count = 0;
+    let numoe=12
+    let pagen=1
+
     let sort_options = showcase_sort_options;
     if (selected_category != '') {
         sort_options = category_showcase_sort_options;
@@ -27,17 +37,77 @@
         } else {
             user_filter_list = JSON.parse(user_filter_list);
         }
+        fetchMetadataForTitles() 
     });
 
+    async function fetchMetadataForTitles() {
+        let sort_field = sort_options[sort_criteria]['field']
+        let scope_field_prefix = ''
+        if (sort_options[sort_criteria]['sc']) {
+            sort_field = resolveScopeFieldName(sort_field, sort_scope)
+        }
+        let reverse = sort_reverse ^ sort_options[sort_criteria].rev
+
+        let filters = [];
+        console.log("User Filters:",user_filter_list)
+        for (let filter of user_filter_list) {
+            if (filter.en) {
+                let filter_field = available_filters[filter.f].field
+                if ('sc' in filter) {
+                    if (filter.sc != '') {
+                        filter_field = resolveScopeFieldName(filter_field, filter.sc)
+                    }
+                }
+                filters.push({'field':filter_field,'op':filter.op,'value':filter.v,'type':available_filters[filter.f].type});
+            }
+        }
+
+        // fixed filter (e.g.. manga-author, manga-status ..) is kept separate
+        // to get initial title count before applying user created filters
+        let fixed_filter = getFixedFilter(fixed_filter_name, fixed_filter_value)
+
+        let limit = numoe
+        console.log("pagen" + pagen)
+        let skip = (pagen - 1) * numoe
+        let body = JSON.stringify({
+            'func' : 'get_title_metadata', 
+            'param' : {
+                'user_id' : DEFAULT_USER_ID,
+                'sort_field' : sort_field,
+                'fixed_filter' : fixed_filter,
+                'variable_filters' : filters,
+                'reverse' : reverse,
+                'limit' : limit,
+                'skip' : skip,
+            }
+        });
+        const response = await fetch( "/titles", {
+            headers: {"Content-Type" : "application/json" },
+            method: 'POST',
+            body: body,
+        });
+        const result = deserialize(await response.text());
+        title_count = result['response']['unfiltered_title_count']
+        filtered_title_count = result['response']['filtered_title_count']
+        title_metadata = result['response']['title_metadata']
+        console.log("fetched titles:" + title_metadata.length)
+    };
+
+
     let pagenew=1;
-    let numoe=12
     let url1=""
 
     url1=`${$page.url}`.split('?')[0]
-    let pagen=parseInt($page.url.searchParams.get('page'));
+    pagen=$page.url.searchParams.get('page');
+    if (pagen === null) {
+        pagen = 1
+    } else {
+        pagen = parseInt(pagen)
+    }
     let ls=$page.url.searchParams.get('ls');
     let sort_criteria=$page.url.searchParams.get('sort');
     let sort_scope=$page.url.searchParams.get('scope');
+    let sort_reverse=$page.url.searchParams.get('reverse') == "true" ? true : false;
     let selected_label=$page.url.searchParams.get('label');
     let selected_label_scope=$page.url.searchParams.get('label_scope');
     if (sort_criteria === null) {
@@ -60,13 +130,10 @@
     if (selected_label_scope === null) {
         selected_label_scope = 'series';
     }
-    let sort_reverse=$page.url.searchParams.get('reverse') == "true" ? true : false;
 
-    $: url_param = "ls=" + ls + "&sort=" + encodeURIComponent(sort_criteria) +  "&scope=" + sort_scope +"&reverse=" + (sort_reverse ? "true" : "false") + "&label=" + encodeURIComponent(selected_label);// + "&filters=" + encodeURIComponent(JSON.stringify(filters));
-    $: fx = filterManga(x, user_filter_list, sort_options);
-    $: sx = sortManga(fx, sort_criteria, sort_scope, sort_reverse, selected_label, selected_label_scope);
+    $: url_param = "ls=" + ls + "&sort=" + encodeURIComponent(sort_criteria) +  "&scope=" + sort_scope +"&reverse=" + (sort_reverse ? "true" : "false") + "&label=" + encodeURIComponent(selected_label); // + "&filters=" + encodeURIComponent(JSON.stringify(filters));
 
-    let sx=[]; // sorted manga list (already sorted by 'Newly added' by default)
+    $: addLabeling(title_metadata, sort_criteria, selected_label, selected_label_scope)
 
     if(ls==="en" || ls==="jp")
     {
@@ -80,33 +147,33 @@
     }
     
 
-    $: xnum=Math.ceil(sx.length/numoe)
-    let xarr=[];
+    $: pages_num=Math.ceil(filtered_title_count/numoe)
+    let page_idx_array=[];
     $: {
-        xarr=[];
-        for(let i=1;i<=xnum;i++)
+        page_idx_array=[];
+        for(let i=1;i<=pages_num;i++)
         {
-            xarr.push(i)
+            page_idx_array.push(i)
         }
     }
 
-    let pii=1;
+    let page_idx=1;
     
 $: {
-    if(pagen>=1&&pagen<=xnum)
+    if(pagen>=1&&pagen<=pages_num)
     {
-        pii=parseInt(pagen);
+        page_idx=parseInt(pagen);
     }
 }
 
-$: pii2=pii-1;
-$: pii3=pii+1;
+$: prev_page_idx=page_idx-1;
+$: next_page_idx=page_idx+1;
 
 
     const pagchang=(pi)=>{
         pi=pi+1;
         let tempp = Math.ceil(pi/numoe);
-        if(tempp===pii)
+        if(tempp===page_idx)
         {
             return true;
         }
@@ -123,6 +190,7 @@ $: pii3=pii+1;
 		$page.url.searchParams.set('page',1);
         pagen = 1;
         goto(`?${$page.url.searchParams.toString()}`);
+        fetchMetadataForTitles()
     };
 
     const LabelChanged = (e) => {
@@ -131,17 +199,20 @@ $: pii3=pii+1;
 		$page.url.searchParams.set('label',encodeURIComponent(selected_label));
 		$page.url.searchParams.set('label_scope',selected_label_scope);
         goto(`?${$page.url.searchParams.toString()}`);
+        title_metadata = title_metadata // force update
     };
 
     const sortReverseChanged = (e) => {
         sort_reverse = e.detail;
 		$page.url.searchParams.set('reverse',sort_reverse);
         goto(`?${$page.url.searchParams.toString()}`);
+        fetchMetadataForTitles()
     };
 
     const FiltersUpdated = (e) => {
         user_filter_list = e.detail; // force update
         localStorage.setItem("user_filter_list", JSON.stringify(user_filter_list));
+        fetchMetadataForTitles()
     };
 
     </script>
@@ -152,7 +223,7 @@ $: pii3=pii+1;
             <a href="{url1}?page=1&ls=all" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">ALL</a>
         </div>
         <div class="sortsel">
-            <AddMangaFilter manga_titles={x} filter_options={available_filters} 
+            <AddMangaFilter manga_titles={title_metadata} filter_options={available_filters} 
                 filter_list={user_filter_list} on:onFiltersUpdated={FiltersUpdated}
             />
         </div>
@@ -171,35 +242,34 @@ $: pii3=pii+1;
         </div>
     </div>
     <div>
-        <MangaFilterDashboard filter_list={user_filter_list} filtered_num={fx.length} total_num={x.length}
+        <MangaFilterDashboard filter_list={user_filter_list} filtered_num={filtered_title_count} total_num={title_count}
             on:onFiltersUpdated={FiltersUpdated}
         />
     </div>
 <div id="cardholderid" class="cardholder">
-    {#each sx as manga,pi }
-    {#if pii && pagchang(pi) }
+    {#each title_metadata as manga,pi }
+    {#if page_idx }
     <MangaCard data={manga} subheading={manga.subheading} subheading2={manga.subheading2} ls={ls} cdncdn={cdncdn1}/>
     {/if}        
     {/each}
-    {#if xnum>1}
+    {#if pages_num>1}
     <div id="pagesnum">
-        {#if (pii!=1)}
+        {#if (page_idx!=1)}
         <a href="{url1}?page=1&{url_param}" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">First</a>&nbsp
         {/if} 
-        {#if (pii2>0)}
-        <a href="{url1}?page={pii2}&{url_param}" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">-</a>&nbsp   
+        {#if (prev_page_idx>0)}
+        <a href="{url1}?page={prev_page_idx}&{url_param}" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">-</a>&nbsp   
         {/if}  
-        {#each xarr as xi }
-            
-            {#if Math.ceil(xi/5)==(Math.ceil(pii/5))}
-            <a href="{url1}?page={xi}&{url_param}" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">{xi}</a>&nbsp
+        {#each page_idx_array as page_selector_idx }
+            {#if Math.ceil(page_selector_idx/5)==(Math.ceil(page_idx/5))}
+            <a href="{url1}?page={page_selector_idx}&{url_param}" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">{page_selector_idx}</a>&nbsp
             {/if}
         {/each}
-        {#if (pii3<=xnum)}
-        <a href="{url1}?page={pii3}&{url_param}" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">+</a>&nbsp 
+        {#if (next_page_idx<=pages_num)}
+        <a href="{url1}?page={next_page_idx}&{url_param}" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">+</a>&nbsp 
         {/if}
-        {#if (pii!=xnum)}
-        &nbsp<a href="{url1}?page={xnum}&{url_param}" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">Last</a>&nbsp   
+        {#if (page_idx!=pages_num)}
+        &nbsp<a href="{url1}?page={pages_num}&{url_param}" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">Last</a>&nbsp   
         {/if}
     </div>
     {/if}

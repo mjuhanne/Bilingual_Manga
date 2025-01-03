@@ -169,8 +169,11 @@ def get_chapter_number_by_chapter_id(id):
     res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'ch_id':id})
     return res['ch_num'] + 1
 
-def get_chapters_by_title_id(id):
-    res = database[BR_CHAPTER_LOOKUP_TABLE].find({'title_id':id},{'ch_id':True}).to_list()
+def get_chapters_by_title_id(id,lang=None):
+    if lang is None:
+        res = database[BR_CHAPTER_LOOKUP_TABLE].find({'title_id':id},{'ch_id':True}).to_list()
+    else:
+        res = database[BR_CHAPTER_LOOKUP_TABLE].find({'title_id':id,'lang':lang},{'ch_id':True}).to_list()
     chapter_ids = [entry['ch_id'] for entry in res ]
     return chapter_ids
 

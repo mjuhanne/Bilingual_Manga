@@ -1,5 +1,6 @@
 import { getDB } from '$lib/mongo';
 import { SOURCE } from '$lib/LearningData';
+import { DEFAULT_USER_ID } from './UserDataTools';
 const db = getDB();
 
 const SUGGESTED_PREREAD_ANALYSIS_VERSION = 1
@@ -148,9 +149,19 @@ export async function getUserData(user_id)
     return data[0]
 }
 
+export async function getTitleChapters(title_id)
+{
+    const data = await db.collection("br_chapter_lookup_table").find({'title_id':title_id}).project({ch_id:true}).toArray();
+    let cids = [];
+    for (let entry of data) {
+        cids.push(entry['ch_id'])
+    }
+    return cids
+}
 
 const AugmentMetadataWithMangaupdatesCategories = (manga_titles) => {
 
+    // TODO: calculate these elsewhere
     let global_avg_votes = 0;
     let valid_entries = 0;
 
@@ -201,13 +212,137 @@ const AugmentMetadataWithMangaupdatesCategories = (manga_titles) => {
 };
 
 
-export async function getMetadata(user_id, skip, limit)
+export async function getTitleCount(count_match_query)
+{
+    var count = await db.collection("br_metadata").find(count_match_query).count()
+    return count;
+}
+
+let search_cache = null;
+let search_cache_timestamp = 0
+
+export async function searchTitleMetadata(search_term, limit)
+{
+    /*
+    // MongoDB has lousy partial word matching..
+    var metadata = await db.collection("br_metadata").find({ $text: { $search: search_term } }).limit(limit).toArray();
+    */
+
+    // This is faster but ISN'T really thread-safe!
+    if ((search_cache == null) || (Date.now() - search_cache_timestamp > 60*1000)) {
+        search_cache = await db.collection("br_metadata").find({},{'entit':true,'jptit':true,'search':true}).toArray();
+        search_cache_timestamp = Date.now();
+    }
+    let results = [];
+    for (let m of search_cache) {
+        let xv = `${m.entit}${m.jptit}${m.search}`
+        xv=xv.toLowerCase()
+        if(xv.indexOf(search_term)!=-1) {
+            results.push(m);
+        }
+        if (results.len==limit) {
+            console.log("Max search results:",results)
+            return results;
+        }
+    }    
+    console.log("Search results:",results)
+    return results;
+}
+
+export async function getMetadata(user_id)
 {
     let m = (await getCollection("br_settings", 0, 0))[0];
 
-    var match_query = {} // TODO
+    // average manga/book statistics
+    var avg_summary = await db.collection("br_lang_summary").find({'_id':'average_manga'}).project({_id:0}).toArray()
+    m['average_manga'] = avg_summary[0]
+    avg_summary = await db.collection("br_lang_summary").find({'_id':'average_book'}).project({_id:0}).toArray()
+    m['average_book'] = avg_summary[0]
 
-    var title_metadata = await db.collection("br_metadata").aggregate([
+    // TODO: seprate custom summary for mangas and books
+    const custom_lang_search_query = { 'title_id':'average_title', 'user_id':user_id }
+    var average_title_summary = await db.collection("br_custom_lang_analysis_summary").findOne(custom_lang_search_query)
+    m['average_manga']['series'] = average_title_summary['series']
+
+    // TODO: pre-process this elsewhere
+    // Update categories
+    //m.average_category_vote_count = AugmentMetadataWithMangaupdatesCategories(m['manga_titles'])
+
+    return [m];
+}
+
+
+export async function getAllValuesForMetadataField(field_name)
+{
+    var values = await db.collection("br_metadata").distinct(field_name)
+    return values
+}
+
+export function ConvertFilterToMatchQuery(match_query, filter, user_data)
+{
+    if (filter.type == 'boolean') {
+        if (filter.field == 'favourite') {
+            if (filter.op == '=') {
+                match_query['enid'] = { $in: user_data.favourites };
+            } else if (filter.op == '!=') {
+                match_query['enid'] = { $not: { $in: user_data.favourites } };
+            }
+        } else {
+            if (filter.op == '=') {
+                match_query[filter.field] = filter.value;
+            } else if (filter.op == '!=') {
+                match_query[filter.field] = { $not: { $eq: filter.value } };
+            }
+        }
+    } else if (filter.type == 'val') {
+        if (filter.op == '=') {
+            match_query[filter.field] = filter.value;;
+        } else if (filter.op == '!=') {
+            match_query[filter.field] = { $not: { $eq: filter.value } };
+        } else if (filter.op == '>') {
+            match_query[filter.field] = { $gt: filter.value };
+        } else if (filter.op == '>=') {
+            match_query[filter.field] = { $gte: filter.value };
+        } else if (filter.op == '<') {
+            match_query[filter.field] = { $lt: filter.value };
+        } else if (filter.op == '<=') {
+            match_query[filter.field] = { $lte: filter.value };
+        }
+    } else if (filter.type == 'list') {
+        if (filter.op == '=') {
+            // filter.field array contains filter.value
+            match_query[filter.field] = { $all: [filter.value] };
+        } else if (filter.op == '!=') {
+            // filter.field array doesn't contain filter.value
+            match_query[filter.field] = { $not: { $all: [filter.value] } };
+        }
+    }
+}
+
+export async function getMetadataForTitles(user_id, sort_struct, filter_struct)
+{
+    console.log("Filter: " + JSON.stringify(filter_struct))
+    console.log("Sort: " + JSON.stringify(sort_struct))
+    let sort_field = sort_struct.field
+    let reverse = 1 // ascending
+    if (sort_struct.reverse) {
+        reverse = -1 // descending
+    }
+
+    let user_data = await getUserData(user_id)
+
+    var match_query = {}
+    if (filter_struct.fixed_filter != {}) {
+        ConvertFilterToMatchQuery(match_query, filter_struct.fixed_filter, user_data)
+    }
+    for (let filter of filter_struct.filters) {
+        ConvertFilterToMatchQuery(match_query, filter, user_data)
+    }
+    console.log("Match query: ",match_query)
+    var sort_query = {[sort_field]:reverse}
+    console.log(`Sorting: '${JSON.stringify(sort_query)}'`)
+
+    var aggregate = await db.collection("br_metadata").aggregate([
         {
             $lookup: { from:"br_mangaupdates", localField:"_id", foreignField:"_id", as:"mangaupdates_data"}
         },
@@ -215,48 +350,76 @@ export async function getMetadata(user_id, skip, limit)
             $unwind: { path:"$mangaupdates_data", preserveNullAndEmptyArrays:true }
         },
         {
-            $lookup: { from:"br_lang_summary", localField:"_id", foreignField:"_id", as:"series"}
+            $lookup: { from:"br_custom_lang_analysis_summary", localField:"_id", foreignField:"title_id", as:"analysis"}
         },
         {
-            $unwind: { path:"$series", preserveNullAndEmptyArrays:true }
+            $unwind: { path:"$analysis", preserveNullAndEmptyArrays:true }
+        },
+        {
+            $match: { "analysis.user_id":user_id }
+        },
+        {
+            $lookup: { from:"br_lang_summary", localField:"_id", foreignField:"_id", as:"analysis.summary"}
+        },
+        {
+            $unwind: { path:"$analysis.summary", preserveNullAndEmptyArrays:true }
         },
         {
             $match: match_query
         },
         {
-            $sort: {"_id":-1}
+            $sort: sort_query
+        },
+        {
+            $facet: {
+                count: [ { $count: "count" } ],
+                results: [
+                    {
+                        $skip: filter_struct.skip
+                    },
+                    {
+                        $limit: filter_struct.limit,
+                    },
+                    {
+                        $addFields: { "sort_value" : '$' + sort_field }
+                    }            
+                ]
+            }
         }
-    ]).project({_id:0}).skip(skip).limit(limit).toArray();
 
-    m['manga_titles'] = title_metadata
-    m['metadata_by_id'] = {}
+
+    ]).toArray();
+
+    var title_metadata = aggregate[0]['results']
+    var filtered_count = 0;
+    if (aggregate[0]['count'].length>0) {
+        filtered_count = aggregate[0]['count'][0]['count']
+    }
+    console.log("filtered_count",filtered_count)
+
+    var metadata_by_id = {}
     for (let d of title_metadata) {
-        m['metadata_by_id'][d['enid']] = d
+        metadata_by_id[d['enid']] = d
     }
 
-    // average manga/book statistics
-    var avg_summary = await db.collection("br_lang_summary").find({'_id':'average_manga'}).project({_id:0}).toArray()
-    m['average_manga'] = avg_summary[0]
-    m['metadata_by_id']['average_manga'] =  m['average_manga']
-    avg_summary = await db.collection("br_lang_summary").find({'_id':'average_book'}).project({_id:0}).toArray()
-    m['average_book'] = avg_summary[0]
-    m['metadata_by_id']['average_book'] =  m['average_book']
-
-    const custom_lang_search_query = { 'type':'summary', 'user_id':user_id }
-    var custom_lang_analyses = await db.collection("br_custom_lang_analysis").find(custom_lang_search_query).project({_id:0,type:0,user_id:0}).toArray()
-    for (let an of custom_lang_analyses) {
-        let title_id = an['title_id']
-        if (title_id in m['metadata_by_id']) {
-            iterative_copy(an, m['metadata_by_id'][title_id])
+    for (let meta_data of title_metadata) {
+        let id = meta_data['enid']
+        if (user_data['favourites'].includes(id)) {
+            meta_data["favourite"] = true;
         } else {
-            //console.log(title_id + " not found in metadata")
+            meta_data["favourite"] = false;
         }
     }
 
+    // TODO: preprocess these elsewhere
     // Update categories
-    m.average_category_vote_count = AugmentMetadataWithMangaupdatesCategories(m['manga_titles'])
+    AugmentMetadataWithMangaupdatesCategories(title_metadata)
 
-    return [m];
+    let count_match_query = {}
+    ConvertFilterToMatchQuery(count_match_query, filter_struct.fixed_filter, user_data )
+    let title_count = await getTitleCount(count_match_query)
+
+    return {'title_metadata':title_metadata, 'unfiltered_title_count':title_count, 'filtered_title_count':filtered_count}
 }
 
 const iterative_copy = (src,dest) => {
@@ -296,8 +459,6 @@ export async function getMangaMetadataForSingleTitle(user_id, title_id)
     ]).project({_id:0}).toArray();
 
     title_metadata = title_metadata[0];
-
-    console.log("metadata.series: " + JSON.stringify(title_metadata['series']))
 
     if (!('chapter' in title_metadata)) {
         title_metadata['chapter'] = {};
