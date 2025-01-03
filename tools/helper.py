@@ -165,6 +165,19 @@ def get_title_id_by_chapter_id(id):
     res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'ch_id':id})
     return res['title_id']
 
+# index number of chapter of all volumes in the title
+def get_chapter_idx_by_chapter_id(cid):
+    title_id = get_title_id_by_chapter_id(cid)
+    res = database[BR_CHAPTER_LOOKUP_TABLE].aggregate(
+        [
+            { "$match" : {'title_id':title_id }},
+            { "$sort" : { 'vol_num':1, 'ch_num':1 }}
+        ]
+    ).to_list()
+    sorted_chapter_ids = [entry['ch_id'] for entry in res]
+    return sorted_chapter_ids.index(cid) + 1
+
+# index number of the chapter in its parent volume
 def get_chapter_number_by_chapter_id(id):
     res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'ch_id':id})
     return res['ch_num'] + 1
@@ -210,8 +223,8 @@ def get_title_id_by_volume_id(vol_id):
 def get_chapter_page_count(ch_id):
     title_id = get_title_id_by_chapter_id(ch_id)
     data = get_data_by_title_id(title_id)
+    chapter_number = get_chapter_idx_by_chapter_id(ch_id)
     if is_book(title_id):
-        chapter_number = get_chapter_number_by_chapter_id(ch_id)
         return data['jp_data']['virtual_chapter_page_count'][chapter_number-1]
     else:
         pages = data['jp_data']['ch_jp']
@@ -241,7 +254,7 @@ def get_data_by_title_id(id):
 
 def get_chapter_files_by_chapter_id(ch_id):
     title_id = get_title_id_by_chapter_id(ch_id)
-    chapter_number = get_chapter_number_by_chapter_id(ch_id)
+    chapter_number = get_chapter_idx_by_chapter_id(ch_id)
     data = get_data_by_title_id(title_id)
     pages = data['jp_data']['ch_jp']
     return pages[str(chapter_number)]

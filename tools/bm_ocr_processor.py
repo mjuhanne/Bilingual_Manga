@@ -252,28 +252,28 @@ def process_title_chapters(args, title_id, title_name, counter_str=''):
 
     for i, chapter_id in enumerate(chapters):
 
-        chapter_num = get_chapter_number_by_chapter_id(chapter_id)
+        chapter_idx = get_chapter_idx_by_chapter_id(chapter_id)
 
-        if args['chapter'] is not None and chapter_num != args['chapter']:
+        if args['chapter'] is not None and chapter_idx != args['chapter']:
             if args['verbose']:
-                print("Skipped chapter %d" % chapter_num )
+                print("Skipped chapter %d" % chapter_idx )
             continue
 
         if args['read']:
             if not is_chapter_read(chapter_id):
                 if args['verbose']:
-                    print("Skipped not read chapter %d" % chapter_num )
+                    print("Skipped not read chapter %d" % chapter_idx )
                 continue
 
         if args['first']:
-            if chapter_num != 1:
+            if chapter_idx != 1:
                 continue
 
         if i+1 < args['start_index']:
             continue
 
         print("[%s] (%d/%d) Scanning %s [%d : %s] "
-            % (counter_str, i+1, len(chapters), title_name, get_chapter_number_by_chapter_id(chapter_id), chapter_id),end='')
+            % (counter_str, i+1, len(chapters), title_name, get_chapter_idx_by_chapter_id(chapter_id), chapter_id),end='')
         chapter_data = process_chapter(args, title_id, title_name, chapter_id)
         if chapter_data is not None:
             processed_chapter_count += 1
@@ -375,7 +375,7 @@ def process_chapter_set(args, target_id, target_name, chapter_ids, analysis_dir,
 
         for chapter_id in chapter_ids:
             chapter_filename = chapter_analysis_dir + chapter_id + ".json"
-            chapter = get_chapter_number_by_chapter_id(chapter_id)
+            chapter = get_chapter_idx_by_chapter_id(chapter_id)
 
             if os.path.exists(chapter_filename):
                 o_f = open(chapter_filename,"r",encoding="utf-8")

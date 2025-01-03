@@ -551,7 +551,7 @@ def update(args):
             title_id = get_title_id_by_chapter_id(chapter_id)
             title_name = get_title_by_id(title_id)
             chapter_filename = chapter_analysis_dir + chapter_id + ".json"
-            chapter = get_chapter_number_by_chapter_id(chapter_id)
+            chapter = get_chapter_idx_by_chapter_id(chapter_id)
 
             print("[%s] Read %s [chapter %d]" % (datetime.datetime.fromtimestamp(timestamp), title_name, chapter))
 

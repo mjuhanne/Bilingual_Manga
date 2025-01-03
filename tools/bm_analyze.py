@@ -128,7 +128,7 @@ def get_next_unread_chapter(title_id):
     highest_read_chapter_id = None
     for chapter_id, _ in chapter_comprehension.items():
         if chapter_id in title_chapters:
-            chapter = get_chapter_number_by_chapter_id(chapter_id)
+            chapter = get_chapter_idx_by_chapter_id(chapter_id)
             if chapter > highest_read_chapter:
                 highest_read_chapter = chapter
                 highest_read_chapter_id = chapter_id
@@ -177,7 +177,7 @@ def analyze_next_unread_chapter(args, title_id, title_name):
             print(" * %s already read" % title_name)
         return None
 
-    chapter = get_chapter_number_by_chapter_id(chapter_id)
+    chapter = get_chapter_idx_by_chapter_id(chapter_id)
     chapter_filename = chapter_analysis_dir + chapter_id + ".json"
     chapter_analysis = do_analyze(chapter_filename, title_name, "chapter")
     if chapter_analysis is not None:
@@ -333,7 +333,7 @@ def suggest_preread(args):
             if target_chapter_id is None:
                 suggest_preread_data[target_selection] = {'success':False,'status':'All chapters read!'}
             else:
-                target_chapter = get_chapter_number_by_chapter_id(target_chapter_id)
+                target_chapter = get_chapter_idx_by_chapter_id(target_chapter_id)
                 index_chapter_filename = chapter_analysis_dir + target_chapter_id + ".json"
                 if os.path.exists(index_chapter_filename):
                     o_f = open(index_chapter_filename,"r",encoding="utf-8")
@@ -347,7 +347,7 @@ def suggest_preread(args):
         if target_chapter_id is None:
             suggest_preread_data[target_selection] = {'success':False,'status':'All chapters read!'}
         else:
-            target_chapter = get_chapter_number_by_chapter_id(target_chapter_id)
+            _target_chapter = get_chapter_idx_by_chapter_id(target_chapter_id)
             index_chapter_filename = chapter_analysis_dir + target_chapter_id + ".json"
             if os.path.exists(index_chapter_filename):
                 o_f = open(index_chapter_filename,"r",encoding="utf-8")
@@ -464,7 +464,7 @@ def suggest_preread(args):
                             print("Skipping %s because already read all chapters/volumes" % (title_name))
                         continue
                     # regard all manga chapters as volumes
-                    volume = str(get_chapter_number_by_chapter_id(chapter_id))
+                    volume = str(get_chapter_idx_by_chapter_id(chapter_id))
                     candidate_filename = chapter_analysis_dir + chapter_id + ".json"
                 num_volumes = 1
             else:
