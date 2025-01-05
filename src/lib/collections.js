@@ -278,8 +278,24 @@ export async function getAllValuesForMetadataField(field_name)
     return values
 }
 
-export function ConvertFilterToMatchQuery(match_query, filter, user_data)
+
+function getCollectionByFieldName(field_name) {
+    var collection = 'br_metadata' // default
+    if (field_name.indexOf('analysis.summary.')==0) {
+        collection = 'br_lang_summary'
+    } else if (field_name.indexOf('analysis.')==0) {
+        collection = 'br_custom_lang_analysis_summary'
+    } else if (field_name.indexOf('mangaupdates_data.')==0) {
+        collection = 'br_mangaupdates'
+    }
+    return collection;
+}
+
+export function ConvertFilterToMatchQuery(match_query_per_collection, filter, user_data)
 {
+    console.log("Filter : ",filter)
+    var collection = getCollectionByFieldName(filter.field)
+    var match_query = match_query_per_collection[collection];
     if (filter.type == 'boolean') {
         if (filter.field == 'favourite') {
             if (filter.op == '=') {
@@ -319,6 +335,7 @@ export function ConvertFilterToMatchQuery(match_query, filter, user_data)
     }
 }
 
+
 export async function getMetadataForTitles(user_id, sort_struct, filter_struct)
 {
     console.log("Filter: " + JSON.stringify(filter_struct))
@@ -331,64 +348,112 @@ export async function getMetadataForTitles(user_id, sort_struct, filter_struct)
 
     let user_data = await getUserData(user_id)
 
-    var match_query = {}
-    if (filter_struct.fixed_filter != {}) {
-        ConvertFilterToMatchQuery(match_query, filter_struct.fixed_filter, user_data)
+    // convert each filter to query and divide them among the collections
+    var match_query_per_collection = {'br_metadata':{}, 'br_mangaupdates':{}, 'br_custom_lang_analysis_summary':{}, 'br_lang_summary':{}}
+    if (Object.keys(filter_struct.fixed_filter).length > 0) {
+        ConvertFilterToMatchQuery(match_query_per_collection, filter_struct.fixed_filter, user_data)
     }
     for (let filter of filter_struct.filters) {
-        ConvertFilterToMatchQuery(match_query, filter, user_data)
+        ConvertFilterToMatchQuery(match_query_per_collection, filter, user_data)
     }
-    console.log("Match query: ",match_query)
+
+    console.log("Match query per collection: ",match_query_per_collection)
     var sort_query = {[sort_field]:reverse}
-    console.log(`Sorting: '${JSON.stringify(sort_query)}'`)
+    var sort_collection = getCollectionByFieldName(sort_field)
+    console.log(`Sort query: '${JSON.stringify(sort_query)}'`)
 
-    var aggregate = await db.collection("br_metadata").aggregate([
-        {
-            $lookup: { from:"br_mangaupdates", localField:"_id", foreignField:"_id", as:"mangaupdates_data"}
-        },
-        {
-            $unwind: { path:"$mangaupdates_data", preserveNullAndEmptyArrays:true }
-        },
-        {
-            $lookup: { from:"br_custom_lang_analysis_summary", localField:"_id", foreignField:"title_id", as:"analysis"}
-        },
-        {
-            $unwind: { path:"$analysis", preserveNullAndEmptyArrays:true }
-        },
-        {
-            $match: { "analysis.user_id":user_id }
-        },
-        {
-            $lookup: { from:"br_lang_summary", localField:"_id", foreignField:"_id", as:"analysis.summary"}
-        },
-        {
-            $unwind: { path:"$analysis.summary", preserveNullAndEmptyArrays:true }
-        },
-        {
-            $match: match_query
-        },
-        {
-            $sort: sort_query
-        },
-        {
-            $facet: {
-                count: [ { $count: "count" } ],
-                results: [
-                    {
-                        $skip: filter_struct.skip
-                    },
-                    {
-                        $limit: filter_struct.limit,
-                    },
-                    {
-                        $addFields: { "sort_value" : '$' + sort_field }
-                    }            
-                ]
+    /// The following is MongoDB optimization magic
+
+    const collection_order = ['br_metadata','br_mangaupdates','br_custom_lang_analysis_summary','br_lang_summary']
+    const collection_join_stages = {
+        'br_metadata' : [] ,
+        'br_mangaupdates' : [
+            {
+                $lookup: { from:"br_mangaupdates", localField:"_id", foreignField:"_id", as:"mangaupdates_data"}
+            },
+            {
+                $unwind: { path:"$mangaupdates_data", preserveNullAndEmptyArrays:true }
             }
+        ],
+        'br_custom_lang_analysis_summary' : [
+            {
+                $lookup: { from:"br_custom_lang_analysis_summary", localField:"_id", foreignField:"title_id", as:"analysis"}
+            },
+            {
+                $unwind: { path:"$analysis", preserveNullAndEmptyArrays:true }
+            },
+            {
+                $match: { "analysis.user_id":user_id }
+            }
+        ],
+        'br_lang_summary' : [
+            {
+                $lookup: { from:"br_lang_summary", localField:"_id", foreignField:"_id", as:"analysis.summary"}
+            },
+            {
+                $unwind: { path:"$analysis.summary", preserveNullAndEmptyArrays:true }
+            }
+        ]
+    }
+
+    var aggregate_stages = []
+    var joined_collections = [];
+
+    // First do filtering as early as possible and join collections only when needed
+    for (let collection of collection_order) {
+        if (Object.keys(match_query_per_collection[collection]).length>0) {
+            aggregate_stages = aggregate_stages.concat(collection_join_stages[collection])
+            aggregate_stages.push( {
+                $match: match_query_per_collection[collection]
+            })
+            joined_collections.push(collection)
         }
+    }
 
+    // then sort, adding the needed collection if needed
+    if (!joined_collections.includes(sort_collection)) {
+        aggregate_stages = aggregate_stages.concat(collection_join_stages[sort_collection])
+        joined_collections.push(sort_collection)
+    }
+    aggregate_stages.push( {
+        $sort: sort_query
+    })
 
-    ]).toArray();
+    // Bifurcate the pipeline:
+    // Pipeline 1. count the titles at this pipeline (before limiting in order to get the filtered title count)
+    // Pipeline 2.
+    // - do skip and limit (for page windowing)
+    // - add sorted value already at the database level
+    var second_pipeline_stages = [
+        {
+            $skip: filter_struct.skip
+        },
+        {
+            $limit: filter_struct.limit,
+        },
+        {
+            $addFields: { "sort_value" : '$' + sort_field }
+        }
+    ]
+    // - finally join the rest of the collections if needed
+    for (let coll of collection_order) {
+        if (!joined_collections.includes(coll)) {
+            second_pipeline_stages = second_pipeline_stages.concat(collection_join_stages[coll])
+        }
+    }
+
+    aggregate_stages.push({
+        $facet: {
+            count: [ { $count: "count" } ],
+            results: second_pipeline_stages
+        }
+    })
+
+    console.log("Aggregate query: ",aggregate_stages)
+    console.log("2nd phase aggregate query: ",second_pipeline_stages)
+
+    // Do the actual query
+    var aggregate = await db.collection("br_metadata").aggregate(aggregate_stages).toArray();
 
     var title_metadata = aggregate[0]['results']
     var filtered_count = 0;
@@ -415,9 +480,12 @@ export async function getMetadataForTitles(user_id, sort_struct, filter_struct)
     // Update categories
     AugmentMetadataWithMangaupdatesCategories(title_metadata)
 
-    let count_match_query = {}
-    ConvertFilterToMatchQuery(count_match_query, filter_struct.fixed_filter, user_data )
-    let title_count = await getTitleCount(count_match_query)
+    // Fetch the total title count after fixed filter (e.g. Author / Genre)
+    let count_match_query = {'br_metadata':{}}
+    if (Object.keys(filter_struct.fixed_filter).length>0) {
+        ConvertFilterToMatchQuery(count_match_query, filter_struct.fixed_filter, user_data )
+    }
+    let title_count = await getTitleCount(count_match_query['br_metadata'])
 
     return {'title_metadata':title_metadata, 'unfiltered_title_count':title_count, 'filtered_title_count':filtered_count}
 }

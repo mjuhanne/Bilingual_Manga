@@ -12,7 +12,7 @@ let common_sort_options = {
     'Release'       : { sc:false, field: 'Release',  type:'val', subheading_template:'Release _', rev:true },
     'Rating'        : { sc:false, field: 'mangaupdates_data.rating', type:'val', subheading_template:'Rating: _', rev:true },
     'Status'        : { sc:false, field: 'Status',   type:'str', subheading_template:'_', rev:false },
-    'Read status'   : { sc:false, field: 'reading_pct',   type:'val', subheading_template:'Read _ %', rev:true },
+    'Read status'   : { sc:false, field: 'analysis.reading_pct',   type:'val', subheading_template:'Read _ %', rev:true },
     'JLPT content'  : { sc:false, field: 'analysis.summary.total_statistics.jlpt_word_content_pct',  type:'val', subheading_template:'JLPT _ %', rev:true },
     'Advanced JLPT' : { sc:false, field: 'analysis.summary.total_statistics.advanced_jlpt_word_content_pct',   type:'val', subheading_template:'JLPT1 _ %', rev:true },
     'Intermediate JLPT (w)': { sc:false, field: 'analysis.summary.total_statistics.weighted_intermediate_jlpt_word_content_pts',   type:'val', subheading_template:'JLPT2-3 _', rev:true },

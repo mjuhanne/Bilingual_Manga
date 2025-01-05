@@ -570,12 +570,17 @@ def calculate_reading_completion_percentage(title_id):
     if len(all_chapters) == 0:
         return 0
 
-    read_chapters = []
+    total_pages = 0
+    read_pages = 0
     for ch in all_chapters:
+        ch_pages = get_chapter_page_count(ch)
+        total_pages += ch_pages
         if ch in chapter_comprehension.keys():
-            read_chapters.append(ch)
+            read_pages += ch_pages
 
-    return round(100*len(read_chapters)/len(all_chapters),1)
+    if total_pages == 0:
+        return 0
+    return round(100*read_pages/total_pages,1)
 
 
 
@@ -593,7 +598,7 @@ def analyze(args):
             old_analysis[an_type] = {an['title_id']:an for an in cursor}
 
     if not progress_output:
-        print("Analyzing comprehension")
+        print("Analyzing comprehension..")
     reset_progress()
 
     title_names = get_title_names()
@@ -608,15 +613,19 @@ def analyze(args):
 
     for i, (title_id, title_name) in enumerate(title_names.items()):
 
+        jp_title = get_jp_title_by_id(title_id)
         if progress_output:
             print_progress(i,title_count,"Analyzing")
 
-        if args['title'] is not None and args['title'].lower() not in title_name.lower() and args['title'] != title_id:
+        if args['title'] is not None and args['title'].lower() not in title_name.lower() and args['title'] != title_id and args['title'] not in jp_title:
             continue
 
         if args['read']:
             if not is_title_read(title_id):
                 continue
+
+        if args['title'] is not None:
+            print("Analyzing",title_name)
 
         d = dict()
         if is_book(title_id):
@@ -692,6 +701,8 @@ def analyze(args):
     if args['title'] is None:
         calculate_average_summary(custom_lang_analysis_metadata)
 
+    # try to create an index just in case it doesn't already exist
+    database[BR_CUSTOM_LANG_ANALYSIS_SUMMARY].create_index({'title_id':-1})
 
 
 #################### Read input files #################################

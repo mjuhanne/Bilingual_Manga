@@ -34,6 +34,7 @@ def get_info_from_epub_file_name(root_path,source_item):
 
     # if no regex matches, simply use the filename as title and volume name
     title = source_item[:-5]
+    title = title.replace('_',' ')
     return title, {'type':'epub','path':root_path,'volume_name':title,'filename':source_item, 'translator':''}
 
 

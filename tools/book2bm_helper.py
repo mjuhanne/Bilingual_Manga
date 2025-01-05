@@ -115,7 +115,8 @@ publisher_regex = [
     "(.*)\s*_+\(*(.*文庫)\)*",
     "(.*)\s*_+\(*(.*文庫)\)*",
     "(.*)_*【(.*文庫版*)】",
-    "(.*)\s*_+\(*(Kindle Single)\)*"
+    "(.*)\s*_+\(*(Kindle Single)\)*",
+    "(.*)\s*_*\((.*文庫.*)\)"
 ]
 
 def extract_publisher_from_title(title):

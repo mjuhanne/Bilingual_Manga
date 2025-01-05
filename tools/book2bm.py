@@ -609,7 +609,7 @@ def set_google_book_id(args):
 
 
 #TESTING
-args = {'command':'scan','keyword':None,'force':False,'collection':'PeepoHappyBooks2','source_dir':None,'automatic':True,'simulate':False,'verbose':True,'refresh_metadata':False,'skip_content':False, 'only_epub':False,'only_txt':False,'force_aggregate':False}
+#args = {'command':'scan','keyword':None,'force':False,'collection':'PeepoHappyBooks2','source_dir':None,'automatic':True,'simulate':False,'verbose':True,'refresh_metadata':False,'skip_content':False, 'only_epub':False,'only_txt':False,'force_aggregate':False}
 #args = {'command':'scan','keyword':'銀河鉄道の','force':True,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':False,'skip_content':False, 'only_epub':False,'only_txt':False}
 #args = {'command':'scan','keyword':'Musk','force':False,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':True,'skip_content':False, 'only_epub':False,'only_txt':False}
 #args = {'command':'set_en_vol','title_id':'66981f12534685524f9e373a','file':'/Users/markojuhanne/Documents/books/import/Murakami, Haruki (29 books)/Underground/Murakami, Haruki - Underground (Vintage, 2000).epub'}
