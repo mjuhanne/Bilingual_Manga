@@ -471,7 +471,10 @@ def get_chapters_from_txt_file(path, process_as_one_chapter):
 
     chapters = []
 
-    chapter_name = 'Heading'
+    if process_as_one_chapter:
+        chapter_name = 'All chapters'
+    else:
+        chapter_name = 'Heading'
     page_breaks = []
 
     for txt_line in txt_lines:
@@ -727,7 +730,7 @@ def get_publisher_from_txt_file(filepath):
                 return publisher
     return None
 
-def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, ask_confirmation_for_new_chapters, process_as_one_chapter ):
+def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, args ):
 
     lang_data_field = lang + '_data'
     ch_name_field = 'ch_na' + lang
@@ -735,10 +738,11 @@ def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, ask_con
     ch_lang_field = 'ch_' + lang
     vol_lang_field = 'vol_' + lang
     start_ch_idx = len(t_data[lang_data_field][ch_lang_h_field])
+    ask_confirmation_for_new_chapters = args['ask_confirmation_for_new_chapters']
 
     print("Process vol/book %s [%s]" % (vol_name,vol_id))
 
-    chapters = get_chapters_from_txt_file(filepath, process_as_one_chapter)
+    chapters = get_chapters_from_txt_file(filepath, args['combine_chapters'])
 
     if len(chapters) == 0:
         print("Title %s volume %s [%s] has no detected chapters!" % (title_id, vol_name, vol_id))
@@ -756,14 +760,18 @@ def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, ask_con
 
         ch_name = chapter['name']
 
-        ch_id = create_oid("%s/%s/%s/%s" % (title_id,lang,vol_id,ch_name), "chapter", ask_confirmation=ask_confirmation_for_new_chapters, title_id=title_id, vol_id=vol_id)
-        if ch_id is None:
-            print("Skipping chapter and subsequent chapters")
-            return -1
-        #ch_ipfs_path = target_ipfs_path + ch_id
-        t_data[lang_data_field][ch_name_field].append(ch_name)
-        t_data[lang_data_field][ch_lang_h_field].append(ch_id + '/%@rep@%')
-        t_data[lang_data_field][ch_lang_field][start_ch_idx+ch_idx+1] = ['pages.html']
+        if args['combine_chapters']:
+            ch_id = vol_id
+        else:
+            ch_id = create_oid("%s/%s/%s/%s" % (title_id,lang,vol_id,ch_name), "chapter", ask_confirmation=ask_confirmation_for_new_chapters, title_id=title_id, vol_id=vol_id)
+            if ch_id is None:
+                print("Skipping chapter and subsequent chapters")
+                return -1
+            
+        if not args['skip_content_import']:
+            t_data[lang_data_field][ch_name_field].append(ch_name)
+            t_data[lang_data_field][ch_lang_h_field].append(ch_id + '/%@rep@%')
+            t_data[lang_data_field][ch_lang_field][start_ch_idx+ch_idx+1] = ['pages.html']
         print("Chapter %s [%s]: %s " % (lang, ch_id, ch_name))
 
         add_chapter_lookup_entry(title_id, vol_id, vol_num, vol_name, ch_id, ch_idx, ch_name, lang)
@@ -805,10 +813,11 @@ def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, ask_con
                 print("\t\tWriting OCR file %s" % target_ocr_file_path)
                 ocr_dict['0'] = chapter_paragraphs
                 target_ocr_f = open(target_ocr_file_path,'w',encoding="UTF-8")
-                target_ocr_f.write(json.dumps(ocr_dict))
+                target_ocr_f.write(json.dumps(ocr_dict, ensure_ascii=False))
                 target_ocr_f.close()
 
-        save_chapter_pages(ch_id, chapter_pages)
+        if not args['skip_content_import']:
+            save_chapter_pages(ch_id, chapter_pages)
         total_num_characters += chapter['num_characters']
 
     print("** Total %d characters" % (total_num_characters))

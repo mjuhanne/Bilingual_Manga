@@ -165,12 +165,17 @@ def get_title_id_by_chapter_id(id):
     res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'ch_id':id})
     return res['title_id']
 
+def get_lang_by_chapter_id(id):
+    res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'ch_id':id})
+    return res['lang']
+
 # index number of chapter of all volumes in the title
 def get_chapter_idx_by_chapter_id(cid):
     title_id = get_title_id_by_chapter_id(cid)
+    lang  = get_lang_by_chapter_id(cid)
     res = database[BR_CHAPTER_LOOKUP_TABLE].aggregate(
         [
-            { "$match" : {'title_id':title_id }},
+            { "$match" : {'title_id':title_id, 'lang':lang }},
             { "$sort" : { 'vol_num':1, 'ch_num':1 }}
         ]
     ).to_list()
@@ -190,8 +195,11 @@ def get_chapters_by_title_id(id,lang=None):
     chapter_ids = [entry['ch_id'] for entry in res ]
     return chapter_ids
 
-def get_volumes_by_title_id(id):
-    res = database[BR_CHAPTER_LOOKUP_TABLE].find({'title_id':id},{'vol_id':True}).to_list()
+def get_volumes_by_title_id(id, lang=None):
+    if lang is None:
+        res = database[BR_CHAPTER_LOOKUP_TABLE].find({'title_id':id},{'vol_id':True}).to_list()
+    else:
+        res = database[BR_CHAPTER_LOOKUP_TABLE].find({'title_id':id,'lang':lang},{'vol_id':True}).to_list()
     volume_ids = set([entry['vol_id'] for entry in res ])
     return list(volume_ids)
 

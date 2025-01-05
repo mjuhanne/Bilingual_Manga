@@ -18,6 +18,7 @@ let common_sort_options = {
     'Intermediate JLPT (w)': { sc:false, field: 'analysis.summary.total_statistics.weighted_intermediate_jlpt_word_content_pts',   type:'val', subheading_template:'JLPT2-3 _', rev:true },
     'non-JLPT words/vol': { sc:false, field: 'analysis.summary.unique_statistics.num_non_jlpt_words_per_v',   type:'val', subheading_template:'non-JLPT w/v _', rev:false },
     'Volumes'       : { sc:false, field: 'analysis.summary.num_volumes',type:'val', subheading_template:'_ volumes', rev:true },
+    'Chapters'       : { sc:false, field: 'analysis.summary.num_chapters',type:'val', subheading_template:'_ chapters', rev:true },
     'Pages'         : { sc:false, field: 'analysis.summary.num_pages',     type:'val', subheading_template:'_ pages', rev:true },
     'Total words'   : { sc:false, field: 'analysis.summary.num_words',     type:'val', subheading_template:'_ words', rev:true },
     'Words/page'    : { sc:false, field: 'analysis.summary.total_statistics.w_per_p',       type:'val', subheading_template:'_ words/page', rev:true },

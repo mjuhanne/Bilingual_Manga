@@ -53,10 +53,8 @@
         for (let filter of user_filter_list) {
             if (filter.en) {
                 let filter_field = available_filters[filter.f].field
-                if ('sc' in filter) {
-                    if (filter.sc != '') {
-                        filter_field = resolveScopeFieldName(filter_field, filter.sc)
-                    }
+                if (available_filters[filter.f].sc) {
+                    filter_field = resolveScopeFieldName(filter_field, filter.sc)
                 }
                 filters.push({'field':filter_field,'op':filter.op,'value':filter.v,'type':available_filters[filter.f].type});
             }

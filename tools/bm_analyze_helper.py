@@ -81,11 +81,8 @@ def read_dataset(data_set, item_type, learning_dataset, retain_changes=False,
     for i, (wid, freq) in enumerate(title_data_list):
 
         if item_type == 'words':
-            class_list = data_set['word_class_list'][i]
-            if learning_settings['omit_particles'] and jmdict_particle_class in class_list:
+            if learning_settings['omit_particles'] and wid in particles:
                 continue
-        else:
-            class_list = None
 
         if wid in known_dataset:
             l_freq = known_dataset[wid]['lf'] # learning phase occurrence
@@ -106,7 +103,7 @@ def read_dataset(data_set, item_type, learning_dataset, retain_changes=False,
             # this is a word/kanji not (fully) known after started reading..
             if learning_settings['automatic_learning_enabled']:
                 l_freq = l_freq + freq
-                l_stage = get_stage_by_frequency_and_class(item_type, l_freq, class_list)
+                l_stage = get_stage_by_frequency_and_class(item_type, l_freq, False)
                 if l_stage < old_stage:
                     # don't downgrade stage just by frequency
                     l_stage = old_stage
@@ -203,8 +200,7 @@ def read_sentences(data_set, learning_dataset, results, save_showstopper_words=F
         for ref in sentence:
             wid = data_set['word_id_list'][ref]
 
-            class_list = data_set['word_class_list'][ref]
-            if learning_settings['omit_particles'] and jmdict_particle_class in class_list:
+            if learning_settings['omit_particles'] and wid in particles:
                 continue
 
             if wid in known_dataset:
@@ -229,7 +225,7 @@ def read_sentences(data_set, learning_dataset, results, save_showstopper_words=F
 
                     if learning_settings['automatic_learning_enabled']:
                         l_freq = l_freq + unknown_word_occurrences[wid]
-                        l_stage = get_stage_by_frequency_and_class('words', l_freq, class_list)
+                        l_stage = get_stage_by_frequency_and_class('words', l_freq, False)
                         if l_stage < old_stage:
                             # don't downgrade stage just by frequency
                             l_stage = old_stage
@@ -426,11 +422,7 @@ def fetch_known_jlpt_levels(data, calc, total):
         calc['kanjis']['jlpt_unknown_list'] = list(unknown_jlpt_kanji_set)
         calc['kanjis']['non_jlpt_unknown_list'] = list(unknown_non_jlpt_kanji_set)
 
-def load_and_analyze_dataset(file_name):
-    o_f = open(file_name,"r",encoding="utf-8")
-    data_set = json.loads(o_f.read())
-    o_f.close()
-
+def analyze_dataset(data_set):
     analysis = dict()
     analysis['total_statistics'] = dict()
     analysis['unique_statistics'] = dict()

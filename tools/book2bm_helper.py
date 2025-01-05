@@ -111,27 +111,27 @@ def cleanhtml(raw_html):
   cleantext = re.sub(CLEANR, '', raw_html)
   return cleantext
 
-
-publisher_list = ['角川書店','角川文庫','徳間文庫','角川ホラー文庫',
-    '電撃文庫','PHP文芸文庫','講談社青い鳥文庫','Kindle Single',
-    '角川スニーカー文庫','アオシマ書店','文春文庫','河出文庫','新潮文庫','講談社文庫',
-    'ハヤカワ文庫SF']
+publisher_regex = [
+    "(.*)\s*_+\(*(.*文庫)\)*",
+    "(.*)\s*_+\(*(.*文庫)\)*",
+    "(.*)_*【(.*文庫版*)】",
+    "(.*)\s*_+\(*(Kindle Single)\)*"
+]
 
 def extract_publisher_from_title(title):
         
     # if possible, extract publisher from the title
-
     publisher = None
     clean_title = title
-    for pub in publisher_list:
-        pub_str = '(%s)' % pub
-        if pub_str in clean_title:
-            clean_title = clean_title.split(pub_str)[0]
-            publisher = pub
-    if ']' in clean_title:
-        clean_title = title.split(']')[1]
-    clean_title = clean_title.replace('_',' ')
-    clean_title = clean_title.strip()
+
+    for regex in publisher_regex:
+        res = re.search(regex,clean_title)
+        if res is not None:
+            gr = res.groups()
+            clean_title = gr[0]
+            publisher = gr[1]
+            return clean_title, publisher
+        
     return clean_title, publisher
 
 def copy_file(src, target_path, target_file):

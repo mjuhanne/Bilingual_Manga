@@ -286,7 +286,7 @@ def check_chapters(args):
             load_manga_specific_adjustments(title_name)
 
             i += 1
-            chapters = get_chapters_by_title_id(title_id)
+            chapters = get_chapters_by_title_id(title_id,lang='jp')
 
             mismatch_last_chapter = False
 

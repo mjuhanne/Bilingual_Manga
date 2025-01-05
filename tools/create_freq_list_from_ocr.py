@@ -75,7 +75,7 @@ def process_chapters():
     for title_id, title_name in title_names.items():
 
         i += 1
-        chapters = get_chapters_by_title_id(title_id)
+        chapters = get_chapters_by_title_id(title_id,lang='jp')
 
         for chapter_id in chapters:
 

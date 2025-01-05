@@ -10,6 +10,7 @@ import datetime
 from helper import *
 from bm_learning_engine_helper import *
 from jmdict_mongo import *
+from jmdict import particles
 
 # Full history is just for debugging because the resulting data set becomes quickly too large.
 # Instead we keep history only for those events when the learning stage changes
@@ -288,14 +289,14 @@ def update_item_stage(item_type, item, stage, timestamp, metadata ):
                     print(' - ' + item_str + ' Passing through during forgotten stage')
 
 
-def update_item_stage_by_frequency_and_class(item_type, item, freq, adjusted_freq, class_list, timestamp, metadata ):
+def update_item_stage_by_frequency_and_class(item_type, item, freq, adjusted_freq, is_particle, timestamp, metadata ):
     if item in lifetime_freq[item_type]:
         lifetime_freq[item_type][item] += freq
         learning_freq[item_type][item] += adjusted_freq
     else:
         lifetime_freq[item_type][item] = freq
         learning_freq[item_type][item] = adjusted_freq
-    stage = get_stage_by_frequency_and_class(item_type, learning_freq[item_type][item], class_list)
+    stage = get_stage_by_frequency_and_class(item_type, learning_freq[item_type][item], is_particle)
     update_item_stage(item_type, item, stage, timestamp, metadata)
 
 def do_get_items(item_type, history_set,stage,source,target_item):
@@ -568,18 +569,19 @@ def update(args):
                 learning_data['num_pages'] += chapter_data['num_pages']
 
                 for word_id, freq, classes in \
-                    zip(chapter_data['word_id_list'], chapter_data['word_frequency'], chapter_data['word_class_list']):
+                    zip(chapter_data['word_id_list'], chapter_data['word_frequency']):
                     sw = word_id.split(':')
                     seq = sw[0]
                     word = sw[1]
+                    is_particle = word_id in particles
                     if trace_items is None or word in trace_items or seq in trace_items:
                         adjusted_freq = adjust_and_cap_frequency(freq, comprehension)
-                        update_item_stage_by_frequency_and_class('words',word_id,freq,adjusted_freq,classes, timestamp,word_metadata)
+                        update_item_stage_by_frequency_and_class('words',word_id,freq,adjusted_freq, is_particle, timestamp,word_metadata)
 
                 for k, freq in chapter_data['kanji_frequency'].items():
                     if trace_items is None or k in trace_items:
                         adjusted_freq = adjust_and_cap_frequency(freq, comprehension)
-                        update_item_stage_by_frequency_and_class('kanjis',k,freq,adjusted_freq,[], timestamp,word_metadata)
+                        update_item_stage_by_frequency_and_class('kanjis',k,freq,adjusted_freq, is_particle, timestamp,word_metadata)
 
             else:
                 print("Warning! Missing frequency data for %s chapter %d [%s]" % (title_name, chapter, chapter_filename), file=sys.stderr)

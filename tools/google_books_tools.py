@@ -16,6 +16,7 @@ from br_mongo import *
 from helper import get_metadata_by_title_id, get_jp_title_names, get_jp_title_by_id, get_authors, get_publisher, get_data_by_title_id, is_book, get_title_id
 
 QUOTA_EXCEEDED = "quota_exceeded"
+NOT_FOUND = "not_found"
 quota_exceeded_timeout_counter = -1
 
 base_dir = "./"
@@ -26,7 +27,7 @@ headers = {'Content-Type': 'application/json'}
 
 def get_google_books_entry(title_id):
     entry = database[BR_GOOGLE_BOOKS].find_one({'_id':title_id})
-    if entry is not None and entry['google_book_id'] == QUOTA_EXCEEDED:
+    if entry is not None and (entry['google_book_id'] == QUOTA_EXCEEDED or entry['google_book_id'] == NOT_FOUND):
         return None
     return entry
 
@@ -77,6 +78,16 @@ def search_records_and_select_one(title_id, search_metadata, index, manual_confi
         quota_exceeded_timeout_counter -= 1
         return None
 
+    tried_metadata = []
+    entry = database[BR_GOOGLE_BOOKS].find_one({'_id':title_id})
+    if entry is not None and entry['google_book_id'] == NOT_FOUND:
+        tried_metadata = entry['tried_metadata']
+        for metadata in entry['tried_metadata']:
+            if metadata == search_metadata:
+                # search has already failed with this metadata
+                return None
+    tried_metadata.append(search_metadata)
+
     keyword = search_metadata['title']
     author = search_metadata.get('author')
     translator = search_metadata.get('translator')
@@ -87,6 +98,7 @@ def search_records_and_select_one(title_id, search_metadata, index, manual_confi
     keyword_candidates.update([keyword])
     keyword_candidates.update([keyword.replace('ッ','')])
     keyword_candidates.update([keyword.replace(' ','')])
+    keyword_candidates.update([keyword.replace('_','')])
 
     url = search_url + keyword
     if author is not None:
@@ -117,6 +129,7 @@ def search_records_and_select_one(title_id, search_metadata, index, manual_confi
                         title_candidates.update([title])
                         title_candidates.update([title.replace('（上）','')])
                         title_candidates.update([title.replace('(上)','')])
+                        title_candidates.update([title.replace(' ','')])
                     found = False
                     for keyword_candidate in keyword_candidates:
                         for title_candidate in title_candidates:
@@ -185,6 +198,8 @@ def search_records_and_select_one(title_id, search_metadata, index, manual_confi
     else:
         print("Unknown response %s" % str(r))
 
+    j = {'google_book_id' : NOT_FOUND, 'tried_metadata':tried_metadata}
+    database[BR_GOOGLE_BOOKS].update_one({'_id':title_id},{'$set':j},upsert=True)
     print("\t",get_jp_title_by_id(title_id) + " with keyword " + keyword+ " not found")
     return None
 
@@ -202,10 +217,14 @@ def translate_metadata(j):
     title = clean_google_books_title(title)
 
     j['en_title_deepl'] = deepl_translate(title)
-    j['en_synopsis_deepl'] = deepl_translate(j['volumeInfo']['description'])
+    if 'description' in j['volumeInfo']:
+        j['en_synopsis_deepl'] = deepl_translate(j['volumeInfo']['description'])
+    else:
+        j['en_synopsis_deepl'] = 'NA'
     j['en_authors_deepl'] = []
-    for jp_author in j['volumeInfo']['authors']:
-        j['en_authors_deepl'].append(deepl_translate(jp_author))
+    if 'authors' in j['volumeInfo']:
+        for jp_author in j['volumeInfo']['authors']:
+            j['en_authors_deepl'].append(deepl_translate(jp_author))
 
 
 def save_record(title_id,j):
@@ -308,11 +327,9 @@ def match_googleid(args):
         print("Error:", response.reason)
         return None
     j = response.json()
-    if 'authors' in j['volumeInfo']:
-        return save_record(title_id,j)
-    else:
-        print("Ignoring... No description or author in volumeInfo: ",j['volumeInfo'])
-        return None
+    if 'authors' not in j['volumeInfo']:
+        print("Warning! No author included in response!")
+    return save_record(title_id,j)
 
 
 def is_title_ignored_for_google_books(title_id):

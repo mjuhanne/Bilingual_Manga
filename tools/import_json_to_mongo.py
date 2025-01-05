@@ -28,7 +28,7 @@ def import_settings_from_metadata(metadata):
     del(metadata['manga_titles'])
     database[BR_SETTINGS].update_one({'_id':id},{'$set':metadata},upsert=True)
 
-def import_metadata(titles, from_bilingualmanga_org):
+def import_metadata(titles, collection):
     for entry in titles:
         id = entry['enid']
         entry['_id'] = id
@@ -36,8 +36,10 @@ def import_metadata(titles, from_bilingualmanga_org):
             entry['enslug'] = unquote(entry['enslug'])
         if 'jpslug' in entry:
             entry['jpslug'] = unquote(entry['jpslug'])
-        entry['from_bilingualmanga_org'] = from_bilingualmanga_org
-        if from_bilingualmanga_org:
+        entry['collection'] = collection
+        entry['created_timestamp'] = int(time.time())
+        entry['updated_timestamp'] = int(time.time())
+        if collection == "bm":
             entry['is_book'] = False
         else:
             if 'is_book' not in entry:
@@ -47,13 +49,13 @@ def import_metadata(titles, from_bilingualmanga_org):
 with open(ext_manga_metadata_file__deprecated,"r",encoding="utf-8") as f:
     data = f.read()
     titles = json.loads(data)
-    import_metadata(titles, False)
+    import_metadata(titles, "User")
 
 with open(manga_metadata_file__deprecated,"r",encoding="utf-8") as f:
     data = f.read()
     metadata = json.loads(data)
     titles = metadata[0]['manga_titles']
-    import_metadata(titles, True)
+    import_metadata(titles, "bm")
     import_settings_from_metadata(metadata[0])
 
 ############## data
@@ -78,6 +80,7 @@ for entry in _manga_data:
     id = entry['_id']['$oid']
 
     entry['_id'] = id
+    entry['updated_timestamp'] = int(time.time())
     database[BR_DATA].update_one({'_id':id},{'$set':entry},upsert=True)
 
 ############ mangaupdates

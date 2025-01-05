@@ -50,6 +50,8 @@ processed_title_count = 0
 
 processed_titles = set()
 
+save_word_classes = False
+
 def do_process_chapter(title_id, chapter_id, f_p, fo_p, chapter_data):
 
     k_c = 0
@@ -164,7 +166,8 @@ def do_process_chapter(title_id, chapter_id, f_p, fo_p, chapter_data):
     chapter_data['word_frequency'] = unique_words_frequency
     chapter_data['kanji_frequency'] = sorted_kanji_count
     chapter_data['word_id_list'] = unique_words_list
-    chapter_data['word_class_list'] = unique_words_classes
+    if save_word_classes:
+        chapter_data['word_class_list'] = unique_words_classes
     chapter_data['word_count_per_class'] = results['word_count_per_unidict_class']
     chapter_data['sentence_list'] = adjusted_sentence_list
     chapter_data['parser_version'] = get_version(LANUGAGE_PARSER_VERSION)
@@ -196,7 +199,7 @@ def is_file_up_to_date(filename, version, parser_version):
     return False
 
 
-def process_chapter(args, title_id, title_name, chapter_id):
+def process_chapter(args, title_id, title_name, chapter_id, info_str = ''):
     input_ocr_file = ocr_dir + str(chapter_id) + '.json'
 
     chapter_data = dict()
@@ -204,18 +207,24 @@ def process_chapter(args, title_id, title_name, chapter_id):
     chapter_data['chapter'] = get_chapter_number_by_chapter_id(chapter_id)
     chapter_data['num_pages'] =  get_chapter_page_count(chapter_id)
 
-    target_freq_filename = chapter_analysis_dir + chapter_id + ".json"
+    target_analysis_filename = chapter_analysis_dir + chapter_id + ".json"
     parsed_ocr_filename = parsed_ocr_dir + chapter_id + ".json"
 
     if os.path.exists(input_ocr_file):
-        
+
+        if args['only_new']:
+            if os.path.exists(target_analysis_filename):
+                return None
+
         if not args['force']:
-            if is_file_up_to_date(target_freq_filename, get_version(OCR_SUMMARY_VERSION), get_version(LANUGAGE_PARSER_VERSION)) and \
+            if is_file_up_to_date(target_analysis_filename, get_version(OCR_SUMMARY_VERSION), get_version(LANUGAGE_PARSER_VERSION)) and \
                 is_file_up_to_date(parsed_ocr_filename, get_version(PARSED_OCR_VERSION), get_version(LANUGAGE_PARSER_VERSION)):
                     #print("[%d/%d] Skipping %s [chapter %d]" % (i, i_c, chapter_data['title'],chapter_data['chapter']))
                     print(".",end='',flush=True)
                     return None
+            
 
+        print(info_str,end='')
         #try:
 
         c_c, w_c, k_c, skipped_c = do_process_chapter(title_id, chapter_id, input_ocr_file, parsed_ocr_filename, chapter_data)
@@ -230,7 +239,7 @@ def process_chapter(args, title_id, title_name, chapter_id):
 
         chapter_data['version'] = get_version(OCR_SUMMARY_VERSION)
 
-        o_f = open(target_freq_filename,"w",encoding="utf-8")
+        o_f = open(target_analysis_filename,"w",encoding="utf-8")
         json_data = json.dumps(chapter_data,  ensure_ascii = False)
         o_f.write(json_data)
         o_f.close()
@@ -247,7 +256,7 @@ def process_title_chapters(args, title_id, title_name, counter_str=''):
 
     load_manga_specific_adjustments(title_name)
 
-    chapters = get_chapters_by_title_id(title_id)
+    chapters = get_chapters_by_title_id(title_id, lang='jp')
     title_name = get_title_by_id(title_id)
 
     for i, chapter_id in enumerate(chapters):
@@ -272,34 +281,39 @@ def process_title_chapters(args, title_id, title_name, counter_str=''):
         if i+1 < args['start_index']:
             continue
 
-        print("[%s] (%d/%d) Scanning %s [%d : %s] "
-            % (counter_str, i+1, len(chapters), title_name, get_chapter_idx_by_chapter_id(chapter_id), chapter_id),end='')
-        chapter_data = process_chapter(args, title_id, title_name, chapter_id)
+        info_str = "[%s] (%d/%d) Scanning %s [%d : %s] " % (counter_str, i+1, len(chapters), title_name, get_chapter_idx_by_chapter_id(chapter_id), chapter_id)
+        chapter_data = process_chapter(args, title_id, title_name, chapter_id, info_str)
         if chapter_data is not None:
             processed_chapter_count += 1
             processed_titles.update([title_id])
+    return processed_chapter_count
 
 
 
 def do_process_title(args, title_id, title_name, counter_str=''):
     global processed_title_count
 
-    process_title_chapters(args, title_id, title_name, counter_str)
+    processed_chapter_count = process_title_chapters(args, title_id, title_name, counter_str)
 
     # aggregate data for the whole title
-    chapter_ids = get_chapters_by_title_id(title_id)
-    if process_chapter_set(args, title_id, title_name, chapter_ids, title_analysis_dir, counter_str):
-        processed_title_count += 1
-
-    volume_ids = get_volumes_by_title_id(title_id)
-    if len(volume_ids)>0:
-        for vol_id in volume_ids:
-            # Aggregate data for the each volume
-            # Applicable only for books. For mangas each chapter is considered as volume 
-            # and handled already above
-            chapter_ids = get_chapters_by_volume_id(vol_id)
+    #if processed_chapter_count > 0:
+    volume_ids = get_volumes_by_title_id(title_id, lang='jp')
+    for vol_id in volume_ids:
+        # Aggregate data for the each volume
+        # Applicable only for books. For mangas each chapter is considered as volume 
+        # and handled already below
+        chapter_ids = get_chapters_by_volume_id(vol_id)
+        if len(chapter_ids)>1:
             vol_name = title_name + ' - ' + get_volume_name(vol_id)
             process_chapter_set(args, vol_id, vol_name ,chapter_ids, volume_analysis_dir, counter_str)
+
+    if not is_book(title_id) or len(volume_ids) > 1:
+            # it's a manga (each chapter is a volume) or there are more than 1 volume
+            chapter_ids = get_chapters_by_title_id(title_id)
+            if len(chapter_ids) > 1:
+                if process_chapter_set(args, title_id, title_name, chapter_ids, title_analysis_dir, counter_str):
+                    processed_title_count += 1
+
         
 
 def process_titles(args):
@@ -360,7 +374,7 @@ def process_chapter_set(args, target_id, target_name, chapter_ids, analysis_dir,
 
     output_filename = analysis_dir + target_id + ".json"
 
-    if not args['force'] and target_id not in processed_titles and is_file_up_to_date(output_filename, get_version(OCR_SUMMARY_VERSION), get_version(LANUGAGE_PARSER_VERSION)):
+    if not args['force'] and not args['force_aggregate'] and target_id not in processed_titles and is_file_up_to_date(output_filename, get_version(OCR_SUMMARY_VERSION), get_version(LANUGAGE_PARSER_VERSION)):
         print("Skipping %s [%s] with %d chapters" % (target_name, target_id, len(chapter_ids)))
         return False
     else:
@@ -401,15 +415,17 @@ def process_chapter_set(args, target_id, target_name, chapter_ids, analysis_dir,
 
                 chd = chapter_data
 
-                for i, (word_id, freq, classes) in enumerate(
-                        zip(chd['word_id_list'], chd['word_frequency'], chd['word_class_list'])):
+                for i, (word_id, freq) in enumerate(
+                        zip(chd['word_id_list'], chd['word_frequency'])):
                     try:
                         idx = word_id_list.index(word_id)
                         word_freq[idx] += freq
                     except:
                         word_id_list.append(word_id)
                         word_freq.append(freq)
-                        word_classes.append(classes)
+                        if save_word_classes:
+                            classes = chd['word_class_list'][i]
+                            word_classes.append(classes)
 
                 # for each sentence convert word id reference from 
                 # local (chapter) to global (title) reference
@@ -437,7 +453,8 @@ def process_chapter_set(args, target_id, target_name, chapter_ids, analysis_dir,
 
         title_data['word_frequency'] = word_freq
         title_data['word_id_list'] = word_id_list
-        title_data['word_class_list'] = word_classes
+        if save_word_classes:
+            title_data['word_class_list'] = word_classes
         title_data['sentence_list'] = sentence_list
         title_data['word_count_per_class'] = total_word_count_per_class
 
@@ -462,11 +479,13 @@ if __name__ == '__main__':
 
     #parser.add_parser('analyze', help='Do comprehension analysis per title')
     parser.add_argument('--force', '-f', action='store_true', help='Force reprocessing')
+    parser.add_argument('--force-aggregate', '-fa', action='store_true', help='Force aggregating data at title/volume level')
     parser.add_argument('--first', '-1', action='store_true', help='Process only first chapter per title')
     parser.add_argument('--read', '-r', action='store_true', help='Process only read chapters')
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose')
     parser.add_argument('--start-index', '-si', nargs='?', type=int, default=1, help='Start from the selected title index')
     parser.add_argument('--chapter', '-ch',  nargs='?', type=int, default=None, help='Chapter')
+    parser.add_argument('--only_new', '-on', action='store_true', help='Process only new chapters')
     parser.add_argument('--book', '-b',  action='store_true', help='Parse books only')
     parser.add_argument('keyword', nargs='?', type=str, default=None, help='Title has to (partially) match the keyword in order to processed')
     parser.add_argument('--author', '-a',  nargs='?', type=str, default=None, help='Author')
@@ -475,8 +494,10 @@ if __name__ == '__main__':
 
     #args['force'] = True
     #args['book'] = True
-    #args['keyword'] = '6771037ea3a9c292bfff1ee9'
+    args['keyword'] = '677942b686ef7e7864952ce0'
+    #args['force-aggregate'] = True
     #args['chapter'] = 12
+    #args['only_new'] = True
 
     if not os.path.exists(title_analysis_dir):
         os.mkdir(title_analysis_dir)

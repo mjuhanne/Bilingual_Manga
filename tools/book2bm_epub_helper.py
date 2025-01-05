@@ -110,13 +110,13 @@ def get_language_from_epub(book):
     if len(lang_item) == 0:
         raise Exception("No language!")
     lang, _ = lang_item[0]
-    if lang == 'ja':
+    if lang == 'ja' or lang == 'ja-JP':
         lang = 'jp'
     return lang
 
 def get_metadata_from_epub(t_metadata, t_data, lang, book, title):
     desc_meta = book.get_metadata('DC', 'description')
-    if len(desc_meta)>0:
+    if desc_meta is not None and len(desc_meta)>0:
         desc,_ = desc_meta[0]
         t_data['syn_'+lang] = desc
 
@@ -125,12 +125,13 @@ def get_metadata_from_epub(t_metadata, t_data, lang, book, title):
     if t_metadata[lang + 'tit'] == PLACEHOLDER:
         t_metadata[lang + 'tit'] = clean_title
     creator, _ = book.get_metadata('DC', 'creator')[0]
-    creator2 = creator.replace(' ','')
-    if creator not in t_metadata['Author'] and creator2 not in t_metadata['Author']:
-        if t_metadata['Author'] == [PLACEHOLDER]:
-            t_metadata['Author'] = [creator]
-        else:
-            t_metadata['Author'].append(creator)
+    if creator is not None:
+        creator2 = creator.replace(' ','')
+        if creator not in t_metadata['Author'] and creator2 not in t_metadata['Author']:
+            if t_metadata['Author'] == [PLACEHOLDER]:
+                t_metadata['Author'] = [creator]
+            else:
+                t_metadata['Author'].append(creator)
 
     if lang == 'jp':
         if t_metadata['Release'] == PLACEHOLDER:
@@ -153,7 +154,16 @@ def get_metadata_from_epub(t_metadata, t_data, lang, book, title):
     return vol_title
 
 
-def get_chapters_from_epub(book, verbose=False):
+def get_chapters_from_epub(book, verbose, combine_chapters):
+
+    if combine_chapters:
+        # just bunch all the content together
+        item_list = []
+        for (item_id, _) in book.spine:
+            item = book.get_item_with_id(item_id)
+            item_list.append({'item':item,'content':item.content,'start_id':None,'next_ch_start_id':None})
+        return ["All chapters"], [item_list]
+
     # There are two scenarios how chapters are constructed:
     #
     # 1) Each chapter can consist of many items (each is a single html) which are then combined
@@ -166,7 +176,7 @@ def get_chapters_from_epub(book, verbose=False):
     # Note that the html tag id is different from item id
     chapter_titles = []
     item_list_per_chapter = []
-    last_item_id = None
+
     for toc_item in book.toc:
 
         if not isinstance(toc_item, ebooklib.epub.Link):
@@ -323,7 +333,7 @@ def extract_paragraphs_recursively(soup, element, paragraphs):
                 el_idx -= 1
                 p.append(elem)
         else:
-            if elem.name == 'div':
+            if elem.name == 'div' or elem.name == 'article' or elem.name == 'section':
                 extract_paragraphs_recursively(soup, elem, paragraphs)
             elif elem.name == 'p':
                 paragraphs.append(elem)
@@ -347,13 +357,15 @@ def extract_paragraphs_recursively(soup, element, paragraphs):
     pass
 
 
-def process_epub(t_data, title_id, book, lang, vol_id, vol_name, verbose, ask_confirmation_for_new_chapters):
+def process_epub(t_data, title_id, book, lang, vol_id, vol_name, args):
 
     lang_data_field = lang + '_data'
     ch_name_field = 'ch_na' + lang
     ch_lang_h_field = 'ch_' + lang + 'h'
     ch_lang_field = 'ch_' + lang
     vol_lang_field = 'vol_' + lang
+    verbose = args['verbose']
+    ask_confirmation_for_new_chapters = args['ask_confirmation_for_new_chapters']
 
     start_ch_idx = len(t_data[lang_data_field][ch_lang_h_field])
     print("Process vol/book %s [%s]" % (vol_name,vol_id))
@@ -363,7 +375,7 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, verbose, ask_co
         if item.get_type() == ebooklib.ITEM_DOCUMENT:
             items.append(item)
 
-    chapter_titles, item_list_per_chapter = get_chapters_from_epub(book,verbose)
+    chapter_titles, item_list_per_chapter = get_chapters_from_epub(book,verbose, args['combine_chapters'])
 
     if len(chapter_titles) == 0:
         print("Title %s volume %s [%s] has no detected chapters!" % (title_id, vol_name, vol_id))
@@ -382,16 +394,22 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, verbose, ask_co
 
     for ch_idx, (ch_name, chapter_items) in enumerate(zip(chapter_titles, item_list_per_chapter)):
 
-        ch_id = create_oid("%s/%s/%s/%s" % (title_id,lang,vol_id,ch_name), "chapter", ask_confirmation=ask_confirmation_for_new_chapters, title_id=title_id, vol_id=vol_id)
-        if ch_id is None:
-            print("Skipping chapter and subsequent chapters")
-            return -1
-        t_data[lang_data_field][ch_name_field].append(ch_name)
-        t_data[lang_data_field][ch_lang_h_field].append(ch_id + '/%@rep@%')
-        t_data[lang_data_field][ch_lang_field][start_ch_idx+ch_idx+1] = ['pages.html']
+        if args['combine_chapters']:
+            ch_id = vol_id
+        else:
+            ch_id = create_oid("%s/%s/%s/%s" % (title_id,lang,vol_id,ch_name), "chapter", ask_confirmation=ask_confirmation_for_new_chapters, title_id=title_id, vol_id=vol_id)
+            if ch_id is None:
+                print("Skipping chapter and subsequent chapters")
+                return -1
+            
+        if not args['skip_content_import']:
+            t_data[lang_data_field][ch_name_field].append(ch_name)
+            t_data[lang_data_field][ch_lang_h_field].append(ch_id + '/%@rep@%')
+            t_data[lang_data_field][ch_lang_field][start_ch_idx+ch_idx+1] = ['pages.html']
         print("Chapter %s [%s]: %s " % (lang, ch_id, ch_name))
 
-        add_chapter_lookup_entry(title_id, vol_id, vol_num, vol_name, ch_id, ch_idx, ch_name, lang)
+        if not 'simulate' in args or not args['simulate']:
+            add_chapter_lookup_entry(title_id, vol_id, vol_num, vol_name, ch_id, ch_idx, ch_name, lang)
 
         ocr_dict = dict()
         chapter_paragraphs = []
@@ -543,33 +561,34 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, verbose, ask_co
                         num_words += len(p.text.split(' '))
                         chapter_paragraphs.append([p.text])
 
-            svgs = soup.find_all('svg')
-            for svg in svgs:
-                for img in svg.find_all('image'):
-                    if img.has_attr('xlink:href'):
-                        svg_path = img['xlink:href']
-                        if '/' in svg_path:
-                            # get only the file name
-                            svg_name = svg_path.split('/')[-1]
-                        else:
-                            svg_name = svg_path
-                        img['xlink:href'] = '%@ipfs_cid@%/' + svg_name
-                        save_image_from_epub(ch_id, book, svg_name)
+            if not args['skip_content_import']:
+                svgs = soup.find_all('svg')
+                for svg in svgs:
+                    for img in svg.find_all('image'):
+                        if img.has_attr('xlink:href'):
+                            svg_path = img['xlink:href']
+                            if '/' in svg_path:
+                                # get only the file name
+                                svg_name = svg_path.split('/')[-1]
+                            else:
+                                svg_name = svg_path
+                            img['xlink:href'] = '%@ipfs_cid@%/' + svg_name
+                            save_image_from_epub(ch_id, book, svg_name)
 
-            # modify img links
-            images = soup.find_all('img')
-            for img in images:
-                src = img['src']
-                if '/' in src:
-                    img_name = src.split('/')[-1]
-                else:
-                    img_name = src
-                img['src'] = '%@ipfs_cid@%/' + img_name
-                img['style'] = '%@img_style@%'
+                # modify img links
+                images = soup.find_all('img')
+                for img in images:
+                    src = img['src']
+                    if '/' in src:
+                        img_name = src.split('/')[-1]
+                    else:
+                        img_name = src
+                    img['src'] = '%@ipfs_cid@%/' + img_name
+                    img['style'] = '%@img_style@%'
 
-                save_image_from_epub(ch_id, book, img_name)
+                    save_image_from_epub(ch_id, book, img_name)
 
-            chapter_pages.append(body.prettify())
+                chapter_pages.append(body.prettify())
 
         if lang == 'jp':
             t_data[lang_data_field]['virtual_chapter_page_count'].append(get_virtual_page_count_from_characters(num_characters))
@@ -585,10 +604,11 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, verbose, ask_co
                 print("\t\tWriting OCR file %s" % target_ocr_file_path)
                 ocr_dict['0'] = chapter_paragraphs
                 target_ocr_f = open(target_ocr_file_path,'w',encoding="UTF-8")
-                target_ocr_f.write(json.dumps(ocr_dict))
+                target_ocr_f.write(json.dumps(ocr_dict, ensure_ascii=False))
                 target_ocr_f.close()
 
-        save_chapter_pages(ch_id, chapter_pages)
+        if not args['skip_content_import']:
+            save_chapter_pages(ch_id, chapter_pages)
         total_num_characters += num_characters
         total_num_pages += t_data[lang_data_field]['virtual_chapter_page_count'][-1]
 

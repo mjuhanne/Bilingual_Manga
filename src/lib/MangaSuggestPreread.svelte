@@ -226,6 +226,7 @@ function get_value(item,value_fields) {
         <table>
             <tr>
                 <th class="title">Title</th>
+                <th>Author</th>
                 {#if source_filter == 'book'}
                     <th>Pages</th>
                 {:else}
@@ -255,6 +256,7 @@ function get_value(item,value_fields) {
                 {:else}
                 <td><a href="/manga/{title_data.enid}?lang=jp" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">{title_data.jptit}</a></td>
                 {/if}
+                <td>{title_data.Author}</td>
                 {#if source_filter == 'book'}
                     <td>{title_data.suggestion.num_analyzed_pages}</td>
                 {:else}

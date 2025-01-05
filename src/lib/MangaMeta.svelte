@@ -1,5 +1,6 @@
 <script>
 import MangaFavouriteButton from "./MangaFavouriteButton.svelte";
+import GoogleBooksButton from "./GoogleBooksButton.svelte";
 export let meta;
 export let syn;
 export let syn_en_deepl;
@@ -120,7 +121,13 @@ export let syn_en_deepl;
     <MangaFavouriteButton {meta}/>
     </div>
     </div>
-</div>
+    <div tyle="margin-left:10px;">
+        <b style="font-size: 1.1rem;">Google Books</b>
+        <div class="metae">
+        <GoogleBooksButton {meta}/>
+        </div>
+        </div>
+    </div>
 
 <div class="metaesyn" style="margin-top:10px;">
     {@html syn}

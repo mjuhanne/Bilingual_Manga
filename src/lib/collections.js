@@ -448,6 +448,12 @@ export async function getMangaMetadataForSingleTitle(user_id, title_id)
             $unwind: { path:"$mangaupdates_data", preserveNullAndEmptyArrays:true }
         },
         {
+            $lookup: { from:"br_google_books", localField:"_id", foreignField:"_id", as:"google_books"}
+        },
+        {
+            $unwind: { path:"$google_books", preserveNullAndEmptyArrays:true }
+        },
+        {
             $lookup: { from:"br_lang_summary", localField:"_id", foreignField:"_id", as:"series"}
         },
         {

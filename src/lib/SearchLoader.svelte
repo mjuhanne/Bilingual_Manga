@@ -6,8 +6,11 @@ export let blurring;
 let marr =datav[0].manga_titles;
 let ser=[];
 const blur_off=()=>{blurring=false;}
+let search_id = 0
 
 async function doTitleSearch(search_term) {
+    search_id += 1;
+    var my_search_id = search_id
     let body = JSON.stringify({
         'func' : 'search',
         'param' : {
@@ -21,10 +24,14 @@ async function doTitleSearch(search_term) {
         body: body,
     });
     var res = deserialize(await response.text());
-    if (res.success) {
-        ser = res.response
-    } else {
-        ser = [];
+    if (search_id == my_search_id) {
+        // make sure we update only the latest response (earlier searches with shorter search term
+        // might take longer)
+        if (res.success) {
+            ser = res.response
+        } else {
+            ser = [];
+        }
     }
 };
 

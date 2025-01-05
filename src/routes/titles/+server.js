@@ -1,5 +1,8 @@
 import { json } from '@sveltejs/kit';
 import { getMetadataForTitles, searchTitleMetadata, getAllValuesForMetadataField } from "$lib/collections.js"
+import {exec} from "node:child_process";
+import util from "node:util";
+const execSync = util.promisify(exec);
 
 async function getTitleMetadata(param) {
 
@@ -32,6 +35,26 @@ async function searchMetadata(param) {
 }
 
 
+async function setGoogleBooksId(param) {
+
+    let exec_cmd = `python tools/book2bm.py set_google_book_id ${param.title_id} ${param.google_book_id}`
+    console.log(exec_cmd);
+    try {
+        const { stdout, stderr } = await execSync(exec_cmd);
+        console.log("Results: " + stdout);
+    } catch (error) {
+        console.log("Error: ", error);
+        return {
+            success : false,
+            'response' : error
+        };
+    }
+    return {
+        success : true,
+        'response' : 'ok'
+    };
+}
+
 export async function POST({ request }) {
     const data = await request.json();
     console.log("POST /titles: " + JSON.stringify(data) );
@@ -51,6 +74,9 @@ export async function POST({ request }) {
             success : true,
             'response' : await searchMetadata(data.param)
         };
+    } else if (data.func == 'set_google_books_id') {
+        let res = 
+        ret= await setGoogleBooksId(data.param)
     }
     return json(ret);
 }

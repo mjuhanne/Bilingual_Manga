@@ -85,13 +85,13 @@ def calculate_average_summary(custom_lang_analysis_metadata):
     print("Done!")
 
 
-def do_analyze(filename, title_name, an_type):
-    if not os.path.exists(filename):
+def do_analyze(data_set, title_name, an_type):
+    if data_set is None:
         if not progress_output:
-            print("%s %s datafile %s not found!" % (an_type, title_name,filename))
+            print("%s %s datafile not found!" % (an_type, title_name))
         return None
-
-    analysis, data = load_and_analyze_dataset(filename)
+    
+    analysis, data = analyze_dataset(data_set)
     analysis['num_pages'] = data['num_pages']
     
     # Average tankobon volume page count is 180, but it might vary considerable by
@@ -105,8 +105,8 @@ def do_analyze(filename, title_name, an_type):
 
 
 def analyze_title(args, title_id, title_name):
-    title_filename = title_analysis_dir + title_id + ".json"
-    return do_analyze(title_filename, title_name, "Title")
+    data_set = get_analysis_data_for_title(title_id)
+    return do_analyze(data_set, title_name, "Title")
 
 
 # Get next non-fully read volume (some chapters might be read and some not)
@@ -118,7 +118,7 @@ def get_next_unread_volume(title_id):
 
 def get_next_unread_chapter(title_id):
 
-    title_chapters = get_chapters_by_title_id(title_id)
+    title_chapters = get_chapters_by_title_id(title_id,lang='jp')
     if len(title_chapters) == 0:
         print(" * Warning! %s has no chapters" % title_id)
         return None
@@ -178,8 +178,8 @@ def analyze_next_unread_chapter(args, title_id, title_name):
         return None
 
     chapter = get_chapter_idx_by_chapter_id(chapter_id)
-    chapter_filename = chapter_analysis_dir + chapter_id + ".json"
-    chapter_analysis = do_analyze(chapter_filename, title_name, "chapter")
+    data_set = get_analysis_data_for_chapter(chapter_id)
+    chapter_analysis = do_analyze(data_set, title_name, "chapter")
     if chapter_analysis is not None:
         chapter_analysis['unread_idx'] = chapter
 
@@ -195,8 +195,8 @@ def analyze_next_unread_volume(args, title_id, title_name):
         return None
 
     volume = get_volume_number_by_volume_id(vol_id)
-    volume_filename = volume_analysis_dir + vol_id + ".json"
-    volume_analysis = do_analyze(volume_filename, title_name, "chapter")
+    data_set = get_analysis_data_for_volume(vol_id)
+    volume_analysis = do_analyze(data_set, title_name, "chapter")
     if volume_analysis is not None:
         volume_analysis['unread_idx'] = volume
 
@@ -205,14 +205,10 @@ def analyze_next_unread_volume(args, title_id, title_name):
 
 def series_analysis_for_jlpt(args, title_id, title_name):
 
-    title_filename = title_analysis_dir + title_id + ".json"
-    if not os.path.exists(title_filename):
-        print("Title %s datafile %s not found!" % (title_name,title_filename))
+    title_data = get_analysis_data_for_title(title_id)
+    if title_data is None:
+        print("Title %s/%s datafile not found!" % (title_id,title_name))
         return None
-
-    o_f = open(title_filename,"r",encoding="utf-8")
-    title_data = json.loads(o_f.read())
-    o_f.close()
 
     # first read the candidate and save the words learned from this session
     # while analyzing how difficult this candidate series is..
@@ -289,78 +285,59 @@ def suggest_preread(args):
 
     target_title_id = get_title_id(args['title'])
 
-    # read previous analysis
-    suggest_preread_data = dict()
-    fn = suggested_preread_dir + target_title_id + '.json'
-    if os.path.exists(fn):
-        o_f = open(fn ,"r",encoding="utf-8")
-        suggest_preread_data = json.loads(o_f.read())
-        o_f.close()
-    if 'title' not in suggest_preread_data:
-        suggest_preread_data['title'] = dict()
-    if 'next_unread_volume' not in suggest_preread_data:
-        suggest_preread_data['next_unread_volume'] = dict()
-    if 'next_unread_chapter' not in suggest_preread_data:
-        suggest_preread_data['next_unread_chapter'] = dict()
-
     if not progress_output:
         print("Analyzing suggested pre-reading for " + get_title_by_id(target_title_id))
 
+    # load analysis data for target title
     target_data = None
+    failed_msg = None
     if args['target_scope'] == 'title':
-        index_title_filename = title_analysis_dir + target_title_id + ".json"
-        o_f = open(index_title_filename,"r",encoding="utf-8")
-        target_data = json.loads(o_f.read())
-        o_f.close()
+        target_data = get_analysis_data_for_title(target_title_id)
         target_selection = 'title'
     elif args['target_scope'] == 'next_unread_volume':
         target_selection = 'next_unread_volume'
         if is_book(target_title_id):
             target_volume_id = get_next_unread_volume(target_title_id)
             if target_volume_id is None:
-                suggest_preread_data[target_selection] = {'success':False,'status':'All volumes read!'}
+                failed_msg = 'All volumes read!'
             else:
                 target_volume = get_volume_number_by_volume_id(target_volume_id)
-                index_volume_filename = volume_analysis_dir + target_volume_id + ".json"
-                if os.path.exists(index_volume_filename):
-                    o_f = open(index_volume_filename,"r",encoding="utf-8")
-                    target_data = json.loads(o_f.read())
-                    o_f.close()
-                else:
-                    suggest_preread_data[target_selection] = {'success':False,'status':'Next unread volume %s (%d) not found!' % (target_volume_id,target_volume)}
+                target_data = get_analysis_data_for_volume(target_volume_id)
+                if target_data is None:
+                    failed_msg = 'Next unread volume %s (%d) not found!' % (target_volume_id,target_volume)
         else:
             target_chapter_id = get_next_unread_chapter(target_title_id)
             if target_chapter_id is None:
-                suggest_preread_data[target_selection] = {'success':False,'status':'All chapters read!'}
+                failed_msg = 'All chapters read!'
             else:
                 target_chapter = get_chapter_idx_by_chapter_id(target_chapter_id)
-                index_chapter_filename = chapter_analysis_dir + target_chapter_id + ".json"
-                if os.path.exists(index_chapter_filename):
-                    o_f = open(index_chapter_filename,"r",encoding="utf-8")
-                    target_data = json.loads(o_f.read())
-                    o_f.close()
-                else:
-                    suggest_preread_data[target_selection] = {'success':False,'status':'Next unread chapter %s (%d) not found!' % (target_chapter_id,target_chapter)}
+                target_data = get_analysis_data_for_chapter(target_chapter_id)
+                if target_data is None:
+                    failed_msg = 'Next unread chapter %s (%d) not found!' % (target_chapter_id,target_chapter)
     elif args['target_scope'] == 'next_unread_chapter':
         target_selection = 'next_unread_chapter'
         target_chapter_id = get_next_unread_chapter(target_title_id)
         if target_chapter_id is None:
-            suggest_preread_data[target_selection] = {'success':False,'status':'All chapters read!'}
+            failed_msg = 'All chapters read!'
         else:
-            _target_chapter = get_chapter_idx_by_chapter_id(target_chapter_id)
-            index_chapter_filename = chapter_analysis_dir + target_chapter_id + ".json"
-            if os.path.exists(index_chapter_filename):
-                o_f = open(index_chapter_filename,"r",encoding="utf-8")
-                target_data = json.loads(o_f.read())
-                o_f.close()
-            else:
-                suggest_preread_data[target_selection] = {'success':False,'status':'Next unread chapter %s (%d) not found!' % (target_chapter_id,target_chapter)}
+            target_chapter = get_chapter_idx_by_chapter_id(target_chapter_id)
+            target_data = get_analysis_data_for_chapter(target_chapter_id)
+            if target_data is None:
+                failed_msg = 'Next unread chapter %s (%d) not found!' % (target_chapter_id,target_chapter)
     else:
         raise Exception("Invalid target scope!")
 
     source_filter = args['filter']
     source_selection = args['source_scope']
 
+    if failed_msg is not None:
+        if progress_output:
+            print_progress(0,0,failed_msg)
+        else:
+            print(failed_msg)
+        return
+
+    # load previous analysis results for source titles
     old_data = database[BR_SUGGESTED_PREREAD].find(
         {'user_id':DEFAULT_USER_ID,
          'target_title_id':target_title_id,'target_selection':target_selection,
@@ -368,11 +345,10 @@ def suggest_preread(args):
     })
     old_suggestions = {entry['source_title_id']:entry for entry in old_data}
 
-    summary_data = database[BR_CUSTOM_LANG_ANALYSIS].aggregate([
+    summary_data = database[BR_CUSTOM_LANG_ANALYSIS_SUMMARY].aggregate([
         {
             '$match': {
             'user_id':DEFAULT_USER_ID,
-            'type':'summary'
             },
         },
         {
@@ -409,7 +385,7 @@ def suggest_preread(args):
 
         processed_titles = []
         for title_id, summary in summary_by_title.items():
-            if title_id != 'average_manga':
+            if title_id != 'average_manga' and title_id != 'average_title':
                 source_ci = 0
                 if source_selection == 'title':
                     if 'comprehensible_input_pct' in summary['series']:
@@ -445,9 +421,9 @@ def suggest_preread(args):
             this_session_learning_data = copy.deepcopy(learning_data)
 
             if source_selection == 'title':
-                candidate_filename = title_analysis_dir + title_id + ".json"
+                candidate_data = get_analysis_data_for_title(title_id)
                 volume = 'ALL'
-                num_volumes = len(get_volumes_by_title_id(title_id))
+                num_volumes = len(get_volumes_by_title_id(title_id, lang='jp'))
             elif source_selection == 'next_unread_volume':
                 if is_book(title_id):
                     vol_id = get_next_unread_volume(title_id)
@@ -456,7 +432,7 @@ def suggest_preread(args):
                             print("Skipping %s because already read all volumes" % (title_name))
                         continue
                     volume = str(get_volume_number_by_volume_id(vol_id))
-                    candidate_filename = volume_analysis_dir + vol_id + ".json"
+                    candidate_data = get_analysis_data_for_volume(vol_id)
                 else:
                     chapter_id = get_next_unread_chapter(title_id)
                     if chapter_id is None:
@@ -465,15 +441,12 @@ def suggest_preread(args):
                         continue
                     # regard all manga chapters as volumes
                     volume = str(get_chapter_idx_by_chapter_id(chapter_id))
-                    candidate_filename = chapter_analysis_dir + chapter_id + ".json"
+                    candidate_data = get_analysis_data_for_chapter(chapter_id)
                 num_volumes = 1
             else:
                 raise Exception("Invalid source scope!")
 
-            if os.path.exists(candidate_filename):
-                o_f = open(candidate_filename,"r",encoding="utf-8")
-                candidate_data = json.loads(o_f.read())
-                o_f.close()
+            if candidate_data is not None:
 
                 num_pages = candidate_data['num_pages']
                 num_words = candidate_data['num_words']
@@ -605,17 +578,19 @@ def calculate_reading_completion_percentage(title_id):
     return round(100*len(read_chapters)/len(all_chapters),1)
 
 
+
 def analyze(args):
     global old_analysis
 
     an_types = ['series','next_unread_chapter','next_unread_volume','series_analysis_for_jlpt']
 
     # load previous analysis
-    for an_type in an_types:
-                
-        cursor = database[BR_CUSTOM_LANG_ANALYSIS].find(
-                {'user_id':DEFAULT_USER_ID,'type':an_type},{'_id':False})
-        old_analysis[an_type] = {an['title_id']:an for an in cursor}
+    if not args['force']:
+        for an_type in an_types:
+                    
+            cursor = database[BR_CUSTOM_LANG_ANALYSIS].find(
+                    {'user_id':DEFAULT_USER_ID,'type':an_type},{'_id':False})
+            old_analysis[an_type] = {an['title_id']:an for an in cursor}
 
     if not progress_output:
         print("Analyzing comprehension")
@@ -633,9 +608,10 @@ def analyze(args):
 
     for i, (title_id, title_name) in enumerate(title_names.items()):
 
-        print_progress(i,title_count,"Analyzing")
+        if progress_output:
+            print_progress(i,title_count,"Analyzing")
 
-        if args['title'] is not None and args['title'].lower() not in title_name.lower():
+        if args['title'] is not None and args['title'].lower() not in title_name.lower() and args['title'] != title_id:
             continue
 
         if args['read']:
@@ -720,54 +696,56 @@ def analyze(args):
 
 #################### Read input files #################################
 
-needed_paths = [ chapter_analysis_dir, title_analysis_dir, jlpt_kanjis_file, jlpt_vocab_file]
-for path in needed_paths:
-    if not os.path.exists(path):
-        raise Exception("Required path [%s] not found!" % path)
+if __name__ == '__main__':
+
+    needed_paths = [ chapter_analysis_dir, title_analysis_dir, jlpt_kanjis_file, jlpt_vocab_file]
+    for path in needed_paths:
+        if not os.path.exists(path):
+            raise Exception("Required path [%s] not found!" % path)
 
 
 
-parser = argparse.ArgumentParser(
-    prog="bm_analyze",
-    description="Bilingual Manga Language Analyzing Tool",
-)
+    parser = argparse.ArgumentParser(
+        prog="bm_analyze",
+        description="Bilingual Manga Language Analyzing Tool",
+    )
 
-subparsers = parser.add_subparsers(help='', dest='command')
-parser_analyze = subparsers.add_parser('analyze', help='Do comprehension analysis per title')
-parser_analyze.add_argument('--title', '-t', type=str, default=None, help='Target manga title')
-parser_analyze.add_argument('--force', '-f', action='store_true', help='Force update')
-parser_analyze.add_argument('--progress-output', '-po', action='store_true', help='Output only progress')
-parser_analyze.add_argument('--read', '-r', action='store_true', help='Process only read titles')
+    subparsers = parser.add_subparsers(help='', dest='command')
+    parser_analyze = subparsers.add_parser('analyze', help='Do comprehension analysis per title')
+    parser_analyze.add_argument('--title', '-t', type=str, default=None, help='Target manga title')
+    parser_analyze.add_argument('--force', '-f', action='store_true', help='Force update')
+    parser_analyze.add_argument('--progress-output', '-po', action='store_true', help='Output only progress')
+    parser_analyze.add_argument('--read', '-r', action='store_true', help='Process only read titles')
 
-parser_suggest_preread = subparsers.add_parser('suggest_preread', help='Analyze given title and then suggest beneficial pre-read titles which increase comprehension')
-parser_suggest_preread.add_argument('title', type=str, help='Target manga title')
-parser_suggest_preread.add_argument('--progress-output', '-po', action='store_true', help='Output only progress')
-parser_suggest_preread.add_argument('--target_scope', '-ts', type=str, help='Scope of the target manga/book. Valid selections: title, next_unread_volume, next_unread_chapter')
-parser_suggest_preread.add_argument('--source_scope', '-ss', type=str, help='Scope of the source manga/book. Valid selections: title, next_unread_volume')
-parser_suggest_preread.add_argument('--filter', '-f', type=str, default="all",  help='Process only [book|manga|all]')
+    parser_suggest_preread = subparsers.add_parser('suggest_preread', help='Analyze given title and then suggest beneficial pre-read titles which increase comprehension')
+    parser_suggest_preread.add_argument('title', type=str, help='Target manga title')
+    parser_suggest_preread.add_argument('--progress-output', '-po', action='store_true', help='Output only progress')
+    parser_suggest_preread.add_argument('--target_scope', '-ts', type=str, help='Scope of the target manga/book. Valid selections: title, next_unread_volume, next_unread_chapter')
+    parser_suggest_preread.add_argument('--source_scope', '-ss', type=str, help='Scope of the source manga/book. Valid selections: title, next_unread_volume')
+    parser_suggest_preread.add_argument('--filter', '-f', type=str, default="all",  help='Process only [book|manga|all]')
 
-args = vars(parser.parse_args())
+    args = vars(parser.parse_args())
 
-#args = {'command':'analyze','title':None,'progress_output':False}
+    #args = {'command':'analyze','title':None,'progress_output':False}
 
-cmd = args.pop('command')
-progress_output = False
-if 'progress_output' in args:
-    progress_output = args['progress_output']
+    cmd = args.pop('command')
+    progress_output = False
+    if 'progress_output' in args:
+        progress_output = args['progress_output']
 
-load_jmdict(verbose=not progress_output)
+    load_jmdict(verbose=not progress_output)
 
 
-#analyze({'title':None,'force':False})
-#analyze({'title':'Hitch','force':False})
-#analyze_next_unread({'title':'tortoise','force':True})
-suggest_preread({'title':'66620803ae0ef12efe53117a','filter':'book','progress-output':False,'target_scope':'title','source_scope':'next_unread_volume'})
-#suggest_preread({'title':'6696a9de5346852c2184aed0','filter':'manga','progress-output':False,'target_scope':'next_unread_chapter','source_scope':'next_unread_volume'})
+    #analyze({'title':None,'force':False,'read':False})
+    #analyze({'title':'Hitch','force':False})
+    #analyze_next_unread({'title':'tortoise','force':True})
+    #suggest_preread({'title':'66c8adc22e77804a9dc14ede','filter':'book','progress-output':False,'target_scope':'title','source_scope':'next_unread_volume'})
+    #suggest_preread({'title':'6696a9de5346852c2184aed0','filter':'manga','progress-output':False,'target_scope':'next_unread_chapter','source_scope':'next_unread_volume'})
 
-if cmd is not None:
-    #try:
-    locals()[cmd](args)
-    #except Exception as e:
-    #    print(e, file=sys.stderr)
-    #    exit(-1)
+    if cmd is not None:
+        #try:
+        locals()[cmd](args)
+        #except Exception as e:
+        #    print(e, file=sys.stderr)
+        #    exit(-1)
 

@@ -227,6 +227,21 @@ jmdict_adj_no_class = jmdict_class_list.index("nouns which may take the genitive
 
 jmdict_noun_class = jmdict_class_list.index("noun (common) (futsuumeishi)")
 
+particles = [
+    '1469800:の',
+    '2029010:を',
+    '2028980:で',
+    '2028990:に',
+    '2028940:も',
+    '2028920:は',
+    '2215430:には',
+    '2028930:が',
+    '1008490:と', 
+    '1002980:から', 
+    '2028970:か',
+    '1525680:まで',
+]
+
 # create combined verb and noun classes for easier lookup
 _jmdict_verb_pos_list = []
 for cl in jmdict_class_list:

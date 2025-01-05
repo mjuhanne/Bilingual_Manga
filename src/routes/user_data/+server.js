@@ -1,14 +1,8 @@
 import { json } from '@sveltejs/kit';
-import db from "$lib/db";
-import { saveUserSetWords, EVENT_TYPE } from "$lib/UserDataTools.js";
-import fs from "fs";
-import {exec} from "node:child_process";
-import child_process from "node:child_process";
-import util from "node:util";
-const execSync = util.promisify(exec);
+import { DEFAULT_USER_ID, EVENT_TYPE } from "$lib/UserDataTools.js";
 import { EventEmitter } from 'node:events';
 import { getUserDataValue, updateUserData, updateManuallySetWordLearningStateChanges, getManuallySetWordLearningStateChanges, getUserWordLearningHistory, updateLearningDataWordStatus, getSuggestedPrereadForTitle } from '$lib/collections.js' 
-import { DEFAULT_USER_ID } from '../../lib/UserDataTools.js';
+import { LaunchLanguageTool_Spawn } from '$lib/ServerTools.js';
 
 // Overwrite the last history event if the change happened less than hour ago.
 // This prevents logging unnecessary events when user accidently flips between stages
@@ -22,12 +16,6 @@ let update_process_lock = false;
 let redo_process = false;
 
 let suggest_preread_lock = new Set();
-
-let analysis_status_msg = '';
-
-function delay(time) {
-    return new Promise(resolve => setTimeout(resolve, time));
-}
 
 
 async function toggleFavourite(manga_id) {
@@ -138,33 +126,6 @@ async function updateCustomLanguageAnalysis() {
 }
 
 
-function LaunchLanguageTool_Spawn(cmd, args, exit_cb, progress_cb, error_cb) {
-    console.log("Starting Process.");
-    var spawn_args = [`tools/${cmd}`].concat(args);
-    console.log(spawn_args);
-    var child = child_process.spawn("python", spawn_args);
-
-    child.on('error', (err) => {
-        console.error('Failed to start subprocess.',JSON.stringify(err));
-      });    
-
-    child.stdout.setEncoding('utf8');
-    child.stdout.on('data', function(data) {
-        //console.log('stdout: ' + data);
-        progress_cb(data.toString());
-    });
-
-    child.stderr.setEncoding('utf8');
-    child.stderr.on('data', function(data) {
-        console.log('stderr: ' + data);
-        error_cb(data.toString());
-    });
-
-    child.on('close', function(code) {
-        exit_cb(code);
-    });
-}
-
 
 async function getSuggestedPreread(title_id, target_selection, source_selection) {
     console.log(`getSuggestedPreread ${title_id}`);
@@ -179,9 +140,6 @@ async function getSuggestedPreread(title_id, target_selection, source_selection)
 async function calculateSuggestedPreread(title_id,target_selection,source_selection,source_filter) {
     console.log(`getSuggestedPreread ${title_id}`);
     let preread_dir = 'lang/suggested_preread/';
-    if (!fs.existsSync(preread_dir)) {
-        fs.mkdirSync(preread_dir, { recursive: true });
-    }
     
     if (suggest_preread_lock.has(title_id)) {
         return {

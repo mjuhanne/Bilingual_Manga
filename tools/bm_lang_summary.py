@@ -7,6 +7,7 @@ import argparse
 INVALID_VALUE = -1
 from helper import *
 import time
+from bm_learning_engine_helper import get_analysis_data_for_title
 
 jlpt_kanjis = get_jlpt_kanjis()
 jlpt_word_levels = get_jlpt_word_levels()
@@ -20,6 +21,11 @@ volume_count_corrections = {
 }
 
 def calculate_volume_count_per_title(title_id):
+
+    if is_book(title_id):
+        volumes = get_volumes_by_title_id(title_id, lang='jp')
+        return len(volumes)
+    
     m = get_data_by_title_id(title_id)
 
     title_id = m['_id']
@@ -186,18 +192,14 @@ def calculate_stats(title_data, calc, total=True):
 
 def calculate_summary_for_title(title_id):
     # recalculate the title summary
-    title_filename = title_analysis_dir + title_id + ".json"
+    title_data = get_analysis_data_for_title(title_id)
 
-    if not os.path.exists(title_filename):
-        print("%s data file %s doesn't exist!" % (title_id,title_filename))
+    if title_data is None:
+        print("analysis data file for %s doesn't exist!" % (title_id))
         return
 
-    o_f = open(title_filename,"r",encoding="utf-8")
-    title_data = json.loads(o_f.read())
-    o_f.close()
-
     if title_data['version'] != get_version(OCR_SUMMARY_VERSION):
-        raise Exception("Old version of title [%s] summary file %s! Please rerun bm_ocr_prosessor.py" % (title_name,title_filename))
+        raise Exception("Old version of title [%s] summary file! Please rerun bm_ocr_prosessor.py" % (title_id))
 
     title_data['num_volumes'] = calculate_volume_count_per_title(title_id)
 
@@ -227,7 +229,8 @@ def calculate_summary_for_title(title_id):
     del(title_data['word_frequency'])
     del(title_data['kanji_frequency'])
     del(title_data['word_id_list'])
-    del(title_data['word_class_list'])
+    if 'word_class_list' in title_data:
+        del(title_data['word_class_list'])
     del(title_data['sentence_list'])
     if 'lemmas' in title_data:
         del(title_data['lemmas']) # redundant
