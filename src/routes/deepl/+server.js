@@ -3,8 +3,12 @@ import { updateUserData, getUserData } from '$lib/collections.js'
 import { DEFAULT_USER_ID } from '$lib/UserDataTools.js'
 
 async function fetchTranslation(text,deepl_key) {
+    let api_url = "https://api.deepl.com/v2/translate"
+    if (deepl_key.indexOf(":fx")!=-1) {
+        api_url = "https://api-free.deepl.com/v2/translate"
+    }
     try {
-        const response = await fetch( "https://api-free.deepl.com/v2/translate", {
+        const response = await fetch( api_url, {
             headers: {
                 "Content-Type" : "application/json",
                 "Authorization" : `DeepL-Auth-Key ${deepl_key}`

@@ -449,7 +449,7 @@ async function saveDeepLKey() {
             <div class="knowledge-subsection">
                 <div>
                     <label for="deepl_key">DeepL key:</label>
-                    <input type="text" id="deepl_key" name="deepl_key" value="{deepl_key}">
+                    <input type="text" id="deepl_key" name="deepl_key" bind:value="{deepl_key}">
                     <button class="updatebutton" on:click={()=>saveDeepLKey()}>
                         Save
                     </button>
