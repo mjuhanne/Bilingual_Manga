@@ -87,23 +87,23 @@ export let syn_en_deepl;
     <a href="/manga-status/{meta.Status}">{meta.Status}</a>
     </div>
     </div>
-    {#if (meta.series !== undefined)}
+    {#if (meta.lang_summary !== undefined)}
     <div style="margin-left:10px;">
         <b style="font-size: 1.1rem;">Volumes</b>
         <div class="metae">
-            <a>{meta.series.num_volumes}</a>
+            <a>{meta.lang_summary.num_volumes}</a>
         </div>
     </div>
     <div style="margin-left:10px;">
         <b style="font-size: 1.1rem;">Chapters</b>
         <div class="metae">
-            <a>{meta.series.num_chapters}</a>
+            <a>{meta.lang_summary.num_chapters}</a>
         </div>
     </div>
     <div style="margin-left:10px;">
         <b style="font-size: 1.1rem;">Pages</b>
         <div class="metae">
-            <a>{meta.series.num_pages}</a>
+            <a>{meta.lang_summary.num_pages}</a>
         </div>
     </div>
     {:else}

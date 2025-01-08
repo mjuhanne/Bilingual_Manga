@@ -8,7 +8,7 @@
     export let ll;
 
     let available_tabs = ['Series info','Volumes']
-    if (ll.series !== undefined) {
+    if (ll.analysis !== undefined) {
         available_tabs = ['Series info','Volumes','Language analysis','Suggested preread']
     }
     

@@ -13,16 +13,16 @@ let common_sort_options = {
     'Rating'        : { sc:false, field: 'mangaupdates_data.rating', type:'val', subheading_template:'Rating: _', rev:true },
     'Status'        : { sc:false, field: 'Status',   type:'str', subheading_template:'_', rev:false },
     'Read status'   : { sc:false, field: 'analysis.reading_pct',   type:'val', subheading_template:'Read _ %', rev:true },
-    'JLPT content'  : { sc:false, field: 'analysis.summary.total_statistics.jlpt_word_content_pct',  type:'val', subheading_template:'JLPT _ %', rev:true },
-    'Advanced JLPT' : { sc:false, field: 'analysis.summary.total_statistics.advanced_jlpt_word_content_pct',   type:'val', subheading_template:'JLPT1 _ %', rev:true },
-    'Intermediate JLPT (w)': { sc:false, field: 'analysis.summary.total_statistics.weighted_intermediate_jlpt_word_content_pts',   type:'val', subheading_template:'JLPT2-3 _', rev:true },
-    'non-JLPT words/vol': { sc:false, field: 'analysis.summary.unique_statistics.num_non_jlpt_words_per_v',   type:'val', subheading_template:'non-JLPT w/v _', rev:false },
-    'Volumes'       : { sc:false, field: 'analysis.summary.num_volumes',type:'val', subheading_template:'_ volumes', rev:true },
-    'Chapters'       : { sc:false, field: 'analysis.summary.num_chapters',type:'val', subheading_template:'_ chapters', rev:true },
-    'Pages'         : { sc:false, field: 'analysis.summary.num_pages',     type:'val', subheading_template:'_ pages', rev:true },
-    'Total words'   : { sc:false, field: 'analysis.summary.num_words',     type:'val', subheading_template:'_ words', rev:true },
-    'Words/page'    : { sc:false, field: 'analysis.summary.total_statistics.w_per_p',       type:'val', subheading_template:'_ words/page', rev:true },
-    'Kanji/word'    : { sc:false, field: 'analysis.summary.total_statistics.k_per_w_pct',  type:'val', subheading_template:'Kanjis/word _ %', rev:true },
+    'JLPT content'  : { sc:false, field: 'lang_summary.total_statistics.jlpt_word_content_pct',  type:'val', subheading_template:'JLPT _ %', rev:true },
+    'Advanced JLPT' : { sc:false, field: 'lang_summary.total_statistics.advanced_jlpt_word_content_pct',   type:'val', subheading_template:'JLPT1 _ %', rev:true },
+    'Intermediate JLPT (w)': { sc:false, field: 'lang_summary.total_statistics.weighted_intermediate_jlpt_word_content_pts',   type:'val', subheading_template:'JLPT2-3 _', rev:true },
+    'non-JLPT words/vol': { sc:false, field: 'lang_summary.unique_statistics.num_non_jlpt_words_per_v',   type:'val', subheading_template:'non-JLPT w/v _', rev:false },
+    'Volumes'       : { sc:false, field: 'lang_summary.num_volumes',type:'val', subheading_template:'_ volumes', rev:true },
+    'Chapters'       : { sc:false, field: 'lang_summary.num_chapters',type:'val', subheading_template:'_ chapters', rev:true },
+    'Pages'         : { sc:false, field: 'lang_summary.num_pages',     type:'val', subheading_template:'_ pages', rev:true },
+    'Total words'   : { sc:false, field: 'lang_summary.num_words',     type:'val', subheading_template:'_ words', rev:true },
+    'Words/page'    : { sc:false, field: 'lang_summary.total_statistics.w_per_p',       type:'val', subheading_template:'_ words/page', rev:true },
+    'Kanji/word'    : { sc:false, field: 'lang_summary.total_statistics.k_per_w_pct',  type:'val', subheading_template:'Kanjis/word _ %', rev:true },
     'Comp input pct': { sc:true, field: 'comprehensible_input_pct',  type:'val', subheading_template:'CI _ %', rev:true },
     'Comp input ex kk pct': { sc:true, field: 'comprehensible_input_ex_katakana_pct',  type:'val', subheading_template:'CI(-K) _ %', rev:true },
     'Comp input score': { sc:true, field: 'comprehensible_input_score',  type:'val', subheading_template:'CI score _', rev:true },
@@ -70,7 +70,7 @@ export const getValue = (elem, params, sort_scope) => {
     let value = undefined;
     let value_path = params['field'].split('.');
     if (params.sc) {
-        value_path = [...scope_field_prefixes[sort_scope].split('.'), value_path]
+        value_path = scope_field_prefixes[sort_scope].split('.').concat(value_path);
     }
 
     let i = 0;

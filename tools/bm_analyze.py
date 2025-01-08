@@ -703,6 +703,7 @@ def analyze(args):
 
     # try to create an index just in case it doesn't already exist
     database[BR_CUSTOM_LANG_ANALYSIS_SUMMARY].create_index({'title_id':-1})
+    database[BR_SUGGESTED_PREREAD].create_index({'target_title_id':1})
 
 
 #################### Read input files #################################

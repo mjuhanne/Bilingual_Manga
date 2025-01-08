@@ -12,7 +12,7 @@ $: avg_set = (meta.is_book ? all_meta_data[0].average_book.total_statistics : al
 
 let unique_items_set = false;
 let w_per_v_set = false;
-$: custom_analysis_available = 'words' in meta.series.total_statistics;
+$: custom_analysis_available = 'analysis' in meta;
 
 const toggleUnique = () => {
     console.log("toggleUnique " + unique_items_set);
@@ -81,14 +81,14 @@ let ci_data =  {
         datasets: [
             {
             label: 'This manga (all chapters)',
-            data: meta.series.comprehensible_input_sentence_grading,
+            data: meta.analysis.series.comprehensible_input_sentence_grading,
             borderWidth: 1,
             borderColor: '#555555',
             backgroundColor: '#eeeeee',
             },
             {
             label: 'This manga (next chapter)',
-            data: meta.chapter.comprehensible_input_sentence_grading,
+            data: meta.analysis.next_unread_chapter.comprehensible_input_sentence_grading,
             borderWidth: 1,
             borderColor: '#005500',
             backgroundColor: '#009900',
@@ -111,14 +111,14 @@ const set_jlpt_graph_set = () => {
         datasets: [
             {
             label: 'This manga',
-            data: w_per_v_set ? meta.series[current_set].jlpt_word_level_per_v : meta.series[current_set].jlpt_word_level_pct,
+            data: w_per_v_set ? meta.lang_summary[current_set].jlpt_word_level_per_v : meta.lang_summary[current_set].jlpt_word_level_pct,
             borderWidth: 1,
             borderColor: '#555555',
             backgroundColor: '#eeeeee',
             },
             {
             label: 'This manga (known / pre-known)',
-            data: w_per_v_set ? meta.series[current_set].words.jlpt_level_per_v : meta.series[current_set].words.jlpt_level_pct,
+            data: w_per_v_set ? meta.analysis.series[current_set].words.jlpt_level_per_v : meta.analysis.series[current_set].words.jlpt_level_pct,
             borderWidth: 1,
             borderColor: '#005500',
             backgroundColor: '#009900',
@@ -138,14 +138,14 @@ const set_jlpt_graph_set = () => {
         datasets: [
             {
             label: 'This manga',
-            data: w_per_v_set ? meta.series[current_set].jlpt_kanji_level_per_v : meta.series[current_set].jlpt_kanji_level_pct,
+            data: w_per_v_set ? meta.lang_summary[current_set].jlpt_kanji_level_per_v : meta.lang_summary[current_set].jlpt_kanji_level_pct,
             borderWidth: 1,
             borderColor: '#555555',
             backgroundColor: '#eeeeee',
             },
             {
             label: 'This manga (known / pre-known)',
-            data: w_per_v_set ? meta.series[current_set].kanjis.jlpt_level_per_v : meta.series[current_set].kanjis.jlpt_level_pct,
+            data: w_per_v_set ? meta.analysis.series[current_set].kanjis.jlpt_level_per_v : meta.analysis.series[current_set].kanjis.jlpt_level_pct,
             borderWidth: 1,
             borderColor: '#005500',
             backgroundColor: '#009900',
@@ -262,16 +262,16 @@ function get_value(item,value_fields,value_func) {
             <tr>
                 <th>Your statistics</th>
                 <th>Whole series</th>
-                {#if meta.series.num_volumes > 1}
-                    {#if meta.volume.unread_idx != -1}
-                        <th>Next unread volume (#{meta.volume.unread_idx})</th>
+                {#if meta.lang_summary.num_volumes > 1}
+                    {#if meta.analysis.next_unread_volume.unread_idx != -1}
+                        <th>Next unread volume (#{meta.analysis.next_unread_volume.unread_idx})</th>
                     {:else}
                         <th>(All volumes already read)</th>
                     {/if}
                 {/if}
                 {#if meta.is_book}
-                    {#if meta.chapter.unread_idx != -1}
-                        <th>Next unread chapter (#{meta.chapter.unread_idx})</th>
+                    {#if meta.analysis.next_unread_chapter.unread_idx != -1}
+                        <th>Next unread chapter (#{meta.analysis.next_unread_chapter.unread_idx})</th>
                     {:else}
                         <th>(All chapters already read)</th>
                     {/if}
@@ -283,17 +283,17 @@ function get_value(item,value_fields,value_func) {
                 {#if field[0] != ''}
                 <tr>
                     <th>{field[0]}</th>
-                    <td>{get_value(meta.series,field[1],field[2])}</td>
-                    {#if meta.series.num_volumes > 1}
-                        {#if meta.volume.unread_idx != -1}
-                        <td>{get_value(meta.volume,field[1],field[2])}</td>
+                    <td>{get_value(meta.analysis.series,field[1],field[2])}</td>
+                    {#if meta.lang_summary.num_volumes > 1}
+                        {#if meta.analysis.volume.unread_idx != -1}
+                        <td>{get_value(meta.analysis.volume,field[1],field[2])}</td>
                         {:else}
                             <td></td>
                         {/if}
                     {/if}
                     {#if meta.is_book}
-                        {#if meta.chapter.unread_idx != -1}
-                        <td>{get_value(meta.chapter,field[1],field[2])}</td>
+                        {#if meta.analysis.next_unread_chapter.unread_idx != -1}
+                        <td>{get_value(meta.analysis.next_unread_chapter,field[1],field[2])}</td>
                         {:else}
                             <td></td>
                         {/if}
@@ -317,9 +317,9 @@ function get_value(item,value_fields,value_func) {
             {#if field[0] != ''}
             <tr>
                 <th>{field[0]}</th>
-                <td>{meta.series[current_set][field[1]]}</td>
+                <td>{meta.lang_summary[current_set][field[1]]}</td>
                 <td>{avg_set[field[1]]}</td>
-                {@html colorizeDifference(meta.series[current_set][field[1]], avg_set[field[1]])}
+                {@html colorizeDifference(meta.lang_summary[current_set][field[1]], avg_set[field[1]])}
             </tr>
             {:else}
                 <tr style="height: 15px;"/>

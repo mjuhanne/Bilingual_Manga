@@ -9,7 +9,7 @@ import { EVENT_TYPE } from "$lib/UserDataTools.js";
 let sort_criteria='Relative CI improvement' //'Newly added';
 let sort_reverse=false;
 
-$: custom_analysis_available = 'words' in meta.series.total_statistics;
+$: custom_analysis_available = 'analysis' in meta;
 
 
 let message = ''
@@ -110,6 +110,7 @@ const table_fields = [
     ['Known words %','total_statistics.words.pct_known_pre_known'],
     ['Unknown unique words','unique_statistics.words.num_unknown_unfamiliar'],
     ['Unknown unique kanjis','unique_statistics.kanjis.num_unknown_unfamiliar'],
+    ['Unknown/unfamiliar words needed for 90% CI','/showstopper_word_count_for_ci90'],
 ];
 
 function get_value(item,value_fields) {
@@ -140,16 +141,16 @@ function get_value(item,value_fields) {
             <tr>
                 <th>Your statistics</th>
                 <th>Whole series</th>
-                {#if meta.series.num_volumes > 1}
-                    {#if meta.volume.unread_idx != -1}
-                        <th>Next unread volume (#{meta.volume.unread_idx})</th>
+                {#if meta.lang_summary.num_volumes > 1}
+                    {#if meta.analysis.next_unread_volume.unread_idx != -1}
+                        <th>Next unread volume (#{meta.analysis.next_unread_volume.unread_idx})</th>
                     {:else}
                         <th>(All volumes already read)</th>
                     {/if}
                 {/if}
                 {#if meta.is_book}
-                    {#if meta.chapter.unread_idx != -1}
-                        <th>Next unread chapter (#{meta.chapter.unread_idx})</th>
+                    {#if meta.analysis.next_unread_chapter.unread_idx != -1}
+                        <th>Next unread chapter (#{meta.analysis.next_unread_chapter.unread_idx})</th>
                     {:else}
                         <th>(All chapters already read)</th>
                     {/if}
@@ -159,17 +160,17 @@ function get_value(item,value_fields) {
             {#each table_fields as field}
             <tr>
                 <th>{field[0]}</th>
-                <td>{get_value(meta.series,field[1])}</td>
-                {#if meta.series.num_volumes > 1}
-                    {#if meta.volume.unread_idx != -1}
-                    <td>{get_value(meta.volume,field[1])}</td>
+                <td>{get_value(meta.analysis.series,field[1])}</td>
+                {#if meta.lang_summary.num_volumes > 1}
+                    {#if meta.analysis.next_unread_volume.unread_idx != -1}
+                    <td>{get_value(meta.analysis.next_unread_volume,field[1])}</td>
                     {:else}
                         <td></td>
                     {/if}
                 {/if}
                 {#if meta.is_book}
-                    {#if meta.chapter.unread_idx != -1}
-                    <td>{get_value(meta.chapter,field[1])}</td>
+                    {#if meta.analysis.next_unread_chapter.unread_idx != -1}
+                    <td>{get_value(meta.analysis.next_unread_chapter,field[1])}</td>
                     {:else}
                         <td></td>
                     {/if}

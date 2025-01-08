@@ -281,7 +281,7 @@ export async function getAllValuesForMetadataField(field_name)
 
 function getCollectionByFieldName(field_name) {
     var collection = 'br_metadata' // default
-    if (field_name.indexOf('analysis.summary.')==0) {
+    if (field_name.indexOf('lang_summary.')==0) {
         collection = 'br_lang_summary'
     } else if (field_name.indexOf('analysis.')==0) {
         collection = 'br_custom_lang_analysis_summary'
@@ -388,10 +388,10 @@ export async function getMetadataForTitles(user_id, sort_struct, filter_struct)
         ],
         'br_lang_summary' : [
             {
-                $lookup: { from:"br_lang_summary", localField:"_id", foreignField:"_id", as:"analysis.summary"}
+                $lookup: { from:"br_lang_summary", localField:"_id", foreignField:"_id", as:"lang_summary"}
             },
             {
-                $unwind: { path:"$analysis.summary", preserveNullAndEmptyArrays:true }
+                $unwind: { path:"$lang_summary", preserveNullAndEmptyArrays:true }
             }
         ]
     }
@@ -522,10 +522,10 @@ export async function getMangaMetadataForSingleTitle(user_id, title_id)
             $unwind: { path:"$google_books", preserveNullAndEmptyArrays:true }
         },
         {
-            $lookup: { from:"br_lang_summary", localField:"_id", foreignField:"_id", as:"series"}
+            $lookup: { from:"br_lang_summary", localField:"_id", foreignField:"_id", as:"lang_summary"}
         },
         {
-            $unwind: { path:"$series", preserveNullAndEmptyArrays:true }
+            $unwind: { path:"$lang_summary", preserveNullAndEmptyArrays:true }
         },
         {
             $match: {'_id':title_id}
@@ -550,26 +550,18 @@ export async function getMangaMetadataForSingleTitle(user_id, title_id)
         title_metadata['translator'] = '';
     }
 
-    if (title_metadata['series'] !== undefined) {
+    title_metadata['analysis'] = {}
 
-        const search_query = {'title_id':title_id, 'user_id':user_id }
-        var custom_lang_analyses = await db.collection("br_custom_lang_analysis").find(search_query).toArray()
+    const search_query = {'title_id':title_id, 'user_id':user_id }
+    var custom_lang_analyses = await db.collection("br_custom_lang_analysis").find(search_query).toArray()
 
-        for (let an of custom_lang_analyses) {
-            if (an['type'] == 'series') {
-                iterative_copy(an, title_metadata['series'])
-            }
-            if (an['type'] == 'next_unread_chapter') {
-                iterative_copy(an, title_metadata['chapter'])
-            }
-            if (an['type'] == 'next_unread_volume') {
-                iterative_copy(an, title_metadata['volume'])
-            }
-            if (an['type'] == 'series_analysis_for_jlpt') {
-                title_metadata['jlpt_improvement_pts'] = an['relative_points'];
-                title_metadata['jlpt_improvement_words'] = an['num_new_known_words'];
-                title_metadata['jlpt_improvement_kanjis'] = an['num_new_known_kanjis'];
-            }
+    for (let an of custom_lang_analyses) {
+        if (an['type'] == 'series_analysis_for_jlpt') {
+            title_metadata['analysis']['jlpt_improvement_pts'] = an['relative_points'];
+            title_metadata['analysis']['jlpt_improvement_words'] = an['num_new_known_words'];
+            title_metadata['analysis']['jlpt_improvement_kanjis'] = an['num_new_known_kanjis'];
+        } else {
+            title_metadata['analysis'][ an['type'] ] = an
         }
     }
 
