@@ -380,7 +380,10 @@ def fetch_cover_from_google_books(title_id, title, t_metadata, gb, force=False):
             download_image(img_url,target_img_path)
 
 def parse_volume_contents(args, title_id, title_name, vol_id):
-    parser_args = {'force':False, 'chapter':None, 'read':False, 'first':False, 'start_index':False, 'only_new' :True, 'force_aggregate':True }
+    parser_args = {'force':False, 'chapter':None, 'read':False, 'first':False, 
+                   'start_index':False, 'only_new' :True, 'force_aggregate':True, 
+                   'omit_parsed_ocr_file':args['skip_content_import'] 
+    }
     do_process_title(parser_args, title_id, title_name, counter_str='')
 
     calculate_summary_for_title(title_id)
@@ -393,8 +396,6 @@ def parse_volume_contents(args, title_id, title_name, vol_id):
         if os.path.exists(target_ocr_path):
             os.remove(target_ocr_file_path)
             
-
-    # 
     analyzer_args = {'title':title_id,  'read':False, 'force':True }
     individual_analysis(analyzer_args)
 

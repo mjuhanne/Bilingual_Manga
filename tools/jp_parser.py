@@ -13,13 +13,16 @@ jmdict_noun_pos_list = []
 jmdict_verb_pos_list = []
 custom_word_id_score_adjustment = dict()
 
-parser_settings = {'word_id_list_has_sense':False}
+parser_settings = {'word_id_list_has_sense':False, 'keep_only_priority_references':False}
 
 def ADD_LOG_MESSAGE(pos,msg):
     global messages
     if msg not in messages[pos]:
         messages[pos].append(msg)
 
+def set_parser_settings(field,value):
+    global parser_settings
+    parser_settings[field] = value
 
 """
 This makes sure that only appropriate jmdict senses are assigned to 
@@ -601,16 +604,17 @@ def add_matched_sense_reference(original_word, chunk, base_score, chunk_len, pos
                 scan_results['item_word_id_ref_pos'][(word_id,pos+j)] = j
                 scan_results['item_word_id_score'][(word_id,pos+j)] = score
 
-            # add to word id list and word_class (parts of speech) list
-            if not parser_settings['word_id_list_has_sense']:
-                word_id = seq_word
-            try:
-                w_idx = scan_results['word_id_list'].index(word_id)
-                scan_results['word_count'][w_idx] += 1
-            except:
-                scan_results['word_id_list'].append(word_id)
-                scan_results['word_class_list'].append(cl_list)
-                scan_results['word_count'].append(1)
+            if not parser_settings['keep_only_priority_references']:
+                # add to word id list and word_class (parts of speech) list
+                if not parser_settings['word_id_list_has_sense']:
+                    word_id = seq_word
+                try:
+                    w_idx = scan_results['word_id_list'].index(word_id)
+                    scan_results['word_count'][w_idx] += 1
+                except:
+                    scan_results['word_id_list'].append(word_id)
+                    scan_results['word_class_list'].append(cl_list)
+                    scan_results['word_count'].append(1)
 
 
 # this will scan for all the possible dictionary entries in the jmdict set
@@ -996,12 +1000,13 @@ def parse_with_jmdict(unidic_items, manually_set_priority_wids, scan_results):
                             if scan_results['item_word_id_ref_count'][(next_best_word,i)] == 1:
                                 add_to_priority_word_list(next_best_word)
 
-            # reference the word_id as index number in word_id_list
-            for word_id in word_ids:
-                if not parser_settings['word_id_list_has_sense']:
-                    word_id = strip_sense_from_word_id(word_id)
-                w_idx = scan_results['word_id_list'].index(word_id)
-                refs.append(w_idx)
+            if not parser_settings['keep_only_priority_references']:
+                # reference the word_id as index number in word_id_list
+                for word_id in word_ids:
+                    if not parser_settings['word_id_list_has_sense']:
+                        word_id = strip_sense_from_word_id(word_id)
+                    w_idx = scan_results['word_id_list'].index(word_id)
+                    refs.append(w_idx)
         scan_results['item_word_id_refs'].append(refs)
 
         # create a sentence from the best words
@@ -1017,7 +1022,7 @@ def parse_with_jmdict(unidic_items, manually_set_priority_wids, scan_results):
                     # add item only when processing the first lexical item of a multi-item phrase/word
                     if not parser_settings['word_id_list_has_sense']:
                         best_word_id = strip_sense_from_word_id(best_word_id)
-                    best_w_idx = scan_results['word_id_list'].index(best_word_id)
+                    best_w_idx = scan_results['priority_word_id_list'].index(best_word_id)
                     sentence.append(best_w_idx)
 
     # Add the rest of the acculumated sentence

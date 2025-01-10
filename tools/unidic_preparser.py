@@ -2,7 +2,8 @@ from helper import *
 from jp_parser_helper import *
 from jp_parser_print import pretty_print_lexical_item
 from conjugation import *
-from jmdict import search_sequences_by_word
+from jmdict import search_sequences_by_word, search_sequences_by_elements
+
 
 import fugashi
 parser = fugashi.Tagger('')
@@ -218,18 +219,15 @@ def divide_item(pos,items):
     items[pos].flags |= REPROCESS | REPLACE_ITEM
     i = 1
 
-jmdict_kanji_elements, jmdict_kanji_element_seq, jmdict_max_kanji_element_len = get_jmdict_kanji_element_set()
-
 def get_highest_freq_seq_for_word(word):
     best_seq = None
     best_freq = 10000
-    if word in jmdict_kanji_elements[len(word)]:
-        seqs = jmdict_kanji_element_seq[len(word)][word]
-        for seq in seqs:
-            freq = get_frequency_by_seq_and_word(seq,word)
-            if freq < best_freq:
-                best_freq = freq
-                best_seq = seq
+    seqs = search_sequences_by_elements(word, '')
+    for seq in seqs:
+        freq = get_frequency_by_seq_and_word(seq,word)
+        if freq < best_freq:
+            best_freq = freq
+            best_seq = seq
     return best_seq, best_freq
 
 

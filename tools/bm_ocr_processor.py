@@ -37,7 +37,7 @@ from helper import *
 from jp_parser import (
     init_scan_results, parse_block_with_unidic, post_process_unidic_particles, parse_with_jmdict, 
     init_parser, reassemble_block, expand_word_id, #, get_highest_freq_class_list_with_particle_priority,
-    get_flat_class_list_by_seq, load_manga_specific_adjustments,
+    get_flat_class_list_by_seq, load_manga_specific_adjustments, set_parser_settings,
     unidic_class_list, ignored_classes_for_freq
 )
 from bm_learning_engine_helper import is_chapter_read, is_title_read
@@ -52,13 +52,14 @@ processed_titles = set()
 
 save_word_classes = False
 
-def do_process_chapter(title_id, chapter_id, f_p, fo_p, chapter_data):
+def do_process_chapter(title_id, chapter_id, f_p, fo_p, chapter_data, omit_parsed_ocr_file):
 
     k_c = 0
     c_c = 0
     skipped_c = 0
 
     results = init_scan_results()
+    set_parser_settings('keep_only_priority_references', omit_parsed_ocr_file)
     kanji_count = dict()
 
     f = open(f_p, "r", encoding="utf-8")
@@ -74,12 +75,13 @@ def do_process_chapter(title_id, chapter_id, f_p, fo_p, chapter_data):
     progress_bar_interval = int(len(pages)/10)
     if progress_bar_interval == 0:
         progress_bar_interval = 1
+    ocr_is_verified = is_ocr_verified(title_id)
     for page_id,blocks in pages.items():
 
         for i,block in enumerate(blocks):
             lines = block['lines']
 
-            if not is_ocr_verified(title_id) and any(len(l)>32 for l in lines):
+            if not ocr_is_verified and any(len(l)>32 for l in lines):
                 # Blocks with any number of very long lines have usually been 
                 # incorrectly recognized so ignore these
                 skipped_c += 1
@@ -117,9 +119,10 @@ def do_process_chapter(title_id, chapter_id, f_p, fo_p, chapter_data):
     # (alphanumeric words, punctuation, auxialiary verbs, grammatical particles)
     w_c = sum([results['word_count_per_unidict_class'][i] for i in range(len(unidic_class_list)) if unidic_class_list[i] not in ignored_classes_for_freq])
 
-    f = open(fo_p, "w", encoding="utf-8")
-    f.write(json.dumps(pages, ensure_ascii=False))
-    f.close()
+    if not omit_parsed_ocr_file:
+        f = open(fo_p, "w", encoding="utf-8")
+        f.write(json.dumps(pages, ensure_ascii=False))
+        f.close()
 
     #sorted_word_count = dict(sorted(unique_jmdict_word_count.items(), key=lambda x:x[1], reverse=True))
     sorted_kanji_count = dict(sorted(kanji_count.items(), key=lambda x:x[1], reverse=True))
@@ -151,7 +154,7 @@ def do_process_chapter(title_id, chapter_id, f_p, fo_p, chapter_data):
     for sentence in results['sentence_list']:
         new_sentence = []
         for ref in sentence:
-            wid = results['word_id_list'][ref]
+            wid = results['priority_word_id_list'][ref]
             new_ref = wid_to_unique_wid_dict[wid]
             new_sentence.append(new_ref)
         adjusted_sentence_list.append(new_sentence)
@@ -227,7 +230,7 @@ def process_chapter(args, title_id, title_name, chapter_id, info_str = ''):
         print(info_str,end='')
         #try:
 
-        c_c, w_c, k_c, skipped_c = do_process_chapter(title_id, chapter_id, input_ocr_file, parsed_ocr_filename, chapter_data)
+        c_c, w_c, k_c, skipped_c = do_process_chapter(title_id, chapter_id, input_ocr_file, parsed_ocr_filename, chapter_data, args['omit_parsed_ocr_file'])
         #except Exception as e:
         #    print("Error scanning %s [%d]" % ( chapter_data['title'], chapter_data['chapter']))
         #    print(e)
@@ -479,7 +482,7 @@ if __name__ == '__main__':
 
     #parser.add_parser('analyze', help='Do comprehension analysis per title')
     parser.add_argument('--force', '-f', action='store_true', help='Force reprocessing')
-    parser.add_argument('--force-aggregate', '-fa', action='store_true', help='Force aggregating data at title/volume level')
+    parser.add_argument('--force_aggregate', '-fa', action='store_true', help='Force aggregating data at title/volume level')
     parser.add_argument('--first', '-1', action='store_true', help='Process only first chapter per title')
     parser.add_argument('--read', '-r', action='store_true', help='Process only read chapters')
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose')
@@ -489,15 +492,17 @@ if __name__ == '__main__':
     parser.add_argument('--book', '-b',  action='store_true', help='Parse books only')
     parser.add_argument('keyword', nargs='?', type=str, default=None, help='Title has to (partially) match the keyword in order to processed')
     parser.add_argument('--author', '-a',  nargs='?', type=str, default=None, help='Author')
+    parser.add_argument('--omit_parsed_ocr_file', '-oo', action='store_true', help='Do not save the full parsed ocr chapter file (only chapter/volume/title analysis files)')
 
     args = vars(parser.parse_args())
 
     #args['force'] = True
     #args['book'] = True
-    args['keyword'] = '677942b686ef7e7864952ce0'
-    #args['force-aggregate'] = True
+    #args['keyword'] = '67715885b339fc79230d89c2'
+    #args['force_aggregate'] = True
     #args['chapter'] = 12
     #args['only_new'] = True
+    #args['omit_parsed_ocr_file'] = True
 
     if not os.path.exists(title_analysis_dir):
         os.mkdir(title_analysis_dir)
