@@ -7,7 +7,9 @@
   import { learning_stage_colors, STAGE, SOURCE } from '$lib/LearningData.js';
   import Edit_OCR_Dialog from '$lib/Edit_OCR_Dialog.svelte'
   import { getWordIdIndexList, UpdatePriorityWordManually, updateWordDecorations, setWordPopupToElementPosition, learningStageChanged } from '$lib/WordPopupHelper.js'
+  import InfoPopUp from '$lib/InfoPopUp.svelte'
 
+  let infopopup;
   export let id; // manga id
   export let cid; // chapter id
   export let page_jp; // jap page
@@ -246,6 +248,58 @@
     }
   }
 
+async function translateHoveredBlock() {
+    if (hovered_block_id != -1) {
+      let block_text = ''
+      let oc = ocrpage[hovered_block_id];
+      oc["og_lines"].forEach((line) => {
+        block_text += line
+        });
+      let body = JSON.stringify({
+      'func' : 'translate', 
+      'text' : block_text,
+      });
+      fetch( "/deepl", {
+        headers: {"Content-Type" : "application/json" },
+        method: 'POST',
+        body: body,
+      }).then(response => {
+        response.json().then(result => {
+          let txt;
+          if (result.success) {
+            txt = result.translation;
+          } else {
+            txt = result.error;
+          }
+          infopopup.show("DeepL translation",`<p>${block_text}</p><p>${txt}</p>`)
+        });
+      });
+    }
+  }
+
+async function adjustHoveredBlockSize(adjustment) {
+    function adjustPx(elem, style_name, adjust) {
+        let px_value = elem.style[style_name]
+        let val = parseInt(px_value.split('px')[0]);
+        px_value = (val + adjust).toString() + "px"
+        elem.style[style_name] = px_value
+    }
+    if (hovered_block_id != -1) {
+        let block_elements = ocr_root.querySelectorAll(".ocrtext");
+        for (let b_elem of block_elements) {
+            let block_id = parseInt(b_elem.getAttribute("block_id"));
+            if (block_id == hovered_block_id) {
+                console.log(b_elem.style);
+                adjustPx(b_elem, "font-size", adjustment )
+                adjustPx(b_elem, "left", -10*adjustment )
+                adjustPx(b_elem, "height", 10*adjustment )
+                adjustPx(b_elem, "width", 10*adjustment )
+                console.log(b_elem.style.height);
+            }
+        }
+    }
+}
+
   const keyPressListener = (event) => {
     var keyName = event.key;
     if (keyName == 'p') {
@@ -258,6 +312,12 @@
       setHoveredBlockWordsKnown(true);
     } else if (keyName == 'e') {
       editHoveredBlock();
+    } else if (keyName == 't') {
+      translateHoveredBlock();
+    } else if (keyName == '-') {
+      adjustHoveredBlockSize(-1);
+    } else if (keyName == '+') {
+      adjustHoveredBlockSize(1);
     }
   }
 
@@ -312,7 +372,11 @@
           let ratiow = src.width / oc.img_w;
           let ratio = (ratioh + ratiow) / 2;
           let lines = "";
-          let fontsize = oc["font-size"] * 1 * ratio;
+          let fontsize = oc["font-size"];
+          if (fontsize.toString().indexOf("px") != -1) {
+            fontsize = parseInt(fontsize.split("px")[0])
+          }
+          fontsize *= ratio;
           oc["lines"].forEach((line) => {
             lines =
               lines +
@@ -369,6 +433,7 @@
   on:priority_word_updated_manually={PriorityWordUpdatedManuallyFromPopUpDialog}
   on:anki_button_clicked={ShowAnkiCardDialog}
 />
+<InfoPopUp bind:this={infopopup}/>
 <Edit_OCR_Dialog bind:ocr_block={edited_ocr_block} bind:showModal={showEditOCRDialog} bind:edit_mode={edit_mode} on:ocr_block_updated={OCRBlockUpdated}/>
 <AnkiCardDialog bind:openDialog={openAnkiCardDialog} bind:edit_mode={edit_mode} word={selected_word} glossary={selected_word_glossary} readings={selected_word_readings} sentence_lines={selected_block_content} {img_jap} {img_eng}/>
 
