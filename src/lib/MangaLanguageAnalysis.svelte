@@ -285,8 +285,8 @@ function get_value(item,value_fields,value_func) {
                     <th>{field[0]}</th>
                     <td>{get_value(meta.analysis.series,field[1],field[2])}</td>
                     {#if meta.lang_summary.num_volumes > 1}
-                        {#if meta.analysis.volume.unread_idx != -1}
-                        <td>{get_value(meta.analysis.volume,field[1],field[2])}</td>
+                        {#if meta.analysis.next_unread_volume.unread_idx != -1}
+                        <td>{get_value(meta.analysis.next_unread_volume,field[1],field[2])}</td>
                         {:else}
                             <td></td>
                         {/if}
