@@ -568,7 +568,7 @@ def update(args):
                 learning_data['num_kanjis'] += chapter_data['num_kanjis']
                 learning_data['num_pages'] += chapter_data['num_pages']
 
-                for word_id, freq, classes in \
+                for word_id, freq in \
                     zip(chapter_data['word_id_list'], chapter_data['word_frequency']):
                     sw = word_id.split(':')
                     seq = sw[0]
