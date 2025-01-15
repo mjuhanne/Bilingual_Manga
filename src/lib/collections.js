@@ -383,6 +383,12 @@ export async function getMetadataForTitles(user_id, sort_struct, filter_struct)
                 $unwind: { path:"$analysis", preserveNullAndEmptyArrays:true }
             },
             {
+                // fill out the missing analysis to prevent failed match
+                $fill: {
+                    output: {'analysis': {value:{'user_id':user_id}}}
+                },
+            },
+            {
                 $match: { "analysis.user_id":user_id }
             }
         ],
@@ -510,6 +516,9 @@ export async function getMangaMetadataForSingleTitle(user_id, title_id)
     var title_metadata = undefined
     title_metadata = await db.collection("br_metadata").aggregate([
         {
+            $match: {'_id':title_id}
+        },
+        {
             $lookup: { from:"br_mangaupdates", localField:"_id", foreignField:"_id", as:"mangaupdates_data"}
         },
         {
@@ -526,9 +535,6 @@ export async function getMangaMetadataForSingleTitle(user_id, title_id)
         },
         {
             $unwind: { path:"$lang_summary", preserveNullAndEmptyArrays:true }
-        },
-        {
-            $match: {'_id':title_id}
         }
     ]).project({_id:0}).toArray();
 
@@ -592,4 +598,35 @@ export async function getSuggestedPrereadForTitle(user_id, title_id, target_sele
     ]).project({_id:0}).toArray();
 
     return suggested_preread;
+}
+
+export async function getMangaDataForSingleTitle(title_id) {
+
+
+    var title_data = await db.collection("br_data").findOne({'_id':title_id})
+    if (title_data == null) {
+        return undefined;
+    }
+
+    let import_metadata = await db.collection("br_chapter_lookup_table").aggregate([
+        {
+            $match: {'title_id':title_id}
+        },
+        {
+            $group: {'_id':'$vol_id', 'vol_num': {'$first':'$vol_num'}}
+        },
+        {
+            $lookup: { from:"br_vol_import_metadata", localField:"_id", foreignField:"_id", as:"import_metadata"}
+        },
+        {
+            $unwind: { path:"$import_metadata", preserveNullAndEmptyArrays:true }
+        }
+    ]).toArray()
+    let info_per_vol_id = {}
+    for (let vol_info of import_metadata) {
+        info_per_vol_id[vol_info.vol_num] = vol_info.import_metadata
+    }
+    title_data['vol_info'] = info_per_vol_id
+
+    return title_data
 }

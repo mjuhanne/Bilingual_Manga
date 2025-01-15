@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import {AugmentTitleMetadataWithUserData, DEFAULT_USER_ID} from '$lib/UserDataTools.js'
-import { searchCollection, getBilingualMangaSettings, getUserData, getMangaMetadataForSingleTitle} from "$lib/collections.js";
+import { searchCollection, getBilingualMangaSettings, getUserData, getMangaMetadataForSingleTitle, getMangaDataForSingleTitle} from "$lib/collections.js";
 
 // Replace uncommon characters in local file names with '_'  
 function cleanFileNames(manga_data) {
@@ -53,10 +53,9 @@ export async function load({params,url}) {
 
     if (meta_data !== undefined) {
 
-        const data = await searchCollection("br_data", "_id", id);
+        const title_data = await getMangaDataForSingleTitle(id)
 
-        if (data.length>0) {
-            const title_data = data[0];
+        if (title_data !== undefined) {
 
             const settings = await getBilingualMangaSettings();
             const user_data = await getUserData(DEFAULT_USER_ID);

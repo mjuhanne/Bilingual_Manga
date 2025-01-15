@@ -16,19 +16,21 @@
 
     export let selectedTab;
 
-    let chapters, volumes, cover, title, syn
+    let chapters, volumes, cover, title, syn, secondary_title
     let syn_en_deepl = '';
     if (data.l=="en") {
         chapters=data.manga_data.en_data.ch_naen;
         volumes=data.manga_data.en_data.vol_en;
         cover=ll.coveren;
         title=ll.entit;
+        secondary_title=ll.jptit;
         syn=data.manga_data.syn_en;
     } else {
         chapters=data.manga_data.jp_data.ch_najp;
         volumes=data.manga_data.jp_data.vol_jp;
         cover=ll.coverjp;
         title=ll.jptit;
+        secondary_title=ll.entit;
         syn=data.manga_data.syn_jp;
     }
     if ('syn_en_deepl' in data.manga_data) {
@@ -39,7 +41,10 @@
 <div id="mainimagec" style="background:url({cdncdn1}/{cover}) no-repeat; background-size: cover;background-position: center;" >
 <img src="{cdncdn1}/{cover}" alt="{cover}" id="mainimage"/>
 <div id="spreads" ></div>
+<div style="display: block;z-index:4;">
 <div id="mainimagetitle">{title}</div>
+<div id="secondaryimagetitle">{secondary_title}</div>
+</div>
 </div>
 <Tabs titles={available_tabs} lang={data.l} bind:selectedTab>
     {#if selectedTab==0}
@@ -82,6 +87,7 @@
     }
 
     #mainimagetitle{
+        text-align: left;
         font-size: 1.5rem;
         font-weight: bold;
         z-index: 4;
@@ -89,5 +95,15 @@
         overflow: hidden;
 
         margin:10px 0px 10px 5px;
+    }
+    #secondaryimagetitle{
+        text-align: left;
+        font-size: 1.0rem;
+        font-weight: bold;
+        z-index: 4;
+        word-wrap: break-word;
+        overflow: hidden;
+
+        margin:20px 0px 10px 5px;
     }
 </style>

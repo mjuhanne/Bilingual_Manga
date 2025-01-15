@@ -6,6 +6,8 @@ import re
 import subprocess
 import hashlib
 import shutil
+import time
+from helper import *
 
 PLACEHOLDER = 'Placeholder'
 
@@ -133,6 +135,9 @@ def extract_publisher_from_title(title):
             publisher = gr[1]
             return clean_title, publisher
         
+    clean_title = clean_title.replace('Amazonキンドル','')
+    clean_title = clean_title.replace('ダイレクト出版紙の本執筆虎の巻','')
+        
     return clean_title, publisher
 
 def copy_file(src, target_path, target_file):
@@ -164,3 +169,63 @@ def md5(fname):
         for chunk in iter(lambda: f.read(4096), b""):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
+
+
+def save_metadata(title_id, t_metadata, t_data, verbose):
+    if t_metadata is not None:
+        old_metadata = get_metadata_by_title_id(title_id)
+        if old_metadata is not None and verbose:
+            show_diff(old_metadata, t_metadata)
+        t_metadata['updated_timestamp'] = int(time.time())
+        database[BR_METADATA].update_one({'_id':title_id},{'$set':t_metadata},upsert=True)
+    if t_data is not None:
+        old_data = get_data_by_title_id(title_id)
+        if old_data is not None and verbose:
+            show_diff(old_data, t_data)
+        t_data = json.loads(json.dumps(t_data))
+        t_data['updated_timestamp'] = int(time.time())
+        database[BR_DATA].update_one({'_id':title_id},{'$set':t_data},upsert=True)
+
+
+def remove_volume(title_id, vol_id, lang='jp'):
+    chapters = get_chapters_by_volume_id(vol_id)
+    t_data = get_data_by_title_id(title_id)
+    vol_name = get_volume_name(vol_id)
+
+    vol_field = 'vol_' + lang
+    lang_data = t_data[lang + '_data']
+    vol_data = lang_data[vol_field]
+
+    if len(vol_data)>1:
+        raise Exception("TODO: Handle titles with more than 1 volume")
+
+    vd = vol_data[vol_name]
+    ch_name_field = 'ch_na' + lang
+    ch_files_field = 'ch_' + lang
+    ch_ids_field = 'ch_' + lang + 'h'
+
+    if vd['id'] != vol_id:
+        print(vd)
+        raise Exception("Inconsistent vol data!")
+
+    for ch_idx, ch_id_f  in enumerate(lang_data[ch_ids_field]):
+        ch_id = ch_id_f.split('/')[0]
+        ch_files = lang_data[ch_files_field][str(ch_idx+1)]
+        if ch_id in chapters:
+            print("Removing chapter %s content" % ch_id)
+            for filename in ch_files:
+                f_path = target_ipfs_path + ch_id + '/' + filename
+                if os.path.exists(f_path):
+                    os.remove(f_path)
+            if os.path.exists(target_ipfs_path + ch_id):
+                os.rmdir(target_ipfs_path + ch_id)
+    
+    # Just reset the chapters and volumes for now
+    lang_data[ch_name_field] = []
+    lang_data[ch_ids_field] = []
+    lang_data[ch_files_field] = {}
+    lang_data[vol_field] = {}
+    lang_data['virtual_chapter_page_count'] = []
+
+    database[BR_CHAPTER_LOOKUP_TABLE].delete_many({'title_id':title_id,'vol_id':vol_id})
+    save_metadata(title_id, None, t_data, True)

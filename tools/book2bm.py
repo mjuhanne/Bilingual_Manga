@@ -60,14 +60,18 @@ parser_import.add_argument('--only_txt', '-ot', action='store_true', help="Proce
 parser_import.add_argument('-v', '--verbose', action='store_true', help='Verbose')
 parser_import.add_argument('keyword', nargs='?', type=str, default=None, help='Title has to (partially) match the keyword in order to processed')
 
+parser_show = subparsers.add_parser('show', help='Show title info)')
+parser_show.add_argument('title_id', type=str, default=None, help='Title id')
+
 parser_remove = subparsers.add_parser('remove', help='Remove given title)')
 parser_remove.add_argument('title_id', type=str, default=None, help='Title id')
+
+parser_remove = subparsers.add_parser('reimport', help='Re-import a title/volume')
+parser_remove.add_argument('title_id', type=str, default=None, help='Title or volume id')
 
 parser_search = subparsers.add_parser('search', help='Search title/chapter_ids with given keyword')
 parser_search.add_argument('-v', '--verbose', action='store_true', help='Show all subdirectory OIDs as well')
 parser_search.add_argument('keyword', type=str, default=None, help='Keyword')
-
-parser_show = subparsers.add_parser('show', help='Show list of all imported manga')
 
 parser_set_google_book_id = subparsers.add_parser('set_google_book_id', help='Bind title with Google Books ID and update metadata')
 parser_set_google_book_id.add_argument('title_id', type=str, default=None, help='Title id')
@@ -84,19 +88,6 @@ if verbose:
 
 j = 0
 
-def save_metadata(title_id, t_metadata, t_data, verbose):
-    old_metadata = get_metadata_by_title_id(title_id)
-    if old_metadata is not None and verbose:
-        show_diff(old_metadata, t_metadata)
-    old_data = get_data_by_title_id(title_id)
-    if old_data is not None and verbose:
-        show_diff(old_data, t_data)
-    t_metadata['updated_timestamp'] = int(time.time())
-    database[BR_METADATA].update_one({'_id':title_id},{'$set':t_metadata},upsert=True)
-    t_data = json.loads(json.dumps(t_data))
-    t_data['updated_timestamp'] = int(time.time())
-    database[BR_DATA].update_one({'_id':title_id},{'$set':t_data},upsert=True)
-
 def get_file_listing(root_path):
     global file_list_cache
     items = []
@@ -107,17 +98,23 @@ def get_file_listing(root_path):
                 if '/' in p:
                     # omit sub-items for now
                     p = p.split('/')[0] + '/'
-                if p not in items and ('.epub' in p or '.txt' in p or p[-1] == '/'):
+                pl = p.lower()
+                if p not in items:
                     items.append(p)
     else:
         for f_name in os.listdir(root_path):
             if os.path.isdir(root_path + f_name):
                 items.append(f_name + '/')
-            elif '.epub' in f_name.lower() or '.txt' in f_name.lower():
+            else:
+            #elif '.epub' in fl or '.txt' in fl:
                 items.append(f_name)
     return items
 
-def recursive_scan(args, root_path, filtered_file_type=None, verbose_recursion_depth=''):
+scanned_file_count = 0
+scanned_dir_count = 0
+ignored_count_by_ext = dict()
+def recursive_scan(args, root_path, filtered_file_type=None, recursion_depth=0, recursion_depth_str=''):
+    global scanned_dir_count, scanned_file_count, ignored_count_by_ext
 
     sub_items = get_file_listing(root_path)
     if filtered_file_type is not None:
@@ -125,48 +122,61 @@ def recursive_scan(args, root_path, filtered_file_type=None, verbose_recursion_d
     sub_items.sort()
 
     for sub_item_idx, sub_item in enumerate(sub_items):
-        verbose_recursion_depth_iter = verbose_recursion_depth + ' [%d/%d]' % (sub_item_idx+1,len(sub_items))
+        recursion_depth_str_iter = recursion_depth_str + ' [%d/%d]' % (sub_item_idx+1,len(sub_items))
+
         new_path = root_path + sub_item
         if new_path[-1] == '/':
+            scanned_dir_count += 1
             # is path
             if len(sub_item)>2 and sub_item[:2] == '__':
                 # skip
                 pass
             else:
                 recursive_scan(args, new_path, 
-                    filtered_file_type=filtered_file_type,  verbose_recursion_depth=verbose_recursion_depth_iter
+                    filtered_file_type=filtered_file_type, 
+                    recursion_depth = recursion_depth+1,
+                    recursion_depth_str=recursion_depth_str_iter
                 )
         else:
+            scanned_file_count += 1
             vol_info = None
-            if '.epub' in sub_item:
+            title = None
+            ext = sub_item.split('.')[-1].lower()
+            if ext == 'epub':
                 title, vol_info = get_info_from_epub_file_name(root_path,sub_item)
-            elif '.txt' in sub_item.lower():
+            elif ext == 'txt':
                 title, vol_info = get_info_from_txt_file_name(root_path,sub_item)
-            if title is not None and vol_info is not None:
-                vol_info['verbose_recursion_depth'] = verbose_recursion_depth_iter
-                process_file(args, title, vol_info)
             else:
-                print("Missing file name processor: %s" % sub_item)
-                pass
+                print("Ignoring ",new_path)
+                if ext not in ignored_count_by_ext:
+                    ignored_count_by_ext[ext] = 1
+                else:
+                    ignored_count_by_ext[ext] += 1
+            if title is not None and vol_info is not None:
+                vol_info['verbose_recursion_depth'] = recursion_depth_str_iter
+                process_file(args, title, vol_info)
+            #else:
+            #    print("Missing file name processor: %s" % sub_item)
+            #    pass
+    pass
 
-def create_new_title(title, collection, simulate=False):
+def create_new_title(title, title_from_filename, simulate=False):
 
     title_id = create_oid(title, "title", ask_confirmation=(ask_confirmation_for_new_titles and not simulate))
     if title_id is None:
         # oid not found and adding new one was manually skipped
         return None
 
-    clean_title, publisher = extract_publisher_from_title(title)
+    title_from_filename, publisher = extract_publisher_from_title(title_from_filename)
 
     # normalize the title just in case
     # It can be in Unicode composed form (i.e. で)
     # or decomposed (i.e. て　+　゙	 mark).  The strings are stored in composed form
-    title = ud.normalize('NFC',clean_title)
+    clean_title = ud.normalize('NFC',title)
 
     print("Creating new title [%s]: %s " % (title_id, title))
 
     t_metadata = dict()
-    t_metadata['collection'] = collection
     t_metadata['created_timestamp'] = int(time.time())
 
     if has_cjk(clean_title) or has_word_hiragana(clean_title) or has_word_katakana(clean_title):
@@ -175,7 +185,7 @@ def create_new_title(title, collection, simulate=False):
     else:
         t_metadata['entit'] = clean_title
         t_metadata['jptit'] = clean_title
-    t_metadata['title_from_filename'] = clean_title
+    t_metadata['title_from_filename'] = title_from_filename
 
     t_metadata['genres'] = []
     if publisher is not None:
@@ -228,8 +238,9 @@ def update_metadata_from_google_books(t_metadata, t_data, gb, force=False):
         t_metadata['jptit'] = clean_google_books_title(vi['title'])
 
     if t_metadata['entit'] == PLACEHOLDER or force:
-        t_metadata['entit'] = gb['en_title_deepl']
-        t_metadata['entit_is_translated'] = True
+        if 'en_title_deepl' in gb:
+            t_metadata['entit'] = gb['en_title_deepl']
+            t_metadata['entit_is_translated'] = True
 
     if 'categories' in vi:
         t_metadata['genres'] = vi['categories']
@@ -246,7 +257,8 @@ def update_metadata_from_google_books(t_metadata, t_data, gb, force=False):
         except:
             pass
 
-    t_data['syn_en_deepl'] = gb['en_synopsis_deepl']
+    if 'en_synopsis_deepl' in gb:
+        t_data['syn_en_deepl'] = gb['en_synopsis_deepl']
     t_data['syn_jp'] = gb['volumeInfo']['description']
 
 def process_volume(args, title_id, title, vol_info, vol_id=None):
@@ -258,14 +270,24 @@ def process_volume(args, title_id, title, vol_info, vol_id=None):
 
     # first try to get the metadata from epub or vol_info
     if vol_info['type'] == 'epub':
+        filepath = vol_info['path'] + vol_info['filename']
         try:
-            book = epub.read_epub(vol_info['path'] + vol_info['filename'])
+            book = epub.read_epub(filepath)
         except Exception as e:
-            print("Corrupt file (%s)? %s" % (vol_info['path'] + vol_info['filename'], str(e)))
+            print("Corrupt file (%s)? %s" % (filepath, str(e)))
             return None, None
         lang = get_language_from_epub(book)
-        vol_name = get_metadata_from_epub(t_metadata, t_data, lang, book, title)
-        save_cover_image_from_epub(t_metadata, book, lang, title)
+        if lang != 'jp' and lang != 'en':
+            print("Invalid language %s in file %s" % (lang,filepath))
+            #ans = input("Manually give corrent language (or empty to skip): ")
+            ans = 'jp'
+            if ans != '':
+                lang = ans
+            else:
+                return None, None
+        vol_name = get_metadata_from_epub(t_metadata, t_data, lang, book, vol_info)
+        cover_title, _ = extract_publisher_from_title(title)
+        save_cover_image_from_epub(t_metadata, book, lang, cover_title)
     else:
         lang = 'jp' # assumption
         vol_name = vol_info['volume_name']
@@ -325,7 +347,8 @@ def process_volume(args, title_id, title, vol_info, vol_id=None):
         if vol_id is None:
             print("Skipped creating new volume")
             return None, None
-    else:
+
+    if vol_name in t_data[lang + '_data']['vol_' + lang]:
         raise Exception("TODO! replace old vol/chapter info in t_data")
 
     args['ask_confirmation_for_new_chapters'] = ask_confirmation_for_new_chapters
@@ -390,10 +413,10 @@ def parse_volume_contents(args, title_id, title_name, vol_id):
     if args['skip_content_import']:
         # clear the OCR file afterwards, keeping only the language analysis summary
         target_ocr_file_path = target_ocr_path + vol_id + '.json'
-        if os.path.exists(target_ocr_path):
+        if os.path.exists(target_ocr_file_path):
             os.remove(target_ocr_file_path)
         target_ocr_file_path = parsed_ocr_dir + vol_id + '.json'
-        if os.path.exists(target_ocr_path):
+        if os.path.exists(target_ocr_file_path):
             os.remove(target_ocr_file_path)
             
     analyzer_args = {'title':title_id,  'read':False, 'force':True }
@@ -421,12 +444,22 @@ def process_file(args, title, vol_info):
                 print("Publisher: ",extract_publisher_from_title(title))
                 print(vol_info)
 
+        title_from_filename = title
+        if vol_info['type'] == 'epub':
+            filepath = vol_info['path'] + vol_info['filename']
+            vol_info['volume_name'], title = get_clean_title_and_volume_name_from_epub_file(filepath)
+            if title is None:
+                print("Corrupt file (%s)?" % (filepath))
+                return False
+            
+
         # new volume
         import_metadata = {
             'filename' : vol_info['filename'],
             'vol_name' : vol_info['volume_name'],
             'path' : path,
             'type' : vol_info['type'],
+            'collection' :  args['collection'],
             'md5' : md5(vol_info['path'] + vol_info['filename'])
         }
 
@@ -456,7 +489,6 @@ def process_file(args, title, vol_info):
             title_metadata = None
             title += ' (book)'
 
-
         if title_metadata is None:
             if args['simulate']:
                 if args['verbose']:
@@ -473,7 +505,7 @@ def process_file(args, title, vol_info):
                 print("\tTranslator: ",vol_info['translator'])
             print("\tFilename: ",vol_info['filename'])
             print("\tPath: ",vol_info['path'])
-            title_id, _, _ = create_new_title(title, args['collection'])
+            title_id, _, _ = create_new_title(title, title_from_filename)
             if title_id is None:
                 # skipped creating new title
                 if input("Ignore this file?") == 'y':
@@ -519,7 +551,7 @@ def process_file(args, title, vol_info):
 
 def scan(args):
     global ask_confirmation_for_new_titles, ask_confirmation_for_new_volumes, ask_confirmation_for_new_chapters, ask_google_books_match_confirmation
-    global file_list_cache
+    global file_list_cache, scanned_dir_count, scanned_file_count, ignored_count_by_ext
 
     if args['automatic']:
         ask_confirmation_for_new_titles = False
@@ -549,6 +581,8 @@ def scan(args):
         if os.path.exists(cache_file):
             with open(cache_file,"r") as f:
                 file_list_cache = json.loads(f.read())
+                print("Loaded file cache listing with %d entries" % len(file_list_cache))
+
         else:
             print("Creating file listing cache for collection %s" % args['collection'])
             file_list_cache = [os.path.join(dp, f) for dp, dn, filenames in os.walk(collections[args['collection']]['path']) for f in filenames]
@@ -559,6 +593,8 @@ def scan(args):
         os.mkdir(target_ocr_path)
 
     recursive_scan(args, args['source_dir'], filtered_file_type=filtered_file_type)
+    print("Scanned total %d files in %d directories" % (scanned_file_count,scanned_dir_count))
+    print("Ignored file extensions: ",ignored_count_by_ext)
 
 
 def remove(args):
@@ -609,6 +645,76 @@ def set_google_book_id(args):
         print("Couldn't set google book id to %s" % google_book_id)
 
 
+def show(args):
+
+    title_id = args['title_id']
+
+    volume_ids = get_volumes_by_title_id(title_id)
+    metadata = get_metadata_by_title_id(title_id)
+    print(metadata)
+    for vol_id in volume_ids:
+        vol = get_volume_number_by_volume_id(vol_id)
+        import_data = database[BR_VOL_IMPORT_METADATA].find_one({'_id':vol_id})
+        if import_data is None:
+            print("No import data found for title %s / vol %d" % (title_id,vol_id))
+        else:
+            print("\nVol %d [%s]" % (vol,vol_id), import_data)
+
+
+def reimport(args):
+
+    volume_ids = get_volumes_by_title_id(args['title_id'])
+    if len(volume_ids) == 0:
+        title_id = get_title_id_by_volume_id(args['title_id'])
+        if title_id is not None:
+            volume_ids = [args['title_id']]
+        else:
+            print("No volume or title id found!")
+            return -1
+    else:         
+        title_id = args['title_id']
+   
+    title_name = get_title_by_id(title_id)
+    if len(volume_ids)>1:
+        print("Supporting only 1 volume titles for now!")
+        return -1
+
+    vol_id = volume_ids[0]
+    import_data = database[BR_VOL_IMPORT_METADATA].find_one({'_id':vol_id})
+    if  import_data is None:
+        print("No import data found for title %s / vol %d" % (title_id,vol_id))
+        return -1
+
+    collection = import_data['collection'] 
+    if collection not in collections:
+        print("No collection %s found for title %s / vol %d" % (collection, title_id,vol_id))
+        return -1
+    coll_data = collections[collection]
+    vol_path = coll_data['path'] + import_data['path']
+    vol_filename = import_data['filename']
+    if not os.path.exists(vol_path + vol_filename):
+        print("No volume file %s found for title %s / vol %d" % (vol_path+vol_filename, title_id,vol_id))
+        return -1
+
+    vol_info = None
+    if '.epub' in vol_filename:
+        title, vol_info = get_info_from_epub_file_name(vol_path,vol_filename)
+    elif '.txt' in vol_filename.lower():
+        title, vol_info = get_info_from_txt_file_name(vol_path,vol_filename)
+
+    # remove existing volume info
+    remove_volume(title_id, vol_id)
+
+    ask_confirmation_for_new_chapters = False
+    ask_google_books_match_confirmation = False
+    args['combine_chapters'] = False
+    args['skip_content_import'] = False
+
+    process_volume(args, title_id, title, vol_info, vol_id)
+    parse_volume_contents(args, title_id, title, vol_id)
+
+
+
 #TESTING
 #args = {'command':'scan','keyword':None,'force':False,'collection':'PeepoHappyBooks2','source_dir':None,'automatic':True,'simulate':False,'verbose':True,'refresh_metadata':False,'skip_content':False, 'only_epub':False,'only_txt':False,'force_aggregate':False}
 #args = {'command':'scan','keyword':'銀河鉄道の','force':True,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':False,'skip_content':False, 'only_epub':False,'only_txt':False}
@@ -619,6 +725,8 @@ def set_google_book_id(args):
 
 args['combine_chapters'] = True
 args['skip_content_import'] = True
+
+#args = {'command':'reimport','title_id':'677500d3999d87aa4e9707fc','force':False,'verbose':True,'force_aggregate':False}
 
 
 cmd = args.pop('command')

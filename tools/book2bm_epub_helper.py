@@ -68,14 +68,19 @@ def save_cover_image_from_epub(t_metadata, book,lang,title):
         cover_f_ext = cover_f_name.split('.')[-1]
         content = cover.get_content()
 
-        target_img_f_name = clean_name(title) + '.' + cover_f_ext
+        target_img_f_name = clean_name(title)
+        if len(target_img_f_name) > 50:
+            target_img_f_name = t_metadata['enid']
+        target_img_f_name += '.' + cover_f_ext
         target_img_path = 'manga_cover/' + lang + '/'
         t_metadata['cover'+lang] = target_img_path + target_img_f_name
 
-        print("Writing %s cover image %s" % (lang,target_img_path + target_img_f_name))
-        item_f = open(target_img_path + target_img_f_name,'wb')
-        item_f.write(content)
-        item_f.close()
+        target_fpath = target_img_path + target_img_f_name
+        if not os.path.exists(target_fpath):
+            print("Writing %s cover image %s" % (lang,target_fpath))
+            item_f = open(target_fpath,'wb')
+            item_f.write(content)
+            item_f.close()
 
 
 def save_image_from_epub(chapter_id, book, img_name):
@@ -100,8 +105,11 @@ def get_clean_title_from_epub(book):
     clean_title = clean_title.split(' 中 ')[0]
     clean_title = clean_title.split(' 下 ')[0]
     clean_title = clean_title.replace('_',' ')
+    vols = ['上','中','下']
+    if clean_title[-1] in vols:
+        clean_title = clean_title[:-1]
 
-    vol_title, publisher = extract_publisher_from_title(clean_title)
+    vol_title, publisher = extract_publisher_from_title(vol_title)
     return vol_title, clean_title, publisher
 
 def get_language_from_epub(book):
@@ -109,13 +117,22 @@ def get_language_from_epub(book):
     if len(lang_item) == 0:
         lang_item = book.get_metadata('DC', 'language')
     if len(lang_item) == 0:
-        raise Exception("No language!")
+        return None
     lang, _ = lang_item[0]
     if lang == 'ja' or lang == 'ja-JP':
         lang = 'jp'
     return lang
 
-def get_metadata_from_epub(t_metadata, t_data, lang, book, title):
+def get_clean_title_and_volume_name_from_epub_file(filepath):
+    try:
+        book = epub.read_epub(filepath)
+        vol_name, clean_title, _ = get_clean_title_from_epub(book)
+        return vol_name, clean_title
+    except Exception as e:
+        pass
+    return None, None
+
+def get_metadata_from_epub(t_metadata, t_data, lang, book, vol_info):
     desc_meta = book.get_metadata('DC', 'description')
     if desc_meta is not None and len(desc_meta)>0:
         desc,_ = desc_meta[0]
@@ -125,14 +142,16 @@ def get_metadata_from_epub(t_metadata, t_data, lang, book, title):
 
     if t_metadata[lang + 'tit'] == PLACEHOLDER:
         t_metadata[lang + 'tit'] = clean_title
-    creator, _ = book.get_metadata('DC', 'creator')[0]
-    if creator is not None:
-        creator2 = creator.replace(' ','')
-        if creator not in t_metadata['Author'] and creator2 not in t_metadata['Author']:
-            if t_metadata['Author'] == [PLACEHOLDER]:
-                t_metadata['Author'] = [creator]
-            else:
-                t_metadata['Author'].append(creator)
+    creator_meta = book.get_metadata('DC', 'creator')
+    if creator_meta is not None and len(creator_meta)>0:
+        creator, _ = creator_meta[0]
+        if creator is not None:
+            creator2 = creator.replace(' ','')
+            if creator not in t_metadata['Author'] and creator2 not in t_metadata['Author']:
+                if t_metadata['Author'] == [PLACEHOLDER]:
+                    t_metadata['Author'] = [creator]
+                else:
+                    t_metadata['Author'].append(creator)
 
     if lang == 'jp':
         if t_metadata['Release'] == PLACEHOLDER:
@@ -160,9 +179,12 @@ def get_chapters_from_epub(book, verbose, combine_chapters):
     if combine_chapters:
         # just bunch all the content together
         item_list = []
-        for (item_id, _) in book.spine:
+        for i, (item_id, _) in enumerate(book.spine):
             item = book.get_item_with_id(item_id)
-            item_list.append({'item':item,'content':item.content,'start_id':None,'next_ch_start_id':None})
+            if item is None:
+                print("Warning! Spine #%d item_id %s not found!" % (i, str(item_id)))
+            else:
+                item_list.append({'item':item,'content':item.content,'start_id':None,'next_ch_start_id':None})
         return ["All chapters"], [item_list]
 
     # There are two scenarios how chapters are constructed:
@@ -403,10 +425,12 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, args):
                 print("Skipping chapter and subsequent chapters")
                 return -1
             
+        t_data[lang_data_field][ch_name_field].append(ch_name)
+        t_data[lang_data_field][ch_lang_h_field].append(ch_id + '/%@rep@%')
         if not args['skip_content_import']:
-            t_data[lang_data_field][ch_name_field].append(ch_name)
-            t_data[lang_data_field][ch_lang_h_field].append(ch_id + '/%@rep@%')
             t_data[lang_data_field][ch_lang_field][start_ch_idx+ch_idx+1] = ['pages.html']
+        else:
+            t_data[lang_data_field][ch_lang_field][start_ch_idx+ch_idx+1] = []
         print("Chapter %s [%s]: %s " % (lang, ch_id, ch_name))
 
         if not 'simulate' in args or not args['simulate']:
@@ -433,7 +457,9 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, args):
             elif 'htm' in item_f_name:
                 item_f_name_base = item_f_name.split('.htm')[0]
             else:
-                raise Exception("Unknown content file type %s" % item_f_name)
+                #raise Exception("Unknown content file type %s" % item_f_name)
+                print("Warning! Skipping unknown content file type %s" % item_f_name)
+                continue
 
             content = ch_item_data['content']
 

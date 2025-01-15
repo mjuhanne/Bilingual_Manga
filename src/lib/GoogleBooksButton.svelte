@@ -1,12 +1,13 @@
 <script>
 import { page } from '$app/stores';
-import { goto } from "$app/navigation";
+import { invalidateAll } from '$app/navigation';
 import Modal from './Modal.svelte';
 import { deserialize } from '$app/forms'; // Import the enhance action
 export let meta;
 
 let showModal = false;
 let googleId = '';
+let newGoogleId = ''
 let previous_error = ''
 let tried_metadata = [];
 
@@ -20,6 +21,7 @@ $: {
             previous_error = "Previous attempt failed because quota exceeded";
         } else {
             googleId = meta.google_books.google_book_id;
+            newGoogleId = googleId;
         }
     }
 }
@@ -35,7 +37,7 @@ async function setGoogleBooksId(event) {
             'func' : 'set_google_books_id', 
             'param' : {
                 'title_id' : meta.enid,
-                'google_book_id' : googleId
+                'google_book_id' : newGoogleId
             }
         })
     });
@@ -44,10 +46,11 @@ async function setGoogleBooksId(event) {
 
     if (result.success) {
         // reload the page
-        goto(`?${$page.url.searchParams.toString()}`);
+        invalidateAll();
     } else {
         alert(JSON.stringify(result.response))
     }
+    googleId = newGoogleId;
     showModal = false;
 }
 
@@ -91,7 +94,7 @@ function openDialog() {
     <a href="https://www.google.com/search?q={meta.jptit}+inauthor%3A{meta.Author[0]}&tbm=bks" target="_blank" title="Manual Google Books search">Manual search</a>
     <div class="enclosure">
             <label>
-            <input placeholder="Enter Google Book Id" bind:value={googleId}>
+            <input placeholder="Enter Google Book Id" bind:value={newGoogleId}>
         </label>
     </div>
     

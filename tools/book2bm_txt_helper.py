@@ -8,6 +8,10 @@ import re
 from helper import *
 import copy
 
+publisher_list = ['角川書店','角川文庫','徳間文庫','角川ホラー文庫',
+    '電撃文庫','PHP文芸文庫','講談社青い鳥文庫','Kindle Single',
+    '角川スニーカー文庫','アオシマ書店','文春文庫','河出文庫','新潮文庫','講談社文庫',
+    'ハヤカワ文庫SF']
 
 text_regex = [
     # (一般小説) [藤沢周平] よろずや平四郎活人剣（上） (青空文庫対応txt 表紙付)(校正08-11-04).txt
@@ -768,10 +772,12 @@ def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, args ):
                 print("Skipping chapter and subsequent chapters")
                 return -1
             
+        t_data[lang_data_field][ch_name_field].append(ch_name)
+        t_data[lang_data_field][ch_lang_h_field].append(ch_id + '/%@rep@%')
         if not args['skip_content_import']:
-            t_data[lang_data_field][ch_name_field].append(ch_name)
-            t_data[lang_data_field][ch_lang_h_field].append(ch_id + '/%@rep@%')
             t_data[lang_data_field][ch_lang_field][start_ch_idx+ch_idx+1] = ['pages.html']
+        else:
+            t_data[lang_data_field][ch_lang_field][start_ch_idx+ch_idx+1] = []
         print("Chapter %s [%s]: %s " % (lang, ch_id, ch_name))
 
         add_chapter_lookup_entry(title_id, vol_id, vol_num, vol_name, ch_id, ch_idx, ch_name, lang)

@@ -142,49 +142,50 @@ def search_records_and_select_one(title_id, search_metadata, index, manual_confi
                         url = j['selfLink']
                         response = requests.get(url, headers=headers, verify=False)
                         j = response.json()
-                        vi = j['volumeInfo']
-                        authors = []
-                        detected_translator = ''
-                        if 'authors' in vi:
-                            for author in vi['authors']:
-                                if '／' in author:
-                                    auth_tr = author.split('／')
-                                    if '訳' == auth_tr[1][-1]:
-                                        detected_translator = auth_tr[1][:-1]
-                                        authors.append(auth_tr[0])
+                        if 'volumeInfo' in j:
+                            vi = j['volumeInfo']
+                            authors = []
+                            detected_translator = ''
+                            if 'authors' in vi:
+                                for author in vi['authors']:
+                                    if '／' in author:
+                                        auth_tr = author.split('／')
+                                        if '訳' == auth_tr[1][-1]:
+                                            detected_translator = auth_tr[1][:-1]
+                                            authors.append(auth_tr[0])
+                                        else:
+                                            authors.append(auth_tr[0])
+                                            authors.append(auth_tr[1])
                                     else:
-                                        authors.append(auth_tr[0])
-                                        authors.append(auth_tr[1])
-                                else:
-                                    authors.append(author)
-                        vi['authors'] = authors
-                        if 'description' in vi and vi['language'] == 'ja':
-                            if author is None or len(authors)>0:
-                                if translator is None or translator == detected_translator:
-                                    print("[match #%d]" % (index+1))
-                                    ok = True
-                                    if manual_confirmation:
-                                        translate_metadata(j)
-                                        print("Title: ",vi['title'])
-                                        print("Authors: ",vi['authors'])
-                                        print("Authors (en): ",j['en_authors_deepl'])
-                                        if detected_translator != '':
-                                            print("Detected translator:",detected_translator)
-                                        if translator is not None:
-                                            print("Translator:",translator)
-                                        if publisher is not None:
-                                            print("Publisher:",publisher)
-                                        print("Description: ",vi['description'])
-                                        print("Description (en): ",j['en_synopsis_deepl'])
-                                        print("Publisher: ",vi['publisher'])
-                                        ans = input("Is this ok? ")
-                                        if ans != 'y':
-                                            ok = False
-                                    if ok:
-                                        return save_record(title_id,j)
-                                    else:
-                                        print("Skipped")
-                                        return None
+                                        authors.append(author)
+                            vi['authors'] = authors
+                            if 'description' in vi and vi['language'] == 'ja':
+                                if author is None or len(authors)>0:
+                                    if translator is None or translator == detected_translator:
+                                        print("[match #%d]" % (index+1))
+                                        ok = True
+                                        if manual_confirmation:
+                                            translate_metadata(j)
+                                            print("Title: ",vi['title'])
+                                            print("Authors: ",vi['authors'])
+                                            print("Authors (en): ",j['en_authors_deepl'])
+                                            if detected_translator != '':
+                                                print("Detected translator:",detected_translator)
+                                            if translator is not None:
+                                                print("Translator:",translator)
+                                            if publisher is not None:
+                                                print("Publisher:",publisher)
+                                            print("Description: ",vi['description'])
+                                            print("Description (en): ",j['en_synopsis_deepl'])
+                                            print("Publisher: ",vi['publisher'])
+                                            ans = input("Is this ok? ")
+                                            if ans != 'y':
+                                                ok = False
+                                        if ok:
+                                            return save_record(title_id,j)
+                                        else:
+                                            print("Skipped")
+                                            return None
                     index += 1
     elif 'error' in r:
         if r['error']['code'] == 429:
