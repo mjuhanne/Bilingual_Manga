@@ -9,7 +9,7 @@ $: jpi=`background-image:url(${cdncdn}/${data.coverjp});background-position: cen
 $: eni=`background-image:url(${cdncdn}/${data.coveren});background-position: center;background-repeat: no-repeat;background-size: cover;`
 </script>
 {#key data}
-{#if ls==="en"}
+{#if ls==="en" && data.languages.includes('en')}
 <span style="display:flex;">
    <span class="mangacardhover">
     <a href="/manga/{data.enid}?lang=en" data-sveltekit:prefetch style="color: #f2f2f2;text-decoration: none;" target="_top" rel="noopener noreferrer">
@@ -22,7 +22,7 @@ $: eni=`background-image:url(${cdncdn}/${data.coveren});background-position: cen
    </span>
 </span>
 {:else}
-{#if ls==="jp"}
+{#if ls==="jp" && data.languages.includes('jp')}
 <span style="display:flex;">
     <span class="mangacardhover">
      <a href="/manga/{data.enid}?lang=jp" data-sveltekit:prefetch style="color: #f2f2f2;text-decoration: none;" target="_top" rel="noopener noreferrer"><div class="mangacard" style={jpi}>
@@ -35,6 +35,7 @@ $: eni=`background-image:url(${cdncdn}/${data.coveren});background-position: cen
  </span>
 
 {:else}
+{#if data.languages.includes('en')}
 <span style="display:flex;">
     <span class="mangacardhover">
      <a href="/manga/{data.enid}?lang=en" data-sveltekit:prefetch style="color: #f2f2f2;text-decoration: none;" target="_top" rel="noopener noreferrer">
@@ -46,6 +47,8 @@ $: eni=`background-image:url(${cdncdn}/${data.coveren});background-position: cen
     </a>
     </span>
  </span>
+{/if}
+{#if data.languages.includes('jp')}
  <span style="display:flex;">
     <span class="mangacardhover">
      <a href="/manga/{data.enid}?lang=jp" data-sveltekit:prefetch style="color: #f2f2f2;text-decoration: none;" target="_top" rel="noopener noreferrer"><div class="mangacard" style={jpi}>
@@ -56,6 +59,7 @@ $: eni=`background-image:url(${cdncdn}/${data.coveren});background-position: cen
     </a>
  </span>
  </span>
+ {/if}
  {/if}
  {/if}
  {/key}

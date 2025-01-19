@@ -70,6 +70,13 @@ async function fetchData() {
     } else {
         if (result.suggested_preread.length > 0) {
             suggested_preread = result.suggested_preread;
+            for (let title_suggestion of suggested_preread) {
+                if (Object.keys(title_suggestion.lang).includes('en') && title_suggestion.lang.en.title != '') {
+                    title_suggestion.title = title_suggestion.lang.en.title
+                } else {
+                    title_suggestion.title = title_suggestion.lang.jp.title
+                }
+            }
         } else {
             message = 'Not yet calculated'
             suggested_preread = [];
@@ -252,12 +259,8 @@ function get_value(item,value_fields) {
             {#key sorted_suggested_preread}
             {#each sorted_suggested_preread as title_data}
             <tr>
-                {#if title_data.entit != "Placeholder"}
-                <td><a href="/manga/{title_data.enid}?lang=jp" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">{title_data.entit}</a></td>
-                {:else}
-                <td><a href="/manga/{title_data.enid}?lang=jp" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">{title_data.jptit}</a></td>
-                {/if}
-                <td>{title_data.Author}</td>
+                <td><a href="/manga/{title_data._id}?lang=jp" data-sveltekit:prefetch target="_top" rel="noopener noreferrer">{title_data.title}</a></td>
+                <td>{title_data.authors}</td>
                 {#if source_filter == 'book'}
                     <td>{title_data.suggestion.num_analyzed_pages}</td>
                 {:else}

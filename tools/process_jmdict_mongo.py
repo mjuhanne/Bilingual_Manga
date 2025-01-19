@@ -83,7 +83,12 @@ for elem in entries:
     elem_pri_elems = dict()
 
     pos_list_per_sense = [] # parts of speech (verb, noun, expression etc)
+
     ent_seq = int(elem.find('ent_seq').text)
+    if ent_seq >= 5000000:
+        # skip those entries that will be included in JMNEdict
+        continue
+
     gloss_list_per_sense = []
     min_r_freq = 99
 
@@ -248,7 +253,7 @@ for elem in entries:
     elem_freq = dict()
     elem_pri_elems = dict()
 
-    ent_seq = elem.find('ent_seq').text
+    ent_seq = int(elem.find('ent_seq').text)
 
     pri_dict = {'spec1':99}
 
@@ -296,7 +301,7 @@ for elem in entries:
                 elem_pri_elems[keb].append(pr)
                 #freq = pri_dict[pr]
             else:
-                print("Unknown priority element %s on seq %s" % (pr,ent_seq))
+                print("Unknown priority element %s on seq %d" % (pr,ent_seq))
 
     trans_elem = elem.find('trans')
     trans_det_elems = trans_elem.findall('trans_det')

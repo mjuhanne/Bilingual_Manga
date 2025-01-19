@@ -1,10 +1,10 @@
 from helper import *
 from bm_learning_engine_helper import *
 import datetime
-from br_mongo import *
+from motoko_mongo import *
 
-learning_data = database[BR_USER_LEARNING_DATA].find_one({'user_id':DEFAULT_USER_ID})
-wordlist_cursor = database[BR_USER_WORD_LEARNING_STATUS].find({'user_id':DEFAULT_USER_ID},{'_id':False,'user_id':False})
+learning_data = database[COLLECTION_USER_LEARNING_DATA].find_one({'user_id':DEFAULT_USER_ID})
+wordlist_cursor = database[COLLECTION_USER_WORD_LEARNING_STATUS].find({'user_id':DEFAULT_USER_ID},{'_id':False,'user_id':False})
 learning_data['words'] = {item['wid']:{'s':item['s'],'lf':item['lf']} for item in wordlist_cursor}
 
 user_set_words = get_user_set_words()
@@ -23,14 +23,11 @@ else:
 
 
 def get_metadata(source_chapter_id):
-    chapter_data = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'ch_id':source_chapter_id})
+    chapter_data = database[COLLECTION_CHAPTERDATA].find_one({'ch_id':source_chapter_id})
     if chapter_data is None:
         raise Exception("Chapter %s not found in lookup table!" % source_chapter_id)
-    title_metadata = database[BR_METADATA].find_one({'_id':chapter_data['title_id']})
-    if title_metadata['entit'] != 'Placeholder':
-        title = title_metadata['entit']
-    else:
-        title = title_metadata['jptit']
+    title_metadata = database[COLLECTION_TITLEDATA].find_one({'_id':chapter_data['title_id']})
+    title = get_title_from_metadata(title_metadata)
     return {
         'id' : chapter_data['title_id'],
         'name' : "%s (%s)" % (title, chapter_data['ch_name'])

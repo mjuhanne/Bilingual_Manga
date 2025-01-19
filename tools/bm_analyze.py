@@ -4,12 +4,11 @@ import copy
 import argparse
 import time
 import random
-from mongo import *
 
 from helper import *
 from bm_learning_engine_helper import *
 from jmdict import *
-from br_mongo import *
+from motoko_mongo import *
 from bm_analyze_helper import *
 
 SUGGESTED_PREREAD_ANALYSIS_VERSION = 1
@@ -53,7 +52,7 @@ def calculate_average_summary(custom_lang_analysis_metadata):
     print("Calculating average summary..")
     avg_ci_sentence_count = [0] * 8
                 
-    cursor = database[BR_CUSTOM_LANG_ANALYSIS].find(
+    cursor = database[COLLECTION_CUSTOM_LANG_ANALYSIS].find(
             {'user_id':DEFAULT_USER_ID,'type':'series'},{'comprehensible_input_sentence_grading':True})
 
     count = 0
@@ -78,7 +77,7 @@ def calculate_average_summary(custom_lang_analysis_metadata):
     summary['custom_lang_analysis_metadata'] = custom_lang_analysis_metadata
     summary = json.loads(json.dumps(summary)) # make sure all integer keys are converted to strings
 
-    database[BR_CUSTOM_LANG_ANALYSIS_SUMMARY].replace_one(
+    database[COLLECTION_CUSTOM_LANG_ANALYSIS_SUMMARY].replace_one(
         {'user_id':DEFAULT_USER_ID,'title_id':"average_title"},
         summary, upsert=True
     )
@@ -338,14 +337,14 @@ def suggest_preread(args):
         return
 
     # load previous analysis results for source titles
-    old_data = database[BR_SUGGESTED_PREREAD].find(
+    old_data = database[COLLECTION_SUGGESTED_PREREAD].find(
         {'user_id':DEFAULT_USER_ID,
          'target_title_id':target_title_id,'target_selection':target_selection,
          'source_selection':source_selection
     })
     old_suggestions = {entry['source_title_id']:entry for entry in old_data}
 
-    summary_data = database[BR_CUSTOM_LANG_ANALYSIS_SUMMARY].aggregate([
+    summary_data = database[COLLECTION_CUSTOM_LANG_ANALYSIS_SUMMARY].aggregate([
         {
             '$match': {
             'user_id':DEFAULT_USER_ID,
@@ -353,7 +352,7 @@ def suggest_preread(args):
         },
         {
             '$lookup' : {
-                'from':'br_metadata',
+                'from':'titledata',
                 'localField':'title_id',
                 'foreignField':'_id',
                 'as' : 'metadata'
@@ -362,7 +361,7 @@ def suggest_preread(args):
         {
             '$unwind': {
                 'path':'$metadata',
-                'preserveNullAndEmptyArrays':True
+                'preserveNullAndEmptyArrays':False
             }
         }
     ])
@@ -401,9 +400,9 @@ def suggest_preread(args):
                         if source_filter == 'all':
                             processed_titles.append(title_id)
                         else:
-                            if source_filter == 'book' and summary['metadata']['is_book']:
+                            if source_filter == 'book' and summary['metadata']['type'] == 'book':
                                 processed_titles.append(title_id)
-                            if source_filter != 'book' and not summary['metadata']['is_book']:
+                            if source_filter != 'book' and summary['metadata']['type'] != 'book':
                                 processed_titles.append(title_id)
 
         reset_progress()
@@ -413,7 +412,7 @@ def suggest_preread(args):
         for i, title_id in enumerate(processed_titles):
 
             summary = summary_by_title[title_id]
-            title_name = summary['metadata']['entit']
+            title_name = get_title_from_metadata(summary['metadata'])
 
             print_progress(i,title_count,"Analyzing")
 
@@ -534,7 +533,7 @@ def suggest_preread(args):
                 title_analysis['source_title_id'] = title_id
                 title_analysis['timestamp'] = summary['custom_lang_analysis_metadata']['timestamp']
                 title_analysis['version'] = SUGGESTED_PREREAD_ANALYSIS_VERSION
-                database[BR_SUGGESTED_PREREAD].replace_one(
+                database[COLLECTION_SUGGESTED_PREREAD].replace_one(
                     {'user_id':DEFAULT_USER_ID,
                     'target_title_id':target_title_id,'target_selection':target_selection,
                     'source_title_id':title_id,'source_selection':source_selection
@@ -589,19 +588,39 @@ def analyze(args):
 
     an_types = ['series','next_unread_chapter','next_unread_volume','series_analysis_for_jlpt']
 
-    # load previous analysis
-    if not args['force']:
-        for an_type in an_types:
-                    
-            cursor = database[BR_CUSTOM_LANG_ANALYSIS].find(
-                    {'user_id':DEFAULT_USER_ID,'type':an_type},{'_id':False})
-            old_analysis[an_type] = {an['title_id']:an for an in cursor}
+    title_names = {}
+    if args['title_id'] is not None:
+        title_id = args['title_id']
+        # load previous analysis
+        if not args['force']:
+            for an_type in an_types:
+                cursor = database[COLLECTION_CUSTOM_LANG_ANALYSIS].find(
+                        {'user_id':DEFAULT_USER_ID,'type':an_type,'title_id':title_id},{'_id':False})
+                old_analysis[an_type] = {an['title_id']:an for an in cursor}
+        title_name = get_title_by_id(title_id)
+        title_names[title_id] = title_name
+    else:
+        # load previous analysis
+        if not args['force']:
+            for an_type in an_types:
+                        
+                cursor = database[COLLECTION_CUSTOM_LANG_ANALYSIS].find(
+                        {'user_id':DEFAULT_USER_ID,'type':an_type},{'_id':False})
+                old_analysis[an_type] = {an['title_id']:an for an in cursor}
+        preliminary_title_names = get_title_names()
+
+        # filtering
+        for id, name in preliminary_title_names.items():
+            if args['read']:
+                if not is_title_read(title_id):
+                    continue
+            title_names[id] = name
+
 
     if not progress_output:
         print("Analyzing comprehension..")
     reset_progress()
 
-    title_names = get_title_names()
     title_count = len(title_names)
 
     timestamp = int(time.time())*1000
@@ -613,18 +632,10 @@ def analyze(args):
 
     for i, (title_id, title_name) in enumerate(title_names.items()):
 
-        jp_title = get_jp_title_by_id(title_id)
         if progress_output:
             print_progress(i,title_count,"Analyzing")
 
-        if args['title'] is not None and args['title'].lower() not in title_name.lower() and args['title'] != title_id and args['title'] not in jp_title:
-            continue
-
-        if args['read']:
-            if not is_title_read(title_id):
-                continue
-
-        if args['title'] is not None:
+        if args['title_id'] is not None:
             print("Analyzing",title_name)
 
         d = dict()
@@ -664,9 +675,9 @@ def analyze(args):
                         an['user_id'] = DEFAULT_USER_ID
                         an['custom_lang_analysis_metadata'] = custom_lang_analysis_metadata
                         an = json.loads(json.dumps(an)) # make sure all integer keys are converted to strings
-                        if args['title'] is not None:
+                        if args['title_id'] is not None:
                             print("Saving %s:%s" % (title_id, an_type))
-                        database[BR_CUSTOM_LANG_ANALYSIS].replace_one(
+                        database[COLLECTION_CUSTOM_LANG_ANALYSIS].replace_one(
                             {'user_id':an['user_id'],'type':an_type,'title_id':title_id},
                             an, upsert=True
                         )
@@ -691,19 +702,20 @@ def analyze(args):
             summary['user_id'] = DEFAULT_USER_ID
             summary['custom_lang_analysis_metadata'] = custom_lang_analysis_metadata
             summary['reading_pct'] = calculate_reading_completion_percentage(title_id)
-            if args['title'] is not None:
+            if args['title_id'] is not None:
                 print("Saving %s:%s" % (title_id, 'summary'))
-            database[BR_CUSTOM_LANG_ANALYSIS_SUMMARY].replace_one(
+            database[COLLECTION_CUSTOM_LANG_ANALYSIS_SUMMARY].replace_one(
                 {'user_id':DEFAULT_USER_ID,'title_id':title_id},
                 summary, upsert=True
             )
 
-    if args['title'] is None:
+    if args['title_id'] is None:
         calculate_average_summary(custom_lang_analysis_metadata)
 
     # try to create an index just in case it doesn't already exist
-    database[BR_CUSTOM_LANG_ANALYSIS_SUMMARY].create_index({'title_id':-1})
-    database[BR_SUGGESTED_PREREAD].create_index({'target_title_id':1})
+    database[COLLECTION_CUSTOM_LANG_ANALYSIS_SUMMARY].create_index({'title_id':-1})
+    database[COLLECTION_SUGGESTED_PREREAD].create_index({'target_title_id':1})
+    database[COLLECTION_SUGGESTED_PREREAD].create_index({'source_title_id':1})
 
 
 #################### Read input files #################################
@@ -724,7 +736,7 @@ if __name__ == '__main__':
 
     subparsers = parser.add_subparsers(help='', dest='command')
     parser_analyze = subparsers.add_parser('analyze', help='Do comprehension analysis per title')
-    parser_analyze.add_argument('--title', '-t', type=str, default=None, help='Target manga title')
+    parser_analyze.add_argument('--title_id', '-t', type=str, default=None, help='Target title id')
     parser_analyze.add_argument('--force', '-f', action='store_true', help='Force update')
     parser_analyze.add_argument('--progress-output', '-po', action='store_true', help='Output only progress')
     parser_analyze.add_argument('--read', '-r', action='store_true', help='Process only read titles')
@@ -748,10 +760,8 @@ if __name__ == '__main__':
     load_jmdict(verbose=not progress_output)
 
 
-    #analyze({'title':None,'force':False,'read':False})
-    #analyze({'title':'Hitch','force':False})
-    #analyze_next_unread({'title':'tortoise','force':True})
-    #suggest_preread({'title':'66c8adc22e77804a9dc14ede','filter':'book','progress-output':False,'target_scope':'title','source_scope':'next_unread_volume'})
+    #analyze({'title_id':'677500d3999d87aa4e9707fc','force':True,'read':False})
+    #suggest_preread({'title':'678bb4fdd20a3129a6d9f2c4','filter':'book','progress-output':False,'target_scope':'title','source_scope':'next_unread_volume'})
     #suggest_preread({'title':'6696a9de5346852c2184aed0','filter':'manga','progress-output':False,'target_scope':'next_unread_chapter','source_scope':'next_unread_volume'})
 
     if cmd is not None:

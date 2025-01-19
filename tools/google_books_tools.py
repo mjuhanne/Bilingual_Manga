@@ -12,8 +12,8 @@ logging.captureWarnings(True) # repress HTML certificate verification warnings
 from deepl_helper import deepl_translate
 import unicodedata as ud
 import urllib
-from br_mongo import *
-from helper import get_metadata_by_title_id, get_jp_title_names, get_jp_title_by_id, get_authors, get_publisher, get_data_by_title_id, is_book, get_title_id
+from motoko_metadata import *
+from helper import get_metadata_by_title_id, get_jp_title_names, get_jp_title_by_id, get_authors, get_publisher, is_book, get_title_id, get_volume_and_chapter_info
 
 QUOTA_EXCEEDED = "quota_exceeded"
 NOT_FOUND = "not_found"
@@ -25,15 +25,12 @@ search_url = "https://www.googleapis.com/books/v1/volumes?q="
 get_volume_url = "https://www.googleapis.com/books/v1/volumes/"
 headers = {'Content-Type': 'application/json'}
 
-def get_google_books_entry(title_id):
-    entry = database[BR_GOOGLE_BOOKS].find_one({'_id':title_id})
+def get_google_books_entry(vol_id):
+    entry = database[COLLECTION_GOOGLE_BOOKS_VOLUMEDATA].find_one({'_id':vol_id})
     if entry is not None and (entry['google_book_id'] == QUOTA_EXCEEDED or entry['google_book_id'] == NOT_FOUND):
         return None
     return entry
 
-def get_title_name(title_id):
-    t = get_metadata_by_title_id(title_id)
-    return t['jptit']
 
 def clean_text(title):
     title = title.replace('&#039;',"'")
@@ -54,32 +51,34 @@ def show(args):
     for title_id, title_name in get_jp_title_names().items():
         if is_book(title_id):
             i += 1
-            c = get_google_books_entry(title_id)
+            first_jp_vol_id = get_first_jp_vol_id(title_id)
+            c = get_google_books_entry(first_jp_vol_id)
             if c is None:
-                print("MISSING: [%s] %s " % (title_id, title_name))
+                print("MISSING: [%s] %s (vol %s)" % (title_id, title_name, first_jp_vol_id))
             else:
                 if c['id'] == -1:
-                    print("OMITTED: [%s] " % (title_id))
+                    print("OMITTED: [%s] (vol %s) " % (title_id, first_jp_vol_id))
                 else:
                     t = c['volumeInfo']['title']
                     star = '* ' if t.lower() != title_name.lower() else '  '
                     cat = ' '
-                    print("%s %s %d [%s] %s : %s" % (star, cat, i, title_id, title_name,t ))
+                    print("%s %s %d [%s / %s] %s : %s" % (star, cat, i, title_id, first_jp_vol_id, title_name,t ))
 
 
-def search_records_and_select_one(title_id, search_metadata, index, manual_confirmation=False):
+def search_records_and_select_one(vol_data, search_metadata, index, manual_confirmation=False):
 
     global quota_exceeded_timeout_counter
 
+    vol_id = vol_data['vol_id']
     if quota_exceeded_timeout_counter >= 0:
-        print("[%s]: Google Books quota exceeded for the day. Retrying after %d queries" % (title_id, quota_exceeded_timeout_counter))
+        print("[%s]: Google Books quota exceeded for the day. Retrying after %d queries" % (vol_id, quota_exceeded_timeout_counter))
         j = {'google_book_id' : QUOTA_EXCEEDED}
-        database[BR_GOOGLE_BOOKS].update_one({'_id':title_id},{'$set':j},upsert=True)
+        database[COLLECTION_GOOGLE_BOOKS_VOLUMEDATA].update_one({'_id':vol_id},{'$set':j},upsert=True)
         quota_exceeded_timeout_counter -= 1
         return None
 
     tried_metadata = []
-    entry = database[BR_GOOGLE_BOOKS].find_one({'_id':title_id})
+    entry = database[COLLECTION_GOOGLE_BOOKS_VOLUMEDATA].find_one({'_id':vol_id})
     if entry is not None and entry['google_book_id'] == NOT_FOUND:
         tried_metadata = entry['tried_metadata']
         for metadata in entry['tried_metadata']:
@@ -117,7 +116,7 @@ def search_records_and_select_one(title_id, search_metadata, index, manual_confi
                 url = j['selfLink']
                 response = requests.get(url, headers=headers, verify=False)
                 j = response.json()
-                return save_record(title_id,j)
+                return save_record(vol_data,j)
             else:
                 index = 0
                 while index <len(r['items']):
@@ -182,26 +181,26 @@ def search_records_and_select_one(title_id, search_metadata, index, manual_confi
                                             if ans != 'y':
                                                 ok = False
                                         if ok:
-                                            return save_record(title_id,j)
+                                            return save_record(vol_data,j)
                                         else:
                                             print("Skipped")
                                             return None
                     index += 1
     elif 'error' in r:
         if r['error']['code'] == 429:
-            print("[%s] %s: Google Books quota exceeded for the day. Retry later" % (title_id, keyword))
+            print("[%s] %s: Google Books quota exceeded for the day. Retry later" % (vol_id, keyword))
             j = {'google_book_id' : QUOTA_EXCEEDED}
-            database[BR_GOOGLE_BOOKS].update_one({'_id':title_id},{'$set':j},upsert=True)
+            database[COLLECTION_GOOGLE_BOOKS_VOLUMEDATA].update_one({'_id':vol_id},{'$set':j},upsert=True)
             quota_exceeded_timeout_counter = 50
             return None
         else:
-            print("[%s] %s: Error %s" % (title_id, keyword, str(r)))
+            print("[%s] %s: Error %s" % (vol_id, keyword, str(r)))
     else:
         print("Unknown response %s" % str(r))
 
     j = {'google_book_id' : NOT_FOUND, 'tried_metadata':tried_metadata}
-    database[BR_GOOGLE_BOOKS].update_one({'_id':title_id},{'$set':j},upsert=True)
-    print("\t",get_jp_title_by_id(title_id) + " with keyword " + keyword+ " not found")
+    database[COLLECTION_GOOGLE_BOOKS_VOLUMEDATA].update_one({'_id':vol_id},{'$set':j},upsert=True)
+    print("\t",vol_id + " with keyword " + keyword+ " not found")
     return None
 
     
@@ -228,20 +227,20 @@ def translate_metadata(j):
             j['en_authors_deepl'].append(deepl_translate(jp_author))
 
 
-def save_record(title_id,j):
+def save_record(vol_data,j):
 
+    vol_id = vol_data['vol_id']
     j['google_book_id'] = j['id']
     del(j['id'])
-    metadata = get_metadata_by_title_id(title_id)
-    data = get_data_by_title_id(title_id)
+    syn = vol_data['syn']
     vi = j['volumeInfo']
 
     if 'authors' in vi:
         authors = vi['authors']
     else:
         authors = "NA"
-    print("\t%s [%s] : MU name: %s (%s)" % (
-            get_jp_title_by_id(title_id), metadata['Release'], 
+    print("\t%s [%s] : GB name: %s (%s)" % (
+            vol_data['vol_name'], vol_data['release'],
             vi['title'], authors)
     )
 
@@ -250,8 +249,8 @@ def save_record(title_id,j):
     else:
         vi['description'] = 'NA'
 
-    print("BM synopsis: %s" % (data['syn_jp']))
-    print("MU synopsis: %s" % (vi['description']))
+    print("BM synopsis: %s" % (syn))
+    print("GB synopsis: %s" % (vi['description']))
     print("")
 
     del(j['saleInfo'])
@@ -262,8 +261,8 @@ def save_record(title_id,j):
 
     j['last_refreshed_timestamp'] = int(time.time())
 
-    database[BR_GOOGLE_BOOKS].update_one({'_id':title_id},{'$set':j},upsert=True)
-    return database[BR_GOOGLE_BOOKS].find_one({'_id':title_id})
+    database[COLLECTION_GOOGLE_BOOKS_VOLUMEDATA].update_one({'_id':vol_id},{'$set':j},upsert=True)
+    return database[COLLECTION_GOOGLE_BOOKS_VOLUMEDATA].find_one({'_id':vol_id})
 
 
 def search(args):
@@ -293,11 +292,15 @@ def search(args):
 
 def match(args):
     title_id = get_title_id(args['title'])
+    first_vol_id = get_first_jp_vol_id(title_id)
+    vol_data = get_volume_data(first_vol_id)
     search_metadata = { 'title' : args['keyword'] }
-    search_records_and_select_one(title_id, search_metadata, args['index']-1)
+    search_records_and_select_one(vol_data, search_metadata, args['index']-1)
 
 def match_url(args):
     title_id = get_title_id(args['title'])
+    first_vol_id = get_first_jp_vol_id(title_id)
+    vol_data = get_volume_data(first_vol_id)
 
     if '/books/edition/_/' in args['url']:
         splitter = '/books/edition/_/'
@@ -314,13 +317,15 @@ def match_url(args):
             print("Error:", response.reason)
             return
         j = response.json()
-        save_record(title_id,j)
+        save_record(vol_data,j)
         #print(j)
     else:
         print("Invalid url: %s" % args['url'])
     
 def match_googleid(args):
     title_id = get_title_id(args['title'])
+    first_vol_id = get_first_jp_vol_id(title_id)
+    vol_data = get_volume_data(first_vol_id)
 
     url = get_volume_url + args['googleid']
     response = requests.get(url, headers=headers, verify=False)
@@ -330,29 +335,29 @@ def match_googleid(args):
     j = response.json()
     if 'authors' not in j['volumeInfo']:
         print("Warning! No author included in response!")
-    return save_record(title_id,j)
+    return save_record(vol_data,j)
 
 
-def is_title_ignored_for_google_books(title_id):
-    j = database[BR_GOOGLE_BOOKS].find_one({'_id':title_id})
+def is_title_ignored_for_google_books(vol_id):
+    j = database[COLLECTION_GOOGLE_BOOKS_VOLUMEDATA].find_one({'_id':vol_id})
     if j is None:
         return False
     else:
         return j['google_book_id'] == -1
 
-def was_google_books_quota_exceeded_for_title(title_id):
-    j = database[BR_GOOGLE_BOOKS].find_one({'_id':title_id})
+def was_google_books_quota_exceeded_for_title(vol_id):
+    j = database[COLLECTION_GOOGLE_BOOKS_VOLUMEDATA].find_one({'_id':vol_id})
     if j is None:
         return False
     else:
         return j['google_book_id'] == QUOTA_EXCEEDED
 
-def ignore_google_book_matching_for_title(title_id):
+def ignore_google_book_matching_for_title(vol_id):
     j = dict()
     j['google_book_id'] = -1
-    j['_id'] = title_id
-    database[BR_GOOGLE_BOOKS].update_one({'_id':title_id},{'$set':j},upsert=True)
-    return database[BR_GOOGLE_BOOKS].find_one({'_id':title_id})
+    j['_id'] = vol_id
+    database[COLLECTION_GOOGLE_BOOKS_VOLUMEDATA].update_one({'_id':vol_id},{'$set':j},upsert=True)
+    return database[COLLECTION_GOOGLE_BOOKS_VOLUMEDATA].find_one({'_id':vol_id})
 
 def refresh(args):
 
@@ -360,16 +365,19 @@ def refresh(args):
     for title_id, title_name in get_jp_title_names().items():
         i += 1
 
+
         if args['keyword'] is not None and args['keyword'].lower() not in get_jp_title_by_id(title_id).lower():
             continue
 
-        j = get_google_books_entry(title_id)
+        first_vol_id = get_first_jp_vol_id(title_id)
+
+        j = get_google_books_entry(first_vol_id)
 
         updated = False
         timestamp = int(time.time())
         if 'last_refreshed_timestamp' not in j or (j['last_refreshed_timestamp'] < timestamp - 24*60*60) or args['keyword'] is not None:
 
-            print("Updating %d : %s" % (i,get_jp_title_by_id(title_id)))
+            print("Updating %d : %s (vol %s)" % (i,get_jp_title_by_id(title_id), first_vol_id))
             j['last_refreshed_timestamp'] = int(time.time())
 
             url = j['selfLink']
@@ -394,13 +402,16 @@ def refresh(args):
             updated = True
 
         if updated:
-            database[BR_GOOGLE_BOOKS].update_one({'_id':title_id},j,upsert=True)
+            database[COLLECTION_GOOGLE_BOOKS_VOLUMEDATA].update_one({'_id':first_vol_id},j,upsert=True)
 
 
 def match_all(args):
     no_matches = []
     for title_id, title_name in get_jp_title_names().items():
-        j = get_google_books_entry(title_id)
+        first_vol_id = get_first_jp_vol_id(title_id)
+        vol_data = get_volume_data(first_vol_id)
+
+        j = get_google_books_entry(first_vol_id)
         if j is None:
 
             title_name = title_name.replace('.TXT','')
@@ -432,7 +443,7 @@ def match_all(args):
                     'title' : keyword,
                     'author'  : author,
                 }
-                res = search_records_and_select_one(title_id,search_metadata, -1, args['manual_confirmation'])
+                res = search_records_and_select_one(vol_data, search_metadata, -1, args['manual_confirmation'])
                 time.sleep(1)
                 i += 1
 
@@ -447,8 +458,9 @@ def match_all(args):
 
 def remove(args):
     title_id = get_title_id(args['title'])
-
-    entry = database[BR_GOOGLE_BOOKS].find_one({'_id':title_id})
+    first_vol_id = get_first_jp_vol_id(title_id)
+    
+    entry = database[COLLECTION_GOOGLE_BOOKS_VOLUMEDATA].find_one({'_id':first_vol_id})
 
     if entry is not None:
         if entry['id'] == -1:
@@ -457,7 +469,7 @@ def remove(args):
         
         entry =  { "id":-1 }
         print("Removed match for %s [%s]" % (get_jp_title_by_id(title_id),title_id))
-        database[BR_GOOGLE_BOOKS].update_one({'_id':title_id},j,upsert=True)
+        database[COLLECTION_GOOGLE_BOOKS_VOLUMEDATA].update_one({'_id':first_vol_id}, entry, upsert=True)
     else:
         print("Match not found!")
 

@@ -38,9 +38,10 @@ def get_info_from_epub_file_name(root_path,source_item):
     return title, {'type':'epub','path':root_path,'volume_name':title,'filename':source_item, 'translator':''}
 
 
-def save_cover_image_from_epub(t_metadata, book,lang,title):
+def save_cover_image_from_epub(title_id, book, vol_data, title):
     cover = None
     cover_img_id = None
+    lang = vol_data['lang']
 
     cover_entry = book.get_metadata('OPF', 'cover')
     if len(cover_entry)>0:
@@ -69,11 +70,11 @@ def save_cover_image_from_epub(t_metadata, book,lang,title):
         content = cover.get_content()
 
         target_img_f_name = clean_name(title)
-        if len(target_img_f_name) > 50:
-            target_img_f_name = t_metadata['enid']
+        if len(target_img_f_name) > 30:
+            target_img_f_name = title_id
         target_img_f_name += '.' + cover_f_ext
         target_img_path = 'manga_cover/' + lang + '/'
-        t_metadata['cover'+lang] = target_img_path + target_img_f_name
+        vol_data['cover'] = target_img_path + target_img_f_name
 
         target_fpath = target_img_path + target_img_f_name
         if not os.path.exists(target_fpath):
@@ -123,51 +124,61 @@ def get_language_from_epub(book):
         lang = 'jp'
     return lang
 
-def get_clean_title_and_volume_name_from_epub_file(filepath):
-    try:
-        book = epub.read_epub(filepath)
-        vol_name, clean_title, _ = get_clean_title_from_epub(book)
-        return vol_name, clean_title
-    except Exception as e:
-        pass
-    return None, None
-
-def get_metadata_from_epub(t_metadata, t_data, lang, book, vol_info):
-    desc_meta = book.get_metadata('DC', 'description')
-    if desc_meta is not None and len(desc_meta)>0:
-        desc,_ = desc_meta[0]
-        t_data['syn_'+lang] = desc
-
-    vol_title, clean_title, publisher = get_clean_title_from_epub(book)
-
-    if t_metadata[lang + 'tit'] == PLACEHOLDER:
-        t_metadata[lang + 'tit'] = clean_title
+def get_author_from_epub(book):
     creator_meta = book.get_metadata('DC', 'creator')
     if creator_meta is not None and len(creator_meta)>0:
         creator, _ = creator_meta[0]
         if creator is not None:
-            creator2 = creator.replace(' ','')
-            if creator not in t_metadata['Author'] and creator2 not in t_metadata['Author']:
-                if t_metadata['Author'] == [PLACEHOLDER]:
-                    t_metadata['Author'] = [creator]
-                else:
-                    t_metadata['Author'].append(creator)
+            return creator
+    return None
+
+def augment_vol_info_from_epub_file(filepath, vol_info):
+    try:
+        book = epub.read_epub(filepath)
+        vol_name, clean_title, publisher = get_clean_title_from_epub(book)
+        vol_info['volume_name'] = vol_name,
+        vol_info['title'] = clean_title
+        if publisher is not None:
+            vol_info['publisher'] = publisher
+        creator = get_author_from_epub(book)
+        if creator is not None:
+            vol_info['author'] = creator
+        return True
+    except Exception as e:
+        pass
+    return False
+
+def get_metadata_from_epub(t_metadata, vol_data, lang, book):
+    desc_meta = book.get_metadata('DC', 'description')
+    if desc_meta is not None and len(desc_meta)>0:
+        desc,_ = desc_meta[0]
+        vol_data['syn'] = desc
+
+    vol_title, clean_title, publisher = get_clean_title_from_epub(book)
+
+    if t_metadata['lang'][lang]['title'] == '':
+        t_metadata['lang'][lang]['title'] = clean_title
+    creator = get_author_from_epub(book)
+    if creator is not None:
+        creator2 = creator.replace(' ','')
+        if creator not in t_metadata['authors'] and creator2 not in t_metadata['authors']:
+            t_metadata['authors'].append(creator)
 
     if lang == 'jp':
-        if t_metadata['Release'] == PLACEHOLDER:
+        if vol_data['release'] == '':
             try:
                 released, _ = book.get_metadata('DC', 'date')[0]
-                t_metadata['Release'] = int(released.split('-')[0])
+                vol_data['release'] = int(released.split('-')[0])
             except:
                 pass
 
-        if t_metadata['Publisher'] == PLACEHOLDER:
+        if 'publisher' not in t_metadata or t_metadata['publisher'] == '':
             if publisher is not None:
-                t_metadata['Publisher'] = publisher
+                t_metadata['publisher'] = publisher
             else:
                 try:
                     publisher, _ = book.get_metadata('DC', 'publisher')[0]
-                    t_metadata['Publisher'] = publisher
+                    t_metadata['publisher'] = publisher
                 except:
                     pass
 
@@ -380,17 +391,15 @@ def extract_paragraphs_recursively(soup, element, paragraphs):
     pass
 
 
-def process_epub(t_data, title_id, book, lang, vol_id, vol_name, args):
+def process_epub(vol_data, title_id, book, args):
 
-    lang_data_field = lang + '_data'
-    ch_name_field = 'ch_na' + lang
-    ch_lang_h_field = 'ch_' + lang + 'h'
-    ch_lang_field = 'ch_' + lang
-    vol_lang_field = 'vol_' + lang
+
+    lang = vol_data['lang']
+    vol_id = vol_data['vol_id']
+    vol_name = vol_data['vol_name']
     verbose = args['verbose']
     ask_confirmation_for_new_chapters = args['ask_confirmation_for_new_chapters']
 
-    start_ch_idx = len(t_data[lang_data_field][ch_lang_h_field])
     print("Process vol/book %s [%s]" % (vol_name,vol_id))
 
     items = []
@@ -404,9 +413,6 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, args):
         print("Title %s volume %s [%s] has no detected chapters!" % (title_id, vol_name, vol_id))
         return 0
 
-    vol_num = len(t_data[lang_data_field][vol_lang_field])
-    t_data[lang_data_field][vol_lang_field][vol_name] = {'id':vol_id,'s':start_ch_idx,'e':start_ch_idx + len(chapter_titles)-1}
-
     ch_idx = 0
     target_ocr_file_path = None
     ch_name = None
@@ -415,7 +421,7 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, args):
     total_num_characters = 0
     total_num_pages = 0
 
-    for ch_idx, (ch_name, chapter_items) in enumerate(zip(chapter_titles, item_list_per_chapter)):
+    for ch_num, (ch_name, chapter_items) in enumerate(zip(chapter_titles, item_list_per_chapter)):
 
         if args['combine_chapters']:
             ch_id = vol_id
@@ -424,17 +430,25 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, args):
             if ch_id is None:
                 print("Skipping chapter and subsequent chapters")
                 return -1
-            
-        t_data[lang_data_field][ch_name_field].append(ch_name)
-        t_data[lang_data_field][ch_lang_h_field].append(ch_id + '/%@rep@%')
-        if not args['skip_content_import']:
-            t_data[lang_data_field][ch_lang_field][start_ch_idx+ch_idx+1] = ['pages.html']
-        else:
-            t_data[lang_data_field][ch_lang_field][start_ch_idx+ch_idx+1] = []
-        print("Chapter %s [%s]: %s " % (lang, ch_id, ch_name))
 
-        if not 'simulate' in args or not args['simulate']:
-            add_chapter_lookup_entry(title_id, vol_id, vol_num, vol_name, ch_id, ch_idx, ch_name, lang)
+        ch_data = {
+            'title_id' : title_id,
+            'vol_id' : vol_id,
+            'ch_id' : ch_id,
+            'ch_num' : ch_num,
+            'ch_name' : ch_name,
+            'ch_url' : ch_id + '/%@rep@%',
+            'lang' : lang,
+        }
+
+        if not args['skip_content_import']:
+            ch_data['files'] = ['pages.html']
+        else:
+            ch_data['files'] = []
+
+        vol_data['chapters'].append(ch_id)
+
+        print("Chapter %s [%s]: %s " % (lang, ch_id, ch_name))
 
         ocr_dict = dict()
         chapter_paragraphs = []
@@ -618,26 +632,32 @@ def process_epub(t_data, title_id, book, lang, vol_id, vol_name, args):
                 chapter_pages.append(body.prettify())
 
         if lang == 'jp':
-            t_data[lang_data_field]['virtual_chapter_page_count'].append(get_virtual_page_count_from_characters(num_characters))
+            ch_data['num_pages'] = get_virtual_page_count_from_characters(num_characters)
         else:
-            t_data[lang_data_field]['virtual_chapter_page_count'].append(get_virtual_page_count_from_words(num_words))
+            ch_data['num_pages'] = get_virtual_page_count_from_words(num_words)
+        vol_data['num_pages'] += ch_data['num_pages']
+
 
         print("\t.. with %s pages / %d paragraphs / %d sentences / %d characters" % (
-            t_data[lang_data_field]['virtual_chapter_page_count'][-1],
+            ch_data['num_pages'],
             len(chapter_paragraphs),num_sentences,num_characters))
 
-        if lang == 'jp':
-            if len(chapter_paragraphs)>0:
-                print("\t\tWriting OCR file %s" % target_ocr_file_path)
-                ocr_dict['0'] = chapter_paragraphs
-                target_ocr_f = open(target_ocr_file_path,'w',encoding="UTF-8")
-                target_ocr_f.write(json.dumps(ocr_dict, ensure_ascii=False))
-                target_ocr_f.close()
+        if not 'simulate' in args or not args['simulate']:
+            update_chapter_data(ch_data)
 
-        if not args['skip_content_import']:
-            save_chapter_pages(ch_id, chapter_pages)
+            if lang == 'jp':
+                if len(chapter_paragraphs)>0:
+                    print("\t\tWriting OCR file %s" % target_ocr_file_path)
+                    ocr_dict['0'] = chapter_paragraphs
+                    target_ocr_f = open(target_ocr_file_path,'w',encoding="UTF-8")
+                    target_ocr_f.write(json.dumps(ocr_dict, ensure_ascii=False))
+                    target_ocr_f.close()
+
+            if not args['skip_content_import']:
+                save_chapter_pages(ch_id, chapter_pages)
+
         total_num_characters += num_characters
-        total_num_pages += t_data[lang_data_field]['virtual_chapter_page_count'][-1]
+        total_num_pages += ch_data['num_pages']
 
     print("** Total %d pages and %d characters" % (total_num_pages, total_num_characters))
-    return len(chapter_titles)
+    return len(chapter_titles), total_num_pages

@@ -1,6 +1,6 @@
 from jp_parser_helper import jmdict_particle_class
 from helper import *
-from br_mongo import *
+from motoko_mongo import *
 
 _user_settings = dict()
 _learning_settings = dict()
@@ -27,7 +27,7 @@ def is_title_read(id):
 def read_user_settings():
     global _user_settings, _learning_settings
 
-    _user_settings = database[BR_USERDATA].find_one({'user_id':DEFAULT_USER_ID})
+    _user_settings = database[COLLECTION_USERDATA].find_one({'user_id':DEFAULT_USER_ID})
     if _user_settings is not None:
         if 'learning_settings' in _user_settings:
             _learning_settings = _user_settings['learning_settings']

@@ -11,31 +11,13 @@ let vna=Object.keys(vol);
 let url1=""
 let volume_info_box;
 
-let ch_page_count = [];
-let vol_page_count = [];
+let ch_num_pages = [];
+let ch_files = []
 let i=0;
-if (manga_data.is_book) {
-    ch_page_count = manga_data.jp_data.virtual_chapter_page_count;
+if (la=='jp') {
+    ch_num_pages = manga_data.jp_data.num_pages
 } else {
-    if (la=='jp') {
-        for (let key in manga_data.jp_data.ch_jp ){
-            ch_page_count[i] = manga_data.jp_data.ch_jp[key].length;
-            i++;
-        }
-    } else {
-        for (let key in manga_data.en_data.ch_en) {
-            ch_page_count[i] = manga_data.en_data.ch_en[key].length;
-            i++;
-        }
-    }
-}
-
-for (let v of vna) {
-    let page_count = 0;
-    for (let ch_idx=vol[v].s;ch_idx <= vol[v].e;ch_idx++) {
-        page_count += ch_page_count[ch_idx];
-    }
-    vol_page_count.push(page_count);
+    ch_num_pages = manga_data.en_data.num_pages
 }
 
 url1=`${$page.url}`.split('?')[0]
@@ -45,7 +27,6 @@ const btnel=(e)=>{
     let htt=tar.innerHTML;
     let httarr=htt.split("#r@e%r@e#");
     let volo=document.getElementById(`vol${httarr[1]}`);
-    console.log(volo);
     if(htt.indexOf('W')!=-1)
     {   
         volo.style.display="grid";
@@ -59,17 +40,17 @@ const btnel=(e)=>{
     tar.innerHTML=htt;
 }
 
-function showVolumeInfo(vol_num) {
-    volume_info_box.show("Volume info",
-    `<table style="text-align:left">
-        <tr><th>Title id</th><td>${manga_data['_id']}</td></tr>
-        <tr><th>Volume id</th><td>${manga_data.vol_info[vol_num]['_id']}</td></tr>
-        <tr><th>Volume number</th><td>${vol_num}</td></tr>
-        <tr><th>Collection</th><td>${manga_data.vol_info[vol_num].collection}</td></tr>
-        <tr><th>Path</th><td>${manga_data.vol_info[vol_num].path}</td></tr>
-        <tr><th>File name</th><td>${manga_data.vol_info[vol_num].filename}</td></tr>
-    </table>`
-)
+function showVolumeInfo(vol_id) {
+    let content = `<table style="text-align:left">
+        <tr><th>Title id</th><td>${manga_data['_id']['$oid']}</td></tr>
+        <tr><th>Volume id</th><td>${vol_id}</td></tr>
+        <tr><th>Volume name</th><td>${manga_data.vol_info[vol_id].vol_name}</td></tr>
+        <tr><th>Collection</th><td>${manga_data.vol_info[vol_id].collection}</td></tr>`
+    if ('import_metadata' in manga_data.vol_info[vol_id]) {
+        content += `<tr><th>Path</th><td>${manga_data.vol_info[vol_id].import_metadata.path}</td></tr><tr><th>File name</th><td>${manga_data.vol_info[vol_id].import_metadata.filename}</td></tr>`
+    }
+    content += `</table>`
+    volume_info_box.show("Volume info",content)
 }
 </script>
 
@@ -77,47 +58,53 @@ function showVolumeInfo(vol_num) {
 
 <div id="chlist">
 {#each vna as v,jji}
-    {#if (jji==0)}
-        <div style="font-size: 1.15rem;margin:10px 0px;"><button on:click={btnel}>{v} ({vol_page_count[jji]} pages)&nbsp;<span class="arrowch">M<span class="invi" style="display:none;">#r@e%r@e#{jji}#r@e%r@e#</span></span><span class="invi" style="display:none;">#r@e%r@e#{jji}#r@e%r@e#</span></button>
-            {#if la==="jp"}
-            <MangaReadingStatus title={v} chapter_ids={vol[v].chapter_ids} bind:manga_data={manga_data}/>
-            {/if}
-            <button class="volinfobutton" on:click={()=>{showVolumeInfo(jji)}}>Volume info</button>
-        </div>
-        <div id="vol{jji}" class:chaptergrid={la==="jp"}>
-        {#each ch.slice(vol[v].s, ((vol[v].e)+1)) as c,i }
-            {#if (la==="en")}
-            <a href="{url1}?lang={la}&chen={i+vol[v].s}&chjp=0&enp=0&jpp=0#img_store" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><div class="chsingle">{c} ({ch_page_count[i+vol[v].s]} pages)</div></a>
-            {/if}
-            {#if (la==="jp")}
-            <a href="{url1}?lang={la}&chen=0&chjp={i+vol[v].s}&enp=0&jpp=0#img_store" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><div class="chsingle">{c} ({ch_page_count[i+vol[v].s]} pages)</div></a>
-            <div>
-                <MangaReadingStatus title={c} chapter_ids={[manga_data.jp_data.chapter_ids[vol[v].s+i]]} bind:manga_data={manga_data}/>
+    {#if vol[v].content_ready}
+        {#if (jji==0)}
+            <div style="font-size: 1.15rem;margin:10px 0px;"><button on:click={btnel}>{v} ({vol[v].num_pages} pages)&nbsp;<span class="arrowch">M<span class="invi" style="display:none;">#r@e%r@e#{jji}#r@e%r@e#</span></span><span class="invi" style="display:none;">#r@e%r@e#{jji}#r@e%r@e#</span></button>
+                {#if la==="jp"}
+                <MangaReadingStatus title={v} chapter_ids={vol[v].chapter_ids} bind:manga_data={manga_data}/>
+                {/if}
+                <button class="volinfobutton" on:click={()=>{showVolumeInfo(vol[v].id)}}>Volume info</button>
             </div>
-            {/if}
-        {/each}
-        </div>
-    {:else}
-        <div style="font-size: 1.15rem;margin:10px 0px;"><button on:click={btnel}>{v} ({vol_page_count[jji]} pages)&nbsp;<span class="arrowch">W<span class="invi" style="display:none;">#r@e%r@e#{jji}#r@e%r@e#</span></span><span class="invi" style="display:none;">#r@e%r@e#{jji}#r@e%r@e#</span></button>
-            {#if la==="jp"}
-            <MangaReadingStatus title={v} chapter_ids={vol[v].chapter_ids} bind:manga_data={manga_data}/>
-            {/if}
-            <button class="volinfobutton" on:click={()=>{showVolumeInfo(jji)}}>Volume info</button>
-        </div>
-        <div id="vol{jji}" class:chaptergrid={la==="jp"} style="display:none">
-        {#each ch.slice(vol[v].s, ((vol[v].e)+1)) as c,i }
-            
-            {#if (la==="en")}
-            <a href="{url1}?lang={la}&chen={i+vol[v].s}&chjp=0&enp=0&jpp=0#img_store" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><div class="chsingle">{c} ({ch_page_count[i+vol[v].s]} pages)</div></a>
-            {/if}
-            {#if (la==="jp")}
-            <a href="{url1}?lang={la}&chen=0&chjp={i+vol[v].s}&enp=0&jpp=0#img_store" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><div class="chsingle">{c} ({ch_page_count[i+vol[v].s]} pages)</div></a>
-            <div>
-                <MangaReadingStatus title={c} chapter_ids={[manga_data.jp_data.chapter_ids[vol[v].s+i]]} bind:manga_data={manga_data}/>
+            <div id="vol{jji}" class:chaptergrid={la==="jp"}>
+            {#each ch.slice(vol[v].s, ((vol[v].e)+1)) as c,i }
+                {#if (la==="en")}
+                <a href="{url1}?lang={la}&chen={i+vol[v].s}&chjp=0&enp=0&jpp=0#img_store" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><div class="chsingle">{c} ({ch_num_pages[i+vol[v].s]} pages)</div></a>
+                {/if}
+                {#if (la==="jp")}
+                <a href="{url1}?lang={la}&chen=0&chjp={i+vol[v].s}&enp=0&jpp=0#img_store" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><div class="chsingle">{c} ({ch_num_pages[i+vol[v].s]} pages)</div></a>
+                <div>
+                    <MangaReadingStatus title={c} chapter_ids={[manga_data.jp_data.chapter_ids[vol[v].s+i]]} bind:manga_data={manga_data}/>
+                </div>
+                {/if}
+            {/each}
             </div>
-            {/if}
+        {:else}
+            <div style="font-size: 1.15rem;margin:10px 0px;"><button on:click={btnel}>{v} ({vol[v].num_pages} pages)&nbsp;<span class="arrowch">W<span class="invi" style="display:none;">#r@e%r@e#{jji}#r@e%r@e#</span></span><span class="invi" style="display:none;">#r@e%r@e#{jji}#r@e%r@e#</span></button>
+                {#if la==="jp"}
+                <MangaReadingStatus title={v} chapter_ids={vol[v].chapter_ids} bind:manga_data={manga_data}/>
+                {/if}
+                <button class="volinfobutton" on:click={()=>{showVolumeInfo(vol[v].id)}}>Volume info</button>
+            </div>
+            <div id="vol{jji}" class:chaptergrid={la==="jp"} style="display:none">
+            {#each ch.slice(vol[v].s, ((vol[v].e)+1)) as c,i }
+                
+                {#if (la==="en")}
+                <a href="{url1}?lang={la}&chen={i+vol[v].s}&chjp=0&enp=0&jpp=0#img_store" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><div class="chsingle">{c} ({ch_num_pages[i+vol[v].s]} pages)</div></a>
+                {/if}
+                {#if (la==="jp")}
+                <a href="{url1}?lang={la}&chen=0&chjp={i+vol[v].s}&enp=0&jpp=0#img_store" data-sveltekit:prefetch target="_top" rel="noopener noreferrer"><div class="chsingle">{c} ({ch_num_pages[i+vol[v].s]} pages)</div></a>
+                <div>
+                    <MangaReadingStatus title={c} chapter_ids={[manga_data.jp_data.chapter_ids[vol[v].s+i]]} bind:manga_data={manga_data}/>
+                </div>
+                {/if}
 
-        {/each}
+            {/each}
+            </div>
+        {/if}
+    {:else}
+        <div style="font-size: 1.15rem;margin:10px 0px;"><button>{v} ({vol[v].num_pages} pages)&nbsp;[NOT READY]</button>
+            <button class="volinfobutton" on:click={()=>{showVolumeInfo(vol[v].id)}}>Volume info</button>
         </div>
     {/if}
 {/each}

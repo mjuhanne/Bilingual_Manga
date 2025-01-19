@@ -704,7 +704,7 @@ def update(args):
     #learning_data['chapter_ids'] = index_of_chapter_ids
 
     def get_lifetime_frequency_for_words(user_id):
-        res = database[BR_USER_WORD_LEARNING_HISTORY].find({'user_id':DEFAULT_USER_ID},{'_id':False,'user_id':False,'history':False}).to_list()
+        res = database[COLLECTION_USER_WORD_LEARNING_HISTORY].find({'user_id':DEFAULT_USER_ID},{'_id':False,'user_id':False,'history':False}).to_list()
         w_to_ltf = dict()
         for w_data in res:
             w_to_ltf[ w_data['wid'] ] = w_data['ltf']
@@ -734,11 +734,11 @@ def update(args):
                 h_data = {'user_id':DEFAULT_USER_ID,'wid':word_id,'history':word_status['h'],'ltf':word_status['ltf']}
                 s_data = {'user_id':DEFAULT_USER_ID,'wid':word_id,'s':word_status['s'],'lf':word_status['lf']}
                 if exists:
-                    database[BR_USER_WORD_LEARNING_HISTORY].update_one({'user_id':DEFAULT_USER_ID,'wid':word_id},{'$set':h_data},upsert=True)
-                    database[BR_USER_WORD_LEARNING_STATUS].update_one({'user_id':DEFAULT_USER_ID,'wid':word_id},{'$set':s_data},upsert=True)
+                    database[COLLECTION_USER_WORD_LEARNING_HISTORY].update_one({'user_id':DEFAULT_USER_ID,'wid':word_id},{'$set':h_data},upsert=True)
+                    database[COLLECTION_USER_WORD_LEARNING_STATUS].update_one({'user_id':DEFAULT_USER_ID,'wid':word_id},{'$set':s_data},upsert=True)
                 else:
-                    database[BR_USER_WORD_LEARNING_HISTORY].insert_one(h_data)
-                    database[BR_USER_WORD_LEARNING_STATUS].insert_one(s_data)
+                    database[COLLECTION_USER_WORD_LEARNING_HISTORY].insert_one(h_data)
+                    database[COLLECTION_USER_WORD_LEARNING_STATUS].insert_one(s_data)
             else:
                 skipped_count += 1
         print("Writing user learning data with %d kanji entries" % (len(learning_data['kanjis'])))
@@ -746,10 +746,10 @@ def update(args):
             if i%1000 == 0:
                 print("%d kanjis written" % i)
             k_data = {'user_id':DEFAULT_USER_ID,'kanji':kanji,'s':kanji_status['s'],'ltf':kanji_status['ltf'],'lf':kanji_status['lf']}
-            database[BR_USER_KANJI_LEARNING_STATUS].update_one({'user_id':DEFAULT_USER_ID,'kanji':kanji},{'$set':k_data},upsert=True)
+            database[COLLECTION_USER_KANJI_LEARNING_STATUS].update_one({'user_id':DEFAULT_USER_ID,'kanji':kanji},{'$set':k_data},upsert=True)
         del(learning_data['words'])
         del(learning_data['kanjis'])
-        database[BR_USER_LEARNING_DATA].update_one({'user_id':DEFAULT_USER_ID},{'$set':learning_data},upsert=True)
+        database[COLLECTION_USER_LEARNING_DATA].update_one({'user_id':DEFAULT_USER_ID},{'$set':learning_data},upsert=True)
         print("Wrote %d and skipped %d words" % (saved_count,skipped_count))
     else:
         print("Words:")

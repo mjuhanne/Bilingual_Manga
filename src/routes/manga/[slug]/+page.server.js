@@ -28,19 +28,19 @@ function cleanFileNames(manga_data) {
 export async function load({params,url}) {   
     let id=params["slug"]
 
-    const meta_data_by_id = await searchCollection("br_metadata", "_id", id);
+    const meta_data_by_id = await searchCollection("titledata", "_id", id);
 
     var meta_data = undefined;
     if (meta_data_by_id.length>0) {
         meta_data = meta_data_by_id[0]
     } else {
-        const meta_data_by_enslug = await searchCollection("br_metadata", "enslug", id);
+        const meta_data_by_enslug = await searchCollection("titledata", "lang.en.slug", id);
         if (meta_data_by_enslug.length>0) {
             meta_data = meta_data_by_enslug[0]
             id = meta_data['_id']
             url.searchParams.set('lang',"en");
         } else {
-            const meta_data_by_jpslug = await searchCollection("br_metadata", "jpslug", id);
+            const meta_data_by_jpslug = await searchCollection("titledata", "lang.jp.slug", id);
             if (meta_data_by_jpslug.length>0) {
                 meta_data = meta_data_by_jpslug[0]
                 id = meta_data['_id']
@@ -72,16 +72,19 @@ export async function load({params,url}) {
             let aa2 = await aa1.json()
             let pm = aa2["pm"]
     
-            if(pm.includes(id) || !title_data.from_bilingualmanga_org)
+            if(pm.includes(id) || meta_data.first_jp_vol_collection != "bm")
             {
+                console.log("Using local IPFS")
                 ipfsss=settings.ipfsgate1
                 cleanFileNames(title_data);
             }
             else
             {
+                console.log("Using BM IPFS")
                 ipfsss=settings.ipfsgate
             }
-            title_data.is_book = meta_data.is_book
+            title_data.is_book = meta_data.type == 'book'
+            meta_data.is_book = title_data.is_book
     
             // create list of jp chapter ids and jp chapter id -> chapter name lookup table
             let chapter_ids = [];

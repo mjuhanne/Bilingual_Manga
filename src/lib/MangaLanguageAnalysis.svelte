@@ -2,13 +2,19 @@
 import { onMount } from 'svelte';
 import {obj} from '$lib/store.js';
 import ToggleSwitch from './ToggleSwitch.svelte';
+import UpdateAnalysisButton from './UpdateAnalysisButton.svelte';
 let all_meta_data;
 obj.subscribe(value => { all_meta_data=value;});
 
 export let meta;
-
 export let current_set = 'total_statistics'
-$: avg_set = (meta.is_book ? all_meta_data[0].average_book.total_statistics : all_meta_data[0].average_manga.total_statistics);
+let avg_set;
+let avg_ci_sentence_count;
+$: {
+    let avg_title = (meta.is_book ? all_meta_data[0].average_book : all_meta_data[0].average_manga);
+    avg_set = avg_title.total_statistics;
+    avg_ci_sentence_count = avg_title.series.avg_ci_sentence_count
+}
 
 let unique_items_set = false;
 let w_per_v_set = false;
@@ -80,15 +86,15 @@ let ci_data =  {
         labels: ['All known', '<5K', '<10K', '<20K', '<50K', 'Katakana','Low Freq','>=2 unknown'],
         datasets: [
             {
-            label: 'This manga (all chapters)',
+            label: 'This title (all volumes)',
             data: meta.analysis.series.comprehensible_input_sentence_grading,
             borderWidth: 1,
             borderColor: '#555555',
             backgroundColor: '#eeeeee',
             },
             {
-            label: 'This manga (next chapter)',
-            data: meta.analysis.next_unread_chapter.comprehensible_input_sentence_grading,
+            label: 'This title (next volume)',
+            data: meta.analysis.next_unread_volume.comprehensible_input_sentence_grading,
             borderWidth: 1,
             borderColor: '#005500',
             backgroundColor: '#009900',
@@ -250,8 +256,11 @@ function get_value(item,value_fields,value_func) {
 
 <div class="container">
     <div class="subcontainer">
-        <div>
-            <ToggleSwitch onLabel="Unique kanjis/words" offLabel="All kanjis/words" bind:switchPosition={unique_items_set} on:switchChanged={toggleUnique}></ToggleSwitch>
+        <div class="left_widget">
+            <div><UpdateAnalysisButton meta={meta}/></div>
+            <div>
+                <ToggleSwitch onLabel="Unique kanjis/words" offLabel="All kanjis/words" bind:switchPosition={unique_items_set} on:switchChanged={toggleUnique}></ToggleSwitch>
+            </div>
         </div>
         {#if meta.is_summary_stale}
             <span class="warning">Analysis calculated using old parser version {meta.parser_version}</span>
@@ -373,6 +382,12 @@ canvas{
 
 .subcontainer {
     margin: 20px;
+}
+
+.left_widget {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-gap: 10px;
 }
 
 .warning {

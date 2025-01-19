@@ -3,6 +3,23 @@ import { SOURCE } from '$lib/LearningData';
 import { DEFAULT_USER_ID } from './UserDataTools';
 const db = getDB();
 
+const COLLECTION_SETTINGS = "settings"
+const COLLECTION_TITLEDATA = "titledata"
+const COLLECTION_VOLUMEDATA = "volumedata"
+const COLLECTION_CHAPTERDATA = "chapterdata"
+const COLLECTION_IMAGE_CORRESPONDENCE_DATA = "imgcorrdata"
+const COLLECTION_MANGAUPDATES = "mangaupdates"
+const COLLECTION_LANG_SUMMARY = "lang_summary"
+const COLLECTION_CUSTOM_LANG_ANALYSIS_SUMMARY = "custom_lang_analysis_summary"
+const COLLECTION_CUSTOM_LANG_ANALYSIS = "custom_lang_analysis"
+const COLLECTION_USERDATA = "userdata"
+const COLLECTION_USER_WORD_LEARNING_HISTORY = "user_word_learning_history"
+const COLLECTION_USER_WORD_LEARNING_STATUS = "user_word_learning_status"
+const COLLECTION_USER_SET_WORDS = "user_set_words"
+const COLLECTION_GOOGLE_BOOKS = "google_books_volumedata"
+const COLLECTION_SUGGESTED_PREREAD = "suggested_preread"
+const COLLECTION_VOL_IMPORT_METADATA = "vol_import_metadata"
+
 const SUGGESTED_PREREAD_ANALYSIS_VERSION = 1
 
 export async function getCollection(collection_name, skip, limit)
@@ -28,7 +45,7 @@ export async function getUserDataValue(user_id, field_name)
 {
     var search_query = {'user_id':user_id}
     console.log("Querying",search_query)
-    const data = await db.collection("br_userdata").find(search_query).toArray();
+    const data = await db.collection(COLLECTION_USERDATA).find(search_query).toArray();
     console.log(`getUserDataValue ${field_name}: ` + JSON.stringify(data[0][field_name]))
     return data[0][field_name];
 }
@@ -39,31 +56,37 @@ export async function updateUserData(userid, field, value)
     new_values[field] = value
     var set_newvalues = { $set: new_values};
     var myquery = { user_id: userid };
-    var res = await db.collection("br_userdata").updateOne(myquery, set_newvalues, { upsert: true } );
+    var res = await db.collection(COLLECTION_USERDATA).updateOne(myquery, set_newvalues, { upsert: true } );
     return res
+}
+
+function getTitle(titledata) {
+    if (Object.keys(titledata.lang).includes('en') && titledata.lang.en.title != '') {
+        return titledata.lang.en.title;
+    } else {
+        return titledata.lang.jp.title;
+    }
 }
 
 export async function getUserWordLearningHistory(user_id, word_id)
 {
     var search_query = {'user_id':user_id,'wid':word_id}
     console.log("Querying",search_query)
-    var word_data = await db.collection("br_user_word_learning_history").findOne(search_query);
+    var word_data = await db.collection(COLLECTION_USER_WORD_LEARNING_HISTORY).findOne(search_query);
     if (word_data == null) {
         return [];
     }
     for (let entry of word_data['history']) {
         let e_meta = entry['m']
-        var ch_data = await db.collection("br_chapter_lookup_table").findOne({'ch_id':e_meta['cid']});
+        var ch_data = await db.collection(COLLECTION_CHAPTERDATA).findOne({'ch_id':e_meta['cid']});
         let comment = ''
         if (ch_data !== null) {
-            var title_metadata = await db.collection("br_metadata").findOne({'_id':ch_data['title_id']});
-            var name = title_metadata['entit']
-            if (name == 'Placeholder') {
-                name = title_metadata['jptit']
-            }
+            var title_metadata = await db.collection(COLLECTION_TITLEDATA).findOne({'_id':ch_data['title_id']});
+            var vol_data = await db.collection(COLLECTION_VOLUMEDATA).findOne({'_id':ch_data['vol_id']});
+            var name = getTitle(title_metadata)
             comment += name
-            if (ch_data['vol_name'] != '' && (ch_data['vol_name'] != 'No Volume')) {
-                comment += ' ' + ch_data['vol_name']
+            if (vol_data['vol_name'] != '' && (vol_data['vol_name'] != 'No Volume')) {
+                comment += ' ' + vol_data['vol_name']
             }
             comment += ' ' + ch_data['ch_name']
             if (e_meta['src'] == SOURCE.USER && e_meta['p' != -1]) {
@@ -90,11 +113,11 @@ export async function updateLearningDataWordStatus(user_id, word_id, history_ent
         's' : history_entry['s'], // stage
         'lf' : 0
     }
-    const previous_word_status = await db.collection("br_user_word_learning_status").findOne(search_query);
+    const previous_word_status = await db.collection(COLLECTION_USER_WORD_LEARNING_STATUS).findOne(search_query);
     if (previous_word_status != null) {
         new_word_status['lf'] = previous_word_status['lf']
     }
-    await db.collection("br_user_word_learning_status").updateOne(search_query, {$set:new_word_status}, { upsert: true } );
+    await db.collection(COLLECTION_USER_WORD_LEARNING_STATUS).updateOne(search_query, {$set:new_word_status}, { upsert: true } );
 
     var new_word_history = {
         'user_id':user_id,
@@ -102,14 +125,14 @@ export async function updateLearningDataWordStatus(user_id, word_id, history_ent
         'ltf' : 0,
         'history' : []
     }
-    const previous_word_history_data = await db.collection("br_user_word_learning_history").findOne(search_query);
+    const previous_word_history_data = await db.collection(COLLECTION_USER_WORD_LEARNING_HISTORY).findOne(search_query);
     if (previous_word_history_data != null) {
         new_word_history['history'] = previous_word_history_data['history']
         new_word_history['ltf'] = previous_word_history_data['ltf']
     }
     history_entry['m']['src'] = SOURCE.USER;
     new_word_history['history'].push(history_entry)
-    await db.collection("br_user_word_learning_history").updateOne(search_query, {$set:new_word_history}, { upsert: true } );
+    await db.collection(COLLECTION_USER_WORD_LEARNING_HISTORY).updateOne(search_query, {$set:new_word_history}, { upsert: true } );
     console.log(`updateLearningDataWordStatus ${word_id}: ` + JSON.stringify(new_word_history))
 }
 
@@ -117,7 +140,7 @@ export async function getManuallySetWordLearningStateChanges(user_id, word_id)
 {
     var search_query = {'user_id':user_id,'wid':word_id}
     console.log("Querying",search_query)
-    const data = await db.collection("br_user_set_words").findOne(search_query);
+    const data = await db.collection(COLLECTION_USER_SET_WORDS).findOne(search_query);
     if (data == null) {
         return [];
     }
@@ -132,26 +155,26 @@ export async function updateManuallySetWordLearningStateChanges(user_id, word_id
     console.log("Updating",new_values)
     var set_newvalues = { $set: new_values };
     var myquery = { 'user_id': user_id, 'wid':word_id };
-    var res = await db.collection("br_user_set_words").updateOne(myquery, set_newvalues, { upsert: true } );
+    var res = await db.collection(COLLECTION_USER_SET_WORDS).updateOne(myquery, set_newvalues, { upsert: true } );
     return res
 }
 
 
 export async function getBilingualMangaSettings()
 {
-    const data = await searchCollection("br_settings","_id","64dcfd8e5e150531818c20cd");
+    const data = await searchCollection(COLLECTION_SETTINGS,"_id","64dcfd8e5e150531818c20cd");
     return data[0]
 }
 
 export async function getUserData(user_id)
 {
-    const data = await searchCollection("br_userdata","user_id",user_id);
+    const data = await searchCollection(COLLECTION_USERDATA,"user_id",user_id);
     return data[0]
 }
 
 export async function getTitleChapters(title_id)
 {
-    const data = await db.collection("br_chapter_lookup_table").find({'title_id':title_id}).project({ch_id:true}).toArray();
+    const data = await db.collection(COLLECTION_CHAPTERDATA).find({'title_id':title_id}).project({ch_id:true}).toArray();
     let cids = [];
     for (let entry of data) {
         cids.push(entry['ch_id'])
@@ -214,12 +237,41 @@ const AugmentMetadataWithMangaupdatesCategories = (manga_titles) => {
 
 export async function getTitleCount(count_match_query)
 {
-    var count = await db.collection("br_metadata").find(count_match_query).count()
+    var count = await db.collection(COLLECTION_TITLEDATA).find(count_match_query).count()
     return count;
 }
 
 let search_cache = null;
 let search_cache_timestamp = 0
+
+async function ConvertToOldFormat(title_data) {
+    title_data.languages = [];
+    for (let lang of ['jp','en']) {
+        if (Object.keys(title_data.lang).includes(lang)) {
+            let lang_info = title_data.lang[lang]
+
+            if (lang == 'jp') {
+                title_data.jptit = lang_info.title
+            } else if ( lang == 'en') {
+                title_data.entit = lang_info.title
+            }
+            if ('volumes' in title_data.lang[lang]) {
+                if (title_data.lang[lang].volumes.length>0) {
+                    title_data.languages.push(lang)
+                }
+            }
+        }
+    }
+    if (Object.keys(title_data).includes('first_jp_vol')) {
+        title_data.syn_jp = title_data.first_jp_vol.syn
+        title_data.coverjp = title_data.first_jp_vol.cover
+    }
+    if (Object.keys(title_data).includes('first_en_vol')) {
+        title_data.syn_en = title_data.first_en_vol.syn
+        title_data.coveren = title_data.first_en_vol.cover
+    }
+    title_data.enid = title_data['_id']
+}
 
 export async function searchTitleMetadata(search_term, limit)
 {
@@ -229,40 +281,61 @@ export async function searchTitleMetadata(search_term, limit)
     */
 
     // This is faster but ISN'T really thread-safe!
+    let t1 = Date.now()
     if ((search_cache == null) || (Date.now() - search_cache_timestamp > 60*1000)) {
-        search_cache = await db.collection("br_metadata").find({},{'entit':true,'jptit':true,'search':true}).toArray();
+        search_cache = await db.collection(COLLECTION_TITLEDATA).find({},{'lang':true,'search':true}).toArray();
         search_cache_timestamp = Date.now();
     }
+    let t2 = Date.now()
+    console.log(`Fetch after ${t2-t1} ms:`)
     let results = [];
     for (let m of search_cache) {
-        let xv = `${m.entit}${m.jptit}${m.search}`
+        let xv = `${m.search}`
+        for (let lang of Object.keys(m.lang)) {
+            xv += m.lang[lang].title
+        }
         xv=xv.toLowerCase()
         if(xv.indexOf(search_term)!=-1) {
+            ConvertToOldFormat(m)
             results.push(m);
         }
-        if (results.len==limit) {
-            console.log("Max search results:",results)
+        if (results.length==limit) {
+            let t3 = Date.now()
+            console.log(`Max search results after ${t3-t2} ms:`,results)
             return results;
         }
     }    
-    console.log("Search results:",results)
+    let t3 = Date.now()
+    console.log(`Search results after ${t3-t2} ms:`,results)
     return results;
 }
 
 export async function getMetadata(user_id)
 {
-    let m = (await getCollection("br_settings", 0, 0))[0];
-
-    // average manga/book statistics
-    var avg_summary = await db.collection("br_lang_summary").find({'_id':'average_manga'}).project({_id:0}).toArray()
-    m['average_manga'] = avg_summary[0]
-    avg_summary = await db.collection("br_lang_summary").find({'_id':'average_book'}).project({_id:0}).toArray()
-    m['average_book'] = avg_summary[0]
+    let m = (await getCollection(COLLECTION_SETTINGS, 0, 0))[0];
 
     // TODO: seprate custom summary for mangas and books
     const custom_lang_search_query = { 'title_id':'average_title', 'user_id':user_id }
-    var average_title_summary = await db.collection("br_custom_lang_analysis_summary").findOne(custom_lang_search_query)
-    m['average_manga']['series'] = average_title_summary['series']
+
+    // average manga/book statistics
+    var avg_summary = await db.collection(COLLECTION_LANG_SUMMARY).findOne({'_id':'average_manga'})
+    if (avg_summary != undefined) {
+        console.log("avg summary",avg_summary)
+        m['average_manga'] = avg_summary
+        var average_title_summary = await db.collection(COLLECTION_CUSTOM_LANG_ANALYSIS_SUMMARY).findOne(custom_lang_search_query)
+        m['average_manga']['series'] = average_title_summary['series']
+    } else {
+        console.log("Warning! Language analysis summary for average manga not found!")
+    }
+
+    avg_summary = await db.collection(COLLECTION_LANG_SUMMARY).findOne({'_id':'average_book'})
+    if (avg_summary != null) {
+        m['average_book'] = avg_summary
+        var average_title_summary = await db.collection(COLLECTION_CUSTOM_LANG_ANALYSIS_SUMMARY).findOne(custom_lang_search_query)
+        m['average_book']['series'] = average_title_summary['series']
+    } else {
+        console.log("Warning! Language analysis summary for average book not found!")
+    }
 
     // TODO: pre-process this elsewhere
     // Update categories
@@ -274,34 +347,36 @@ export async function getMetadata(user_id)
 
 export async function getAllValuesForMetadataField(field_name)
 {
-    var values = await db.collection("br_metadata").distinct(field_name)
+    var values = await db.collection(COLLECTION_TITLEDATA).distinct(field_name)
     return values
 }
 
 
 function getCollectionByFieldName(field_name) {
-    var collection = 'br_metadata' // default
+    var collection = COLLECTION_TITLEDATA // default
     if (field_name.indexOf('lang_summary.')==0) {
-        collection = 'br_lang_summary'
+        collection = COLLECTION_LANG_SUMMARY
     } else if (field_name.indexOf('analysis.')==0) {
-        collection = 'br_custom_lang_analysis_summary'
+        collection = COLLECTION_CUSTOM_LANG_ANALYSIS_SUMMARY
     } else if (field_name.indexOf('mangaupdates_data.')==0) {
-        collection = 'br_mangaupdates'
+        collection = COLLECTION_MANGAUPDATES
+    } else if (field_name=='Release') {
+        collection = '__FIRST_JP_VOL__'
     }
     return collection;
 }
 
 export function ConvertFilterToMatchQuery(match_query_per_collection, filter, user_data)
 {
-    console.log("Filter : ",filter)
     var collection = getCollectionByFieldName(filter.field)
+    console.log("Filter : ",filter, "Collection: ",collection)
     var match_query = match_query_per_collection[collection];
     if (filter.type == 'boolean') {
         if (filter.field == 'favourite') {
             if (filter.op == '=') {
-                match_query['enid'] = { $in: user_data.favourites };
+                match_query['_id'] = { $in: user_data.favourites };
             } else if (filter.op == '!=') {
-                match_query['enid'] = { $not: { $in: user_data.favourites } };
+                match_query['_id'] = { $not: { $in: user_data.favourites } };
             }
         } else {
             if (filter.op == '=') {
@@ -345,11 +420,18 @@ export async function getMetadataForTitles(user_id, sort_struct, filter_struct)
     if (sort_struct.reverse) {
         reverse = -1 // descending
     }
-
+    
     let user_data = await getUserData(user_id)
 
     // convert each filter to query and divide them among the collections
-    var match_query_per_collection = {'br_metadata':{}, 'br_mangaupdates':{}, 'br_custom_lang_analysis_summary':{}, 'br_lang_summary':{}}
+    var match_query_per_collection = {
+        [COLLECTION_TITLEDATA]:{}, 
+        [COLLECTION_MANGAUPDATES]:{}, 
+        [COLLECTION_CUSTOM_LANG_ANALYSIS_SUMMARY]:{}, 
+        [COLLECTION_LANG_SUMMARY]:{},
+        '__FIRST_JP_VOL__':{},
+        '__FIRST_EN_VOL__':{}
+    }
     if (Object.keys(filter_struct.fixed_filter).length > 0) {
         ConvertFilterToMatchQuery(match_query_per_collection, filter_struct.fixed_filter, user_data)
     }
@@ -364,20 +446,20 @@ export async function getMetadataForTitles(user_id, sort_struct, filter_struct)
 
     /// The following is MongoDB optimization magic
 
-    const collection_order = ['br_metadata','br_mangaupdates','br_custom_lang_analysis_summary','br_lang_summary']
+    const collection_order = [COLLECTION_TITLEDATA,COLLECTION_MANGAUPDATES,COLLECTION_CUSTOM_LANG_ANALYSIS_SUMMARY,COLLECTION_LANG_SUMMARY,'__FIRST_JP_VOL__','__FIRST_EN_VOL__']
     const collection_join_stages = {
-        'br_metadata' : [] ,
-        'br_mangaupdates' : [
+        [COLLECTION_TITLEDATA] : [] ,
+        [COLLECTION_MANGAUPDATES] : [
             {
-                $lookup: { from:"br_mangaupdates", localField:"_id", foreignField:"_id", as:"mangaupdates_data"}
+                $lookup: { from: COLLECTION_MANGAUPDATES, localField:"_id", foreignField:"_id", as:"mangaupdates_data"}
             },
             {
                 $unwind: { path:"$mangaupdates_data", preserveNullAndEmptyArrays:true }
             }
         ],
-        'br_custom_lang_analysis_summary' : [
+        [COLLECTION_CUSTOM_LANG_ANALYSIS_SUMMARY] : [
             {
-                $lookup: { from:"br_custom_lang_analysis_summary", localField:"_id", foreignField:"title_id", as:"analysis"}
+                $lookup: { from:COLLECTION_CUSTOM_LANG_ANALYSIS_SUMMARY, localField:"_id", foreignField:"title_id", as:"analysis"}
             },
             {
                 $unwind: { path:"$analysis", preserveNullAndEmptyArrays:true }
@@ -392,13 +474,38 @@ export async function getMetadataForTitles(user_id, sort_struct, filter_struct)
                 $match: { "analysis.user_id":user_id }
             }
         ],
-        'br_lang_summary' : [
+        [COLLECTION_LANG_SUMMARY] : [
             {
-                $lookup: { from:"br_lang_summary", localField:"_id", foreignField:"_id", as:"lang_summary"}
+                $lookup: { from:COLLECTION_LANG_SUMMARY, localField:"_id", foreignField:"_id", as:"lang_summary"}
             },
             {
                 $unwind: { path:"$lang_summary", preserveNullAndEmptyArrays:true }
             }
+        ],
+        '__FIRST_JP_VOL__' : [
+            {
+                $set: { "first_jp_vol_id": { "$arrayElemAt": [ "$lang.jp.volumes", 0 ] } }
+            },
+            {
+                $lookup: { from:COLLECTION_VOLUMEDATA, localField:"first_jp_vol_id", foreignField:"vol_id", as:"first_jp_vol"}
+            },
+            {
+                $unwind: { path:"$first_jp_vol", preserveNullAndEmptyArrays:true }
+            },
+            {
+                $set: { "release": "$first_jp_vol.release" }
+            }
+        ],
+        '__FIRST_EN_VOL__' : [
+            {
+                $set: { "first_en_vol_id": { "$arrayElemAt": [ "$lang.en.volumes", 0 ] } }
+            },
+            {
+                $lookup: { from:COLLECTION_VOLUMEDATA, localField:"first_en_vol_id", foreignField:"vol_id", as:"first_en_vol"}
+            },
+            {
+                $unwind: { path:"$first_en_vol", preserveNullAndEmptyArrays:true }
+            },
         ]
     }
 
@@ -459,7 +566,7 @@ export async function getMetadataForTitles(user_id, sort_struct, filter_struct)
     console.log("2nd phase aggregate query: ",second_pipeline_stages)
 
     // Do the actual query
-    var aggregate = await db.collection("br_metadata").aggregate(aggregate_stages).toArray();
+    var aggregate = await db.collection(COLLECTION_TITLEDATA).aggregate(aggregate_stages).toArray();
 
     var title_metadata = aggregate[0]['results']
     var filtered_count = 0;
@@ -470,7 +577,7 @@ export async function getMetadataForTitles(user_id, sort_struct, filter_struct)
 
     var metadata_by_id = {}
     for (let d of title_metadata) {
-        metadata_by_id[d['enid']] = d
+        ConvertToOldFormat(d)
     }
 
     for (let meta_data of title_metadata) {
@@ -487,11 +594,11 @@ export async function getMetadataForTitles(user_id, sort_struct, filter_struct)
     AugmentMetadataWithMangaupdatesCategories(title_metadata)
 
     // Fetch the total title count after fixed filter (e.g. Author / Genre)
-    let count_match_query = {'br_metadata':{}}
+    let count_match_query = {[COLLECTION_TITLEDATA]:{}}
     if (Object.keys(filter_struct.fixed_filter).length>0) {
         ConvertFilterToMatchQuery(count_match_query, filter_struct.fixed_filter, user_data )
     }
-    let title_count = await getTitleCount(count_match_query['br_metadata'])
+    let title_count = await getTitleCount(count_match_query[COLLECTION_TITLEDATA])
 
     return {'title_metadata':title_metadata, 'unfiltered_title_count':title_count, 'filtered_title_count':filtered_count}
 }
@@ -514,52 +621,69 @@ const iterative_copy = (src,dest) => {
 export async function getMangaMetadataForSingleTitle(user_id, title_id)
 {
     var title_metadata = undefined
-    title_metadata = await db.collection("br_metadata").aggregate([
+    title_metadata = await db.collection(COLLECTION_TITLEDATA).aggregate([
         {
             $match: {'_id':title_id}
         },
         {
-            $lookup: { from:"br_mangaupdates", localField:"_id", foreignField:"_id", as:"mangaupdates_data"}
+            $lookup: { from:COLLECTION_MANGAUPDATES, localField:"_id", foreignField:"_id", as:"mangaupdates_data"}
         },
         {
             $unwind: { path:"$mangaupdates_data", preserveNullAndEmptyArrays:true }
         },
         {
-            $lookup: { from:"br_google_books", localField:"_id", foreignField:"_id", as:"google_books"}
+            $lookup: { from:COLLECTION_LANG_SUMMARY, localField:"_id", foreignField:"_id", as:"lang_summary"}
+        },
+        {
+            $unwind: { path:"$lang_summary", preserveNullAndEmptyArrays:true }
+        },
+        {
+            $set: { "first_jp_vol_id": { "$arrayElemAt": [ "$lang.jp.volumes", 0 ] } }
+        },
+        {
+            $lookup: { from:COLLECTION_GOOGLE_BOOKS, localField:"first_jp_vol_id", foreignField:"_id", as:"google_books"}
         },
         {
             $unwind: { path:"$google_books", preserveNullAndEmptyArrays:true }
         },
         {
-            $lookup: { from:"br_lang_summary", localField:"_id", foreignField:"_id", as:"lang_summary"}
+            $lookup: { from:COLLECTION_VOLUMEDATA, localField:"first_jp_vol_id", foreignField:"vol_id", as:"first_jp_vol"}
         },
         {
-            $unwind: { path:"$lang_summary", preserveNullAndEmptyArrays:true }
+            $unwind: { path:"$first_jp_vol", preserveNullAndEmptyArrays:true }
+        },
+        {
+            $set: { "release": "$first_jp_vol.release" }
+        },
+        {
+            $set: { "first_en_vol_id": { "$arrayElemAt": [ "$lang.en.volumes", 0 ] } }
+        },
+        {
+            $lookup: { from:COLLECTION_VOLUMEDATA, localField:"first_en_vol_id", foreignField:"vol_id", as:"first_en_vol"}
+        },
+        {
+            $unwind: { path:"$first_en_vol", preserveNullAndEmptyArrays:true }
         }
-    ]).project({_id:0}).toArray();
+    ]).toArray();
 
     title_metadata = title_metadata[0];
 
-    if (!('chapter' in title_metadata)) {
-        title_metadata['chapter'] = {};
-    }
-    if (!('unread_idx' in title_metadata['chapter'])) {
-        title_metadata['chapter']['unread_idx'] = -1
-    }
-    if (!('volume' in title_metadata)) {
-        title_metadata['volume'] = {};
-    }
-    if (!('unread_idx' in title_metadata['volume'])) {
-        title_metadata['volume']['unread_idx'] = -1
-    }
     if (!('translator' in title_metadata)) {
         title_metadata['translator'] = '';
     }
 
+    title_metadata['languages'] = [];
+    if ('first_en_vol' in title_metadata) {
+        title_metadata.languages.push('en')
+    }
+    if ('first_jp_vol' in title_metadata) {
+        title_metadata.languages.push('jp')
+        title_metadata['first_jp_vol_collection'] = title_metadata.first_jp_vol.collection
+    }
     title_metadata['analysis'] = {}
 
     const search_query = {'title_id':title_id, 'user_id':user_id }
-    var custom_lang_analyses = await db.collection("br_custom_lang_analysis").find(search_query).toArray()
+    var custom_lang_analyses = await db.collection(COLLECTION_CUSTOM_LANG_ANALYSIS).find(search_query).toArray()
 
     for (let an of custom_lang_analyses) {
         if (an['type'] == 'series_analysis_for_jlpt') {
@@ -571,7 +695,16 @@ export async function getMangaMetadataForSingleTitle(user_id, title_id)
         }
     }
 
+    title_metadata.analysis.status = 'stale';
+    if ('series' in title_metadata.analysis) {
+        let analysis_metadata = title_metadata.analysis.series.custom_lang_analysis_metadata
+        if (analysis_metadata.timestamp < analysis_metadata.update_due) {
+            title_metadata.analysis.status = 'up_to_date'
+        }
+    }
+
     AugmentMetadataWithMangaupdatesCategories([title_metadata])
+    title_metadata['enid'] = title_id
 
     return title_metadata;
 }
@@ -579,9 +712,9 @@ export async function getMangaMetadataForSingleTitle(user_id, title_id)
 
 export async function getSuggestedPrereadForTitle(user_id, title_id, target_selection, source_selection)
 {
-    var suggested_preread = await db.collection("br_metadata").aggregate([
+    var suggested_preread = await db.collection(COLLECTION_TITLEDATA).aggregate([
         {
-            $lookup: { from:"br_suggested_preread", localField:"_id", foreignField:"source_title_id", as:"suggestion"}
+            $lookup: { from:COLLECTION_SUGGESTED_PREREAD, localField:"_id", foreignField:"source_title_id", as:"suggestion"}
         },
         {
             $unwind: { path:"$suggestion", preserveNullAndEmptyArrays:false }
@@ -590,43 +723,93 @@ export async function getSuggestedPrereadForTitle(user_id, title_id, target_sele
             $match: {'suggestion.version':SUGGESTED_PREREAD_ANALYSIS_VERSION,'suggestion.user_id':user_id,'suggestion.target_title_id':title_id,'suggestion.target_selection':target_selection,'suggestion.source_selection':source_selection}
         },
         {
-            $lookup: { from:"br_mangaupdates", localField:"_id", foreignField:"_id", as:"mangaupdates_data"}
+            $lookup: { from:COLLECTION_MANGAUPDATES, localField:"_id", foreignField:"_id", as:"mangaupdates_data"}
         },
         {
             $unwind: { path:"$mangaupdates_data", preserveNullAndEmptyArrays:true }
         },
-    ]).project({_id:0}).toArray();
+    ]).toArray();
 
     return suggested_preread;
 }
 
 export async function getMangaDataForSingleTitle(title_id) {
 
-
-    var title_data = await db.collection("br_data").findOne({'_id':title_id})
-    if (title_data == null) {
+    var title_metadata = await db.collection(COLLECTION_TITLEDATA).findOne({'_id':title_id})
+    if (title_metadata == null) {
         return undefined;
     }
 
-    let import_metadata = await db.collection("br_chapter_lookup_table").aggregate([
+    let volume_data = await db.collection(COLLECTION_VOLUMEDATA).aggregate([
         {
             $match: {'title_id':title_id}
         },
         {
-            $group: {'_id':'$vol_id', 'vol_num': {'$first':'$vol_num'}}
-        },
-        {
-            $lookup: { from:"br_vol_import_metadata", localField:"_id", foreignField:"_id", as:"import_metadata"}
+            $lookup: { from:COLLECTION_VOL_IMPORT_METADATA, localField:"vol_id", foreignField:"_id", as:"import_metadata"}
         },
         {
             $unwind: { path:"$import_metadata", preserveNullAndEmptyArrays:true }
         }
-    ]).toArray()
-    let info_per_vol_id = {}
-    for (let vol_info of import_metadata) {
-        info_per_vol_id[vol_info.vol_num] = vol_info.import_metadata
+    ]).toArray();
+
+    let vol_by_id = {}
+    for (let vol_info of volume_data) {
+        vol_by_id[vol_info.vol_id] = vol_info
     }
-    title_data['vol_info'] = info_per_vol_id
+
+    var chapter_data = await db.collection(COLLECTION_CHAPTERDATA).find({'title_id':title_id}).toArray()
+    var chapter_by_id = {}
+    for (let chapter_info of chapter_data) {
+        chapter_by_id[chapter_info.ch_id] = chapter_info
+    }
+
+    var img_corr_data = await db.collection(COLLECTION_IMAGE_CORRESPONDENCE_DATA).findOne({'title_id':title_id})
+
+    var title_data = {
+        'en_data' : { 'ch_en':{}, 'ch_enh':[], 'vol_en':{}, 'ch_naen':[], 'num_pages':[]},
+        'jp_data' : { 'ch_jp':{}, 'ch_jph':[], 'vol_jp':{}, 'ch_najp':[], 'num_pages':[]},
+    }
+    if (img_corr_data !== null) {
+        title_data.imgdata = img_corr_data
+    }
+
+    for (let lang of ['en','jp']) {
+        if (Object.keys(title_metadata.lang).includes(lang)) {
+            let start_ch_idx = 0
+            let ch_idx = 0
+            if ('volumes' in title_metadata.lang[lang]) {
+                let volumes = title_metadata.lang[lang].volumes
+                let lang_data = title_data[lang+'_data']
+                let ch_lang = lang_data['ch_'+lang] // file list by chapter idx
+                let ch_lang_h = lang_data['ch_'+lang+'h']   // chapter 'url' list
+                let ch_na_lang = lang_data['ch_na'+lang]    // chapter name list
+                let vol_lang = lang_data['vol_'+lang]   // volume structure
+                let ch_num_pages = lang_data.num_pages
+                let vol_num = 0
+                for (let vol_id of volumes) {
+                    let vol = vol_by_id[vol_id];
+                    let vol_content_ready = false;
+                    for (let ch_id of vol.chapters) {
+                        let ch = chapter_by_id[ch_id]
+                        ch_lang[ch_idx+1] = ch.files
+                        ch_lang_h.push(ch.ch_url)
+                        ch_na_lang.push(ch.ch_name)
+                        ch_num_pages.push(ch.num_pages)
+                        ch_idx += 1
+                        if (ch.files.length>0) {
+                            vol_content_ready = true;
+                        }
+                    }
+                    vol_lang[vol.vol_name] = {'id':vol.vol_id, 's':start_ch_idx, 'e':ch_idx-1, 'vol_num': vol_num, 'num_pages':vol.num_pages ,'content_ready':vol_content_ready}
+                    start_ch_idx += ch_idx
+                    vol_num += 1
+                }
+            }
+        }
+    }
+
+    title_data['vol_info'] = vol_by_id
+    title_data['_id'] = {'$oid':title_id}
 
     return title_data
 }

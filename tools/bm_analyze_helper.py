@@ -1,7 +1,7 @@
 
 from helper import *
 from bm_learning_engine_helper import *
-from br_mongo import *
+from motoko_mongo import *
 from jmdict import *
 
 # Up/downgrade the word frequency by chapter(volume) comprehension/effort
@@ -32,12 +32,12 @@ chapter_comprehension = user_settings['chapter_reading_status']
 learning_settings['learned_jlpt_timestamp'] /= 1000
 learning_settings['learned_custom_timestamp'] /= 1000
 
-learning_data = database[BR_USER_LEARNING_DATA].find_one({'user_id':DEFAULT_USER_ID})
+learning_data = database[COLLECTION_USER_LEARNING_DATA].find_one({'user_id':DEFAULT_USER_ID})
 
-wordlist_cursor = database[BR_USER_WORD_LEARNING_STATUS].find({'user_id':DEFAULT_USER_ID},{'_id':False,'user_id':False})
+wordlist_cursor = database[COLLECTION_USER_WORD_LEARNING_STATUS].find({'user_id':DEFAULT_USER_ID},{'_id':False,'user_id':False})
 learning_data['words'] = {item['wid']:{'s':item['s'],'lf':item['lf']} for item in wordlist_cursor}
 
-kanjilist_cursor = database[BR_USER_KANJI_LEARNING_STATUS].find({'user_id':DEFAULT_USER_ID},{'_id':False,'ltf':False,'user_id':False})
+kanjilist_cursor = database[COLLECTION_USER_KANJI_LEARNING_STATUS].find({'user_id':DEFAULT_USER_ID},{'_id':False,'ltf':False,'user_id':False})
 learning_data['kanjis'] = {item['kanji']:{'s':item['s'],'lf':item['lf']} for item in kanjilist_cursor}
 
 

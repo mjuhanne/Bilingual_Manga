@@ -26,12 +26,8 @@ def calculate_volume_count_per_title(title_id):
         volumes = get_volumes_by_title_id(title_id, lang='jp')
         return len(volumes)
     
-    m = get_data_by_title_id(title_id)
-
-    title_id = m['_id']
-    volume_ids = m['jp_data']['ch_jph']
-    volume_ids = [vid.split('/')[0] for vid in volume_ids]
-    pages = m['jp_data']['ch_jp']
+    volume_ids, vol_info_per_vol = get_volume_and_chapter_info(title_id,'jp')
+    page_count_per_chapter = get_page_count_for_chapters(title_id)
 
     name = get_title_by_id(title_id)
     # it's very complex to count how many volumes the manga has because
@@ -42,32 +38,30 @@ def calculate_volume_count_per_title(title_id):
     else:
         small_chapter_cutoff = 70
 
-        page_count_per_chapter = [len(pages[ch]) for ch in pages]
-        vol_structures = m['jp_data']['vol_jp']
         volume_count = 0
         chapter_count = len(page_count_per_chapter)
-        large_chapters = sum(page_count > small_chapter_cutoff for page_count in page_count_per_chapter)
+        large_chapters = sum(page_count > small_chapter_cutoff for page_count in page_count_per_chapter.values())
         if large_chapters ==  chapter_count:
             # chapters are actually volumes
             volume_count = chapter_count
         elif large_chapters == 0:
             # each volume is actually a volume
-            volume_count = len(vol_structures)
+            volume_count = len(volume_ids)
             print(name, volume_count, " volumes divided into ",chapter_count, "chapters")
-        elif len(vol_structures) == 1:
+        elif len(volume_ids) == 1:
             # few smaller chapters (extras?). Count only larger chapters as volumes
             volume_count = large_chapters
             print(name, volume_count, " volumes with ",large_chapters,"full volumes and ",chapter_count-large_chapters, "smaller")
-        elif len(vol_structures) == large_chapters - 1:
+        elif len(volume_ids) == large_chapters - 1:
             volume_count = large_chapters +1 
             print(name, volume_count, " volumes with ",large_chapters,"full volumes and 1 incomplete with " , chapter_count-large_chapters , " chapters")
         else:
             print("*** ",name)
-            for vol_name, vol_struct in vol_structures.items():
-                start = vol_struct['s']
-                end = vol_struct['e']
-                chapters_in_vol = end + 1 - start
-                large_chapters_in_vol = sum(page_count_per_chapter[i] > small_chapter_cutoff for i in range(start,end+1))
+            #for vol_name, vol_struct in vol_structures.items():
+            for vol_id, vol_info in vol_info_per_vol.items():
+                vol_name = vol_info['vol_name']
+                chapters_in_vol = len(vol_info['chapters'])
+                large_chapters_in_vol = sum(page_count_per_chapter[ch_id] > small_chapter_cutoff for ch_id in vol_info['chapters'])
                 if large_chapters_in_vol > 0:
                     # assume each chapter in this 'volume folder' is actually a volume and the smaller chapters are extras
                     print("   ", vol_name, " has volumes with ",large_chapters_in_vol,"full volumes and " , chapters_in_vol-large_chapters_in_vol , " smaller extras")
@@ -241,9 +235,9 @@ def calculate_summary_for_title(title_id):
     title_data['version'] = get_version(OCR_SUMMARY_VERSION)
     title_data['parser_version'] == get_version(LANUGAGE_PARSER_VERSION)
     title_data['_id'] = title_id
-    title_data['is_book'] = is_book(title_id)
+    title_data['type'] = get_title_type(title_id)
     title_data['updated_timestamp'] = int(time.time())
-    database[BR_LANG_SUMMARY].update_one({'_id':title_id},{'$set':title_data},upsert=True)
+    database[COLLECTION_LANG_SUMMARY].update_one({'_id':title_id},{'$set':title_data},upsert=True)
     return title_data
 
 
@@ -257,14 +251,14 @@ def calculate_averages():
     for category in ['average_manga','average_book']:
 
         if category == 'average_manga':
-            summary = database[BR_LANG_SUMMARY].find({'is_book':False}).to_list()
+            summary = database[COLLECTION_LANG_SUMMARY].find({'type':'manga'}).to_list()
             for title_data in summary:
                 if title_data['num_pages']>0:
                     valid_manga_titles += 1
                     total_manga_pages += title_data['num_pages']
                     total_manga_volumes += title_data['num_virtual_volumes']
         else:
-            summary = database[BR_LANG_SUMMARY].find({'is_book':True}).to_list()
+            summary = database[COLLECTION_LANG_SUMMARY].find({'type':'book'}).to_list()
             for title_data in summary:
                 if title_data['num_pages']>0:
                     total_book_pages += title_data['num_pages']
@@ -320,7 +314,7 @@ def calculate_averages():
             avg_calc[calc_f]['jlpt_kanji_level_per_v'] = jlpt_k_level_per_v
 
         avg_calc['_id'] = category
-        database[BR_LANG_SUMMARY].update_one({'_id':category},{'$set':avg_calc},upsert=True)
+        database[COLLECTION_LANG_SUMMARY].update_one({'_id':category},{'$set':avg_calc},upsert=True)
 
         if category == 'average_manga':
             avg_page_count = total_manga_pages/total_manga_volumes
@@ -341,7 +335,7 @@ def save_summary():
         # check if summary needs recalculation
         update = True
         if not args['force']:
-            old_data = database[BR_LANG_SUMMARY].find_one({'_id':title_id})
+            old_data = database[COLLECTION_LANG_SUMMARY].find_one({'_id':title_id})
 
             if old_data is not None and 'parser_version' in old_data and 'version' in old_data:
                 if old_data['parser_version'] == get_version(LANUGAGE_PARSER_VERSION) and \

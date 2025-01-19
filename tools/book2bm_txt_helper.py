@@ -734,14 +734,11 @@ def get_publisher_from_txt_file(filepath):
                 return publisher
     return None
 
-def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, args ):
+def process_txt_file(vol_data, title_id, filepath, args):
 
-    lang_data_field = lang + '_data'
-    ch_name_field = 'ch_na' + lang
-    ch_lang_h_field = 'ch_' + lang + 'h'
-    ch_lang_field = 'ch_' + lang
-    vol_lang_field = 'vol_' + lang
-    start_ch_idx = len(t_data[lang_data_field][ch_lang_h_field])
+    lang = vol_data['lang']
+    vol_id = vol_data['vol_id']
+    vol_name = vol_data['vol_name']
     ask_confirmation_for_new_chapters = args['ask_confirmation_for_new_chapters']
 
     print("Process vol/book %s [%s]" % (vol_name,vol_id))
@@ -752,15 +749,13 @@ def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, args ):
         print("Title %s volume %s [%s] has no detected chapters!" % (title_id, vol_name, vol_id))
         return 0
 
-    vol_num = len(t_data[lang_data_field][vol_lang_field])
-    t_data[lang_data_field][vol_lang_field][vol_name] = {'id':vol_id,'s':start_ch_idx,'e':start_ch_idx + len(chapters)-1}
-
     target_ocr_file_path = None
     chapter_paragraphs = []
     chapter_pages = []
     total_num_characters = 0
+    total_num_pages = 0
 
-    for ch_idx, chapter in enumerate(chapters):
+    for ch_num, chapter in enumerate(chapters):
 
         ch_name = chapter['name']
 
@@ -772,15 +767,24 @@ def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, args ):
                 print("Skipping chapter and subsequent chapters")
                 return -1
             
-        t_data[lang_data_field][ch_name_field].append(ch_name)
-        t_data[lang_data_field][ch_lang_h_field].append(ch_id + '/%@rep@%')
-        if not args['skip_content_import']:
-            t_data[lang_data_field][ch_lang_field][start_ch_idx+ch_idx+1] = ['pages.html']
-        else:
-            t_data[lang_data_field][ch_lang_field][start_ch_idx+ch_idx+1] = []
-        print("Chapter %s [%s]: %s " % (lang, ch_id, ch_name))
+        ch_data = {
+            'title_id' : title_id,
+            'vol_id' : vol_id,
+            'ch_id' : ch_id,
+            'ch_num' : ch_num,
+            'ch_name' : ch_name,
+            'ch_url' : ch_id + '/%@rep@%',
+            'lang' : lang,
+        }
 
-        add_chapter_lookup_entry(title_id, vol_id, vol_num, vol_name, ch_id, ch_idx, ch_name, lang)
+        if not args['skip_content_import']:
+            ch_data['files'] = ['pages.html']
+        else:
+            ch_data['files'] = []
+
+        vol_data['chapters'].append(ch_id)
+
+        print("Chapter %s [%s]: %s " % (lang, ch_id, ch_name))
 
         target_ocr_file_path = target_ocr_path + ch_id + '.json'
         ocr_dict = dict()
@@ -804,29 +808,34 @@ def process_txt_file(t_data, title_id, filepath, lang, vol_id, vol_name, args ):
         ch_html += '</div>'
         chapter_pages.append(ch_html)
 
-
         if lang == 'jp':
-            t_data[lang_data_field]['virtual_chapter_page_count'].append(get_virtual_page_count_from_characters(chapter['num_characters']))
+            ch_data['num_pages'] = get_virtual_page_count_from_characters(chapter['num_characters'])
         else:
-            t_data[lang_data_field]['virtual_chapter_page_count'].append(get_virtual_page_count_from_words(chapter['num_words']))
+            ch_data['num_pages'] = get_virtual_page_count_from_words(chapter['num_words'])
+
 
         print("\t.. with %s pages / %d paragraphs / %d sentences / %d characters" % (
-            t_data[lang_data_field]['virtual_chapter_page_count'][-1],
+            ch_data['num_pages'],
             len(chapter_paragraphs),chapter['num_sentences'],chapter['num_characters']))
 
-        if lang == 'jp':
-            if len(chapter_paragraphs)>0:
-                print("\t\tWriting OCR file %s" % target_ocr_file_path)
-                ocr_dict['0'] = chapter_paragraphs
-                target_ocr_f = open(target_ocr_file_path,'w',encoding="UTF-8")
-                target_ocr_f.write(json.dumps(ocr_dict, ensure_ascii=False))
-                target_ocr_f.close()
+        if not 'simulate' in args or not args['simulate']:
+            update_chapter_data(ch_data)
 
-        if not args['skip_content_import']:
-            save_chapter_pages(ch_id, chapter_pages)
+            if lang == 'jp':
+                if len(chapter_paragraphs)>0:
+                    print("\t\tWriting OCR file %s" % target_ocr_file_path)
+                    ocr_dict['0'] = chapter_paragraphs
+                    target_ocr_f = open(target_ocr_file_path,'w',encoding="UTF-8")
+                    target_ocr_f.write(json.dumps(ocr_dict, ensure_ascii=False))
+                    target_ocr_f.close()
+
+            if not args['skip_content_import']:
+                save_chapter_pages(ch_id, chapter_pages)
+
         total_num_characters += chapter['num_characters']
+        total_num_pages += ch_data['num_pages']
 
     print("** Total %d characters" % (total_num_characters))
-    return len(chapters)
+    return len(chapters), total_num_pages
 
 

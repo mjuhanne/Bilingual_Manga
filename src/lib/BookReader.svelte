@@ -104,8 +104,8 @@
       if (jp_chapter_id != fetched_jp_chapter_id) {
 
           let ipfspath=ipfsgate.replace('%@cid@%',jp_chapter_id);
-
-          fetch( ipfspath + "/pages.html").then(
+          let fetch_url = ipfspath + "/pages.html"
+          fetch(fetch_url).then(
               (response) => {
               if (response.ok) {
                   response.text().then((text) => {
@@ -114,10 +114,10 @@
                       pages_jp = text
                   });
               } else {
-                  pages_jp =  '<div>JP pages not found</div>'
+                  pages_jp = `<div>JP page ${fetch_url} not found</div>`
               }
           }).catch(error => {
-              pages_jp = '<div>JP pages not found</div>'
+              pages_jp = `<div>JP page ${fetch_url} not found</div>`
           });
 
           fetch( "/book", {

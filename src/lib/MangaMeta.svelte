@@ -39,13 +39,13 @@ export let syn_en_deepl;
 
 <div style="display: flex;">
     <div>
-        {#if (meta.Author.length<=1)}
+        {#if (meta.authors.length<=1)}
         <b style="font-size: 1.1rem;">Author</b>
         {:else}
         <b style="font-size: 1.1rem;">Authors</b>
         {/if}
         <div class="metae">
-            {#each meta.Author as Author }
+            {#each meta.authors as Author }
                 <a href="/manga-author/{Author}">{Author}</a>
             {/each}    
         </div>
@@ -58,15 +58,15 @@ export let syn_en_deepl;
             </div>
         </div>
     {/if}
-    {#if (meta.Artist.length>0)}
+    {#if (meta.artists.length>0)}
         <div style="margin-left:20px;">
-            {#if (meta.Artist.length==1)}
+            {#if (meta.artists.length==1)}
             <b style="font-size: 1.1rem;">Artist</b>
             {:else}
             <b style="font-size: 1.1rem;">Artists</b>
             {/if}
             <div class="metae">
-                {#each meta.Artist as Artist }
+                {#each meta.artists as Artist }
                     <a href="/manga-artist/{Artist}">{Artist}</a>
                 {/each}    
             </div>
@@ -78,13 +78,13 @@ export let syn_en_deepl;
     <div>
     <b style="font-size: 1.1rem;">Release</b>
     <div class="metae">
-    <a href="/manga-release/{meta.Release}">{meta.Release}</a>
+    <a href="/manga-release/{meta.release}">{meta.release}</a>
     </div>
     </div>
     <div style="margin-left:20px;">
     <b style="font-size: 1.1rem;">Status</b>
     <div class="metae">
-    <a href="/manga-status/{meta.Status}">{meta.Status}</a>
+    <a href="/manga-status/{meta.status}">{meta.status}</a>
     </div>
     </div>
     {#if (meta.lang_summary !== undefined)}

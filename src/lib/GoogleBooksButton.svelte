@@ -91,7 +91,7 @@ function openDialog() {
             {/if}
         {/if}
     </div>
-    <a href="https://www.google.com/search?q={meta.jptit}+inauthor%3A{meta.Author[0]}&tbm=bks" target="_blank" title="Manual Google Books search">Manual search</a>
+    <a href="https://www.google.com/search?q={meta.jptit}+inauthor%3A{meta.authors[0]}&tbm=bks" target="_blank" title="Manual Google Books search">Manual search</a>
     <div class="enclosure">
             <label>
             <input placeholder="Enter Google Book Id" bind:value={newGoogleId}>

@@ -26,7 +26,7 @@ else:
         f.write(json.dumps({'version':1,'collections':collections}))
 
 
-file_list_cache = []
+file_list_cache = None
 default_book_path = '/mnt/Your/Book/Directory'
 
 verbose = False
@@ -39,12 +39,13 @@ refresh_google_books_data = False
 ask_google_books_match_confirmation = True
 parse_chapters_automatically = True
 process_aozora_books_initially_as_one_chapter = True
+check_for_orphan_volumes = True
 
 titles = dict()
 
 parser = argparse.ArgumentParser(
     prog="books2bm",
-    description="Import books to Bilingualmanga.",
+    description="Import books to Motoko.",
 )
 subparsers = parser.add_subparsers(help='', dest='command')
 
@@ -160,14 +161,12 @@ def recursive_scan(args, root_path, filtered_file_type=None, recursion_depth=0, 
             #    pass
     pass
 
-def create_new_title(title, title_from_filename, simulate=False):
+def create_new_title(title, vol_info, simulate=False):
 
     title_id = create_oid(title, "title", ask_confirmation=(ask_confirmation_for_new_titles and not simulate))
     if title_id is None:
         # oid not found and adding new one was manually skipped
         return None
-
-    title_from_filename, publisher = extract_publisher_from_title(title_from_filename)
 
     # normalize the title just in case
     # It can be in Unicode composed form (i.e. で)
@@ -179,94 +178,72 @@ def create_new_title(title, title_from_filename, simulate=False):
     t_metadata = dict()
     t_metadata['created_timestamp'] = int(time.time())
 
+    t_metadata['lang'] = {'jp':{},'en':{}}
+
     if has_cjk(clean_title) or has_word_hiragana(clean_title) or has_word_katakana(clean_title):
-        t_metadata['jptit'] = clean_title
-        t_metadata['entit'] = PLACEHOLDER
+        t_metadata['lang']['jp']['title'] = clean_title
+        t_metadata['lang']['en']['title'] = ''
     else:
-        t_metadata['entit'] = clean_title
-        t_metadata['jptit'] = clean_title
-    t_metadata['title_from_filename'] = title_from_filename
+        t_metadata['lang']['jp']['title'] = clean_title
+        t_metadata['lang']['en']['title'] = clean_title
+    t_metadata['title_from_filename'] = vol_info['title_from_filename']
 
     t_metadata['genres'] = []
-    if publisher is not None:
-        t_metadata['Publisher'] = publisher
-    else:
-        t_metadata['Publisher'] = PLACEHOLDER
+    t_metadata['publisher'] = vol_info['publisher']
 
-    t_metadata['Author'] = [PLACEHOLDER]
-    t_metadata['Release'] = PLACEHOLDER
+    t_metadata['authors'] = []
+    if 'author' in vol_info:
+        t_metadata['authors'].append(vol_info['author'])
 
-    t_metadata['coveren'] = PLACEHOLDER
-    t_metadata['coverjp'] = PLACEHOLDER
-    t_metadata['Artist'] = []
+    t_metadata['artists'] = []
 
-    t_metadata['Status'] = 'Completed' # assumption
+    t_metadata['status'] = 'Completed' # assumption
     t_metadata['search'] = ''
-    t_metadata['enid'] = title_id
-    t_metadata['verified_ocr'] = True
-    t_metadata['is_book'] = True
-
-    t_data = dict()
-    t_data['_id'] = title_id
-    t_data['en_data'] = dict()
-    t_data['jp_data'] = dict()
-
-    t_data['syn_jp'] = ''
-    t_data['syn_en'] = ''
-    t_data['is_book'] = True
-
-    t_data['en_data']['ch_naen'] = []
-    t_data['en_data']['ch_enh'] = []
-    t_data['en_data']['vol_en'] = dict()
-    t_data['en_data']['ch_en'] = dict()
-
-    t_data['jp_data']['ch_najp'] = []
-    t_data['jp_data']['ch_jph'] = []
-    t_data['jp_data']['vol_jp']= dict()
-    t_data['jp_data']['ch_jp'] = dict()
-    t_data['jp_data']['virtual_chapter_page_count'] = []
+    t_metadata['type'] = 'book'
 
     if not simulate:
-        save_metadata(title_id, t_metadata, t_data, False)
-    return title_id, t_metadata, t_data
+        save_metadata(title_id, t_metadata, False)
+    return title_id, t_metadata
 
-def update_metadata_from_google_books(t_metadata, t_data, gb, force=False):
+def update_metadata_from_google_books(t_metadata, vol_data, gb, force=False):
     vi = gb['volumeInfo']
-    if '訳)' in t_metadata['jptit']:
-        t_metadata['jptit'] = clean_google_books_title(vi['title']) + " (%s訳)" % t_metadata['translator']
+    if '訳)' in t_metadata['lang']['jp']['title']:
+        t_metadata['lang']['jp']['title'] = clean_google_books_title(vi['title']) + " (%s訳)" % t_metadata['translator']
     else:
-        t_metadata['jptit'] = clean_google_books_title(vi['title'])
+        t_metadata['lang']['jp']['title'] = clean_google_books_title(vi['title'])
 
-    if t_metadata['entit'] == PLACEHOLDER or force:
+    if t_metadata['lang']['en']['title'] == '' or force:
         if 'en_title_deepl' in gb:
-            t_metadata['entit'] = gb['en_title_deepl']
-            t_metadata['entit_is_translated'] = True
+            t_metadata['lang']['en']['title'] = gb['en_title_deepl']
+            t_metadata['title_is_translated'] = True
 
     if 'categories' in vi:
         t_metadata['genres'] = vi['categories']
 
-    if (t_metadata['Publisher'] == PLACEHOLDER or force) and 'publisher' in vi:
-        t_metadata['Publisher'] = vi['publisher']
+    if ('publisher' not in t_metadata or force) and 'publisher' in vi:
+        t_metadata['publisher'] = vi['publisher']
 
     if 'authors' in vi:
-        t_metadata['Author'] = vi['authors']
+        t_metadata['authors'] = vi['authors']
 
-    if t_metadata['Release'] == PLACEHOLDER or force:
+    if vol_data['release'] == '' or force:
         try:
-            t_metadata['Release'] = int(vi['publishedDate'].split('-')[0])
+            vol_data['release'] = int(vi['publishedDate'].split('-')[0])
         except:
             pass
 
     if 'en_synopsis_deepl' in gb:
-        t_data['syn_en_deepl'] = gb['en_synopsis_deepl']
-    t_data['syn_jp'] = gb['volumeInfo']['description']
+        vol_data['syn_en_deepl'] = gb['en_synopsis_deepl']
+    vol_data['syn'] = gb['volumeInfo']['description']
 
 def process_volume(args, title_id, title, vol_info, vol_id=None):
     t_metadata = get_metadata_by_title_id(title_id)
-    t_data = get_data_by_title_id(title_id)
 
-    if 'Publisher' not in t_metadata:
-        t_metadata['Publisher'] = PLACEHOLDER
+    vol_data = {
+        'chapters':[], 'cover':'', 'collection':args['collection'], 
+        'title_id':title_id, 'syn':'', 'release':'', 'num_pages':0,
+        'created_timestamp':int(time.time()), 'updated_timestamp':int(time.time())
+    }
 
     # first try to get the metadata from epub or vol_info
     if vol_info['type'] == 'epub':
@@ -285,119 +262,126 @@ def process_volume(args, title_id, title, vol_info, vol_id=None):
                 lang = ans
             else:
                 return None, None
-        vol_name = get_metadata_from_epub(t_metadata, t_data, lang, book, vol_info)
+        vol_data['lang'] = lang
+        vol_name = get_metadata_from_epub(t_metadata, vol_data, lang, book)
         cover_title, _ = extract_publisher_from_title(title)
-        save_cover_image_from_epub(t_metadata, book, lang, cover_title)
+        save_cover_image_from_epub(title_id, book, vol_data, cover_title)
     else:
         lang = 'jp' # assumption
+        vol_data['lang'] = lang
         vol_name = vol_info['volume_name']
         detected_publisher = get_publisher_from_txt_file(vol_info['path'] + vol_info['filename'])
-        if detected_publisher is not None and t_metadata['Publisher'] == PLACEHOLDER:
-            t_metadata['Publisher'] = detected_publisher
+        if detected_publisher is not None and 'publisher' not in t_metadata:
+            t_metadata['publisher'] = detected_publisher
 
-    if vol_name in t_data['jp_data']['vol_jp'] or vol_name in t_data['en_data']['vol_en']:
+    vol_data['vol_name'] = vol_name
+
+    existing_volume_ids, existing_vol_info_dict = get_volume_and_chapter_info(title_id, lang)
+    existing_volume_names = [vi['vol_name'] for vi in existing_vol_info_dict.values()]
+
+    if vol_name in existing_volume_names:
         print("%s [%s] Skipping already existing volume %s (%s)" % (title, title_id, vol_name, vol_info['filename']))
         return None, None
 
     if 'author' in vol_info:
-        if t_metadata['Author'] == [PLACEHOLDER]:
-            t_metadata['Author'] = [vol_info['author']]
+        if len(t_metadata['authors'])==0:
+            t_metadata['authors'] = [vol_info['author']]
 
-    if 'translator' not in t_metadata:
-        t_metadata['translator'] = ''
-    if t_metadata['translator'] == '' and vol_info['translator'] != '':
+    #if 'translator' not in t_metadata:
+    #    t_metadata['translator'] = ''
+    if ('translator' not in t_metadata or t_metadata['translator'] == '') and vol_info['translator'] != '':
         t_metadata['translator'] = vol_info['translator']
-
-    gb = None
-    if not is_title_ignored_for_google_books(title_id):
-        gb = get_google_books_entry(title_id)
-        if gb is None or refresh_google_books_data:
-            author = t_metadata['Author'][0]
-            if author != PLACEHOLDER and t_metadata['jptit'] != PLACEHOLDER:
-                search_metadata = {
-                    'title' : t_metadata['jptit'],
-                    'author' : author,
-                    'translator' : t_metadata['translator'],
-                    'publisher' : t_metadata['Publisher']
-                }
-                gb = search_records_and_select_one(title_id, search_metadata, -1, manual_confirmation=ask_google_books_match_confirmation)
-                if gb is None:
-                    if ask_google_books_match_confirmation:
-                        print("Author: " + author)
-                        if t_metadata['translator'] != '':
-                            print("Translator: " + t_metadata['translator'])
-                        if t_metadata['Publisher']  != PLACEHOLDER:
-                            print("Publisher: " + t_metadata['Publisher'])
-                        ans = input("Input Google book id: ")
-                        if ans == '-':
-                            ignore_google_book_matching_for_title(title_id)
-                        elif ans != '':
-                            gb = match_googleid({'title':title_id, 'googleid':ans})
-                    else:
-                        print("No Google books match found with ",search_metadata)
-            else:
-                print("Skipping Google Books search because insufficient info. Author %s, jptit: %s" % (author, t_metadata['jptit']))
-
-    # try to fill the remaining missing data from Google books
-    if gb is not None:
-        update_metadata_from_google_books(t_metadata, t_data, gb)
 
     if vol_id is None:
         vol_id = create_oid("%s/%s/%s" % (title_id,lang,vol_name), "volume", ask_confirmation=ask_confirmation_for_new_volumes, title_id=title_id)
         if vol_id is None:
             print("Skipped creating new volume")
             return None, None
+    vol_data['vol_id'] = vol_id
 
-    if vol_name in t_data[lang + '_data']['vol_' + lang]:
-        raise Exception("TODO! replace old vol/chapter info in t_data")
+    gb = None
+    if not is_title_ignored_for_google_books(vol_id):
+        gb = get_google_books_entry(vol_id)
+        if gb is None or refresh_google_books_data:
+            jptit = t_metadata['lang']['jp']['title']
+            if len(t_metadata['authors'])>0 and jptit != '':
+                search_metadata = {
+                    'title' : jptit,
+                    'author' : t_metadata['authors'][0],
+                    'translator' : getattr(t_metadata,'translator',''),
+                    'publisher' : t_metadata['publisher']
+                }
+                gb = search_records_and_select_one(vol_data, search_metadata, -1, manual_confirmation=ask_google_books_match_confirmation)
+                if gb is None:
+                    if ask_google_books_match_confirmation:
+                        print("Author: " + t_metadata['authors'][0])
+                        if t_metadata['translator'] != '':
+                            print("Translator: " + t_metadata['translator'])
+                        if t_metadata['Publisher']  != PLACEHOLDER:
+                            print("Publisher: " + t_metadata['publisher'])
+                        ans = input("Input Google book id: ")
+                        if ans == '-':
+                            ignore_google_book_matching_for_title(vol_id)
+                        elif ans != '':
+                            gb = match_googleid({'title':vol_id, 'googleid':ans})
+                    else:
+                        print("No Google books match found with ",search_metadata)
+            else:
+                print("Skipping Google Books search because insufficient info. Authors %s, jptit: %s" % (str(t_metadata['authors']), jptit))
+
+    # try to fill the remaining missing data from Google books
+    if gb is not None:
+        update_metadata_from_google_books(t_metadata, vol_data, gb)
+
 
     args['ask_confirmation_for_new_chapters'] = ask_confirmation_for_new_chapters
 
     if lang == 'en':
-        #############  process english chapter
+        #############  process english volume
         print("\tVolume EN [%s]: %s " % (vol_id, vol_name))
 
-        if t_metadata['coveren'] == PLACEHOLDER:
-            save_cover_image_from_epub(t_metadata, book, 'en',title)
+        if vol_data['cover'] == '':
+            save_cover_image_from_epub(title_id, book, vol_data, title)
 
-        t_data['en_data']['virtual_chapter_page_count'] = []
-
-        process_result = process_epub(t_data, title_id, book,'en', vol_id, vol_name, args)
+        chapters_processed, total_num_pages = process_epub(vol_data, title_id, book, args)
 
     elif lang == 'jp':
         if vol_info['type'] == 'epub':
             print("\tJP EPUB volume [%s]: %s " % (vol_id, vol_name))
-            process_result = process_epub(t_data, title_id, book,'jp', vol_id, vol_name, args)
+            chapters_processed, total_num_pages = process_epub(vol_data, title_id, book, args)
 
         elif vol_info['type'] == 'txt':
-            jp_vol_title = vol_info['volume_name']
             jp_volume_f = vol_info['path'] + vol_info['filename']
-            print("\tJP TXT volume [%s]: %s " % (vol_id, jp_vol_title))
-            process_result = process_txt_file(t_data, title_id, jp_volume_f ,'jp', vol_id, jp_vol_title, args)
+            print("\tJP TXT volume [%s]: %s " % (vol_id, vol_data['vol_name']))
+            chapters_processed, total_num_pages = process_txt_file(vol_data, title_id, jp_volume_f, args)
 
         # if cover is not yet fetched, try to get it from Google Books
-        if process_result >= 0 and t_metadata['coverjp'] == PLACEHOLDER:
+        if chapters_processed >= 0 and vol_data['cover'] == '':
             if gb is not None:
-                fetch_cover_from_google_books(title_id, title, t_metadata, gb)
+                fetch_cover_from_google_books(vol_data, gb)
 
-    if process_result >= 0:
-        save_metadata(title_id, t_metadata, t_data, verbose_update)
+    vol_data['num_pages'] = total_num_pages
+
+    if chapters_processed >= 0:
+        if 'volumes' not in t_metadata['lang'][lang]:
+            t_metadata['lang'][lang]['volumes'] = []
+        t_metadata['lang'][lang]['volumes'].append(vol_id)
+        save_metadata(title_id, t_metadata, verbose_update)
+        update_volume_data(vol_data)
         return vol_id, lang
     else:
         print("Skipped title %s vol_id %s" % (title_id, vol_id))
-        ans = input("Delete possible references? ")
-        if ans == 'y':
-            remove_chapter_lookup_entry(title_id, vol_id, 'ALL')
+        database[COLLECTION_VOLUMEDATA].delete_one({'vol_id':vol_id})
         return None, None
 
-def fetch_cover_from_google_books(title_id, title, t_metadata, gb, force=False):
+def fetch_cover_from_google_books(vol_data, gb, force=False):
     vi = gb['volumeInfo']
     if 'imageLinks' in vi:
         img_url = vi['imageLinks']['thumbnail']
-        target_img_name = clean_name(title)
+        target_img_name = vol_data['vol_id']
         suffix = 'jpg' # TODO, assume jpeg 
         target_img_path = 'manga_cover/jp/' + target_img_name + '.' + suffix
-        t_metadata['coverjp'] = target_img_path
+        vol_data['cover'] = target_img_path
         if not os.path.exists(target_img_path) or force:
             print("\tFetching cover image %s" % img_url)
             download_image(img_url,target_img_path)
@@ -430,12 +414,17 @@ def process_file(args, title, vol_info):
         return 
     
     path = vol_info['path'].split(args['source_dir'])[1]
-    import_metadata = database[BR_VOL_IMPORT_METADATA].find_one({'filename':vol_info['filename'], 'path':path})
+    import_metadata = database[COLLECTION_VOL_IMPORT_METADATA].find_one({'filename':vol_info['filename'], 'path':path})
     if import_metadata is None:
         md5digest = md5(vol_info['path'] + vol_info['filename'])
-        import_metadata = database[BR_VOL_IMPORT_METADATA].find_one({'md5':md5digest})
+        import_metadata = database[COLLECTION_VOL_IMPORT_METADATA].find_one({'md5':md5digest})
 
-    if import_metadata is None:
+    if import_metadata is not None:
+        title_id = get_title_id_by_volume_id(import_metadata['_id'])
+    else:
+        title_id = None
+
+    if import_metadata is None or (check_for_orphan_volumes and title_id is None):
 
         print("%s Processing %s" % (vol_info['verbose_recursion_depth'], vol_info['path'] + vol_info['filename']))
         if args['simulate']:
@@ -444,52 +433,66 @@ def process_file(args, title, vol_info):
                 print("Publisher: ",extract_publisher_from_title(title))
                 print(vol_info)
 
-        title_from_filename = title
+        vol_info['title_from_filename'] = title
         if vol_info['type'] == 'epub':
             filepath = vol_info['path'] + vol_info['filename']
-            vol_info['volume_name'], title = get_clean_title_and_volume_name_from_epub_file(filepath)
-            if title is None:
+            if augment_vol_info_from_epub_file(filepath, vol_info):
+                title = vol_info['title']
+            else:
                 print("Corrupt file (%s)?" % (filepath))
                 return False
             
-
+        if 'author' not in vol_info:
+            print("File (%s) does not have author! Skipping.." % (filepath))
+            return False
+            
         # new volume
-        import_metadata = {
-            'filename' : vol_info['filename'],
-            'vol_name' : vol_info['volume_name'],
-            'path' : path,
-            'type' : vol_info['type'],
-            'collection' :  args['collection'],
-            'md5' : md5(vol_info['path'] + vol_info['filename'])
-        }
+        if import_metadata is None:
+            import_metadata = {
+                'filename' : vol_info['filename'],
+                'vol_name' : vol_info['volume_name'],
+                'path' : path,
+                'type' : vol_info['type'],
+                'collection' :  args['collection'],
+                'md5' : md5(vol_info['path'] + vol_info['filename'])
+            }
+
+        vol_info['title_from_filename'], publisher = extract_publisher_from_title(vol_info['title_from_filename'])
+        if publisher is not None:
+            vol_info['publisher'] = publisher
+        if 'publisher' not in vol_info:
+            vol_info['publisher'] = ''
 
         # try to match this volume with a title
-        title_metadata = None
+        title_metadata = []
+        match_query = {"$expr":{"$in":[vol_info['author'],"$authors"]},'lang.jp.title':title}
         if vol_info['translator'] != '':
-            title_with_translator = title + ' (%s訳)' % vol_info['translator']
-            title_metadata = database[BR_METADATA].find_one({'jptit':title,'translator':vol_info['translator']})
-            if title_metadata is None:
-                title_metadata = database[BR_METADATA].find_one({'jptit':title_with_translator,'translator':vol_info['translator']})
-        if title_metadata is None:
-            clean_title, publisher = extract_publisher_from_title(title)
-            title_metadata = database[BR_METADATA].find_one({'title_from_filename':clean_title})
-        if title_metadata is None:
-            title_metadata = database[BR_METADATA].find_one({'jptit':title})
+            match_query["translator"] = vol_info['translator']
+            title_metadata = database[COLLECTION_TITLEDATA].aggregate([{'$match':match_query}]).to_list()
+            if len(title_metadata)==0:
+                title_with_translator = title + ' (%s訳)' % vol_info['translator']
+                match_query['lang.jp.title'] = title_with_translator
+                title_metadata = database[COLLECTION_TITLEDATA].aggregate([{'$match':match_query}]).to_list()
+        #if len(title_metadata)==0:
+        #    title_metadata = database[COLLECTION_TITLEDATA].find({'title_from_filename':vol_info##['title_from_filename']}).to_list()
+        if len(title_metadata)==0:
+            match_query = {"$expr":{"$in":[vol_info['author'],"$authors"]},'lang.jp.title':title}
+            title_metadata = database[COLLECTION_TITLEDATA].aggregate([{'$match':match_query}]).to_list()
 
-            if vol_info['translator'] != '' and title_metadata is not None:
+            if vol_info['translator'] != '' and len(title_metadata)>0:
                 # ok, so a title with a different translator found. We have to make a separate title
                 # and name it explicitely with the translator
                 print("Existing title found but with other translator (%s). Creating new title.." % (title_metadata['translator']))
-                title_metadata = None
+                title_metadata = []
                 title = title_with_translator
 
-        if title_metadata is not None and title_metadata['is_book'] == False:
+        if len(title_metadata)>0 and title_metadata[0]['type'] == 'manga':
             # existing title found but it is manga. Create a new title
             print("Existing title found but it is manga [%s]. Creating new title.." % (title_metadata['_id']))
-            title_metadata = None
+            title_metadata = []
             title += ' (book)'
 
-        if title_metadata is None:
+        if len(title_metadata)==0:
             if args['simulate']:
                 if args['verbose']:
                     print(" * No title match")
@@ -505,28 +508,33 @@ def process_file(args, title, vol_info):
                 print("\tTranslator: ",vol_info['translator'])
             print("\tFilename: ",vol_info['filename'])
             print("\tPath: ",vol_info['path'])
-            title_id, _, _ = create_new_title(title, title_from_filename)
+            title_id, _ = create_new_title(title, vol_info)
             if title_id is None:
                 # skipped creating new title
                 if input("Ignore this file?") == 'y':
                     import_metadata['ignore'] = True
-                    res = database[BR_VOL_IMPORT_METADATA].insert_one(import_metadata)
+                    res = database[COLLECTION_VOL_IMPORT_METADATA].insert_one(import_metadata)
                 return False
         else:
+            title_metadata = title_metadata[0]
             title_id = title_metadata['_id']
-            print("Existing title found: [%s] [%s] (%s)" % (title_id, title_metadata['entit'], title_metadata['jptit']))
+            print("Existing title found: [%s] %s" % (title_id, get_title_from_metadata(title_metadata)))
 
-        if args['simulate']:
-            if args['verbose']:
-                print(" * Match with title [%s] %s" % (title_id,title_metadata['jptit']))
-            return False
+            if args['simulate']:
+                if args['verbose']:
+                    print(" * Match with title [%s] %s" % (title_id,get_title_from_metadata(title_metadata)))
+                return False
 
-        vol_id, lang = process_volume(args, title_id, title, vol_info)
+        if '_id' in import_metadata:
+            previous_vol_id = import_metadata['_id']
+        else:
+            previous_vol_id = None
+        vol_id, lang = process_volume(args, title_id, title, vol_info, previous_vol_id)
         if vol_id is None:
             return False
         import_metadata['lang'] = lang
         import_metadata['_id'] = vol_id
-        database[BR_VOL_IMPORT_METADATA].insert_one(import_metadata)
+        database[COLLECTION_VOL_IMPORT_METADATA].update_one({'_id':vol_id},{'$set':import_metadata},upsert=True)
         if lang == 'jp':
             parse_volume_contents(args, title_id, title, vol_id)
     else:
@@ -538,10 +546,10 @@ def process_file(args, title, vol_info):
                 print("Orphan volume detected! ",import_metadata)
                 ans = input("Remove? ")
                 if ans == 'y':
-                    database[BR_VOL_IMPORT_METADATA].delete_one({'_id':vol_id})
+                    database[COLLECTION_VOL_IMPORT_METADATA].delete_one({'_id':vol_id})
                     print("Removed volume %s from processed list. Can now be re-imported")
             else:
-                process_volume(title_id, title, vol_info, vol_id)
+                process_volume(args, title_id, title, vol_info, vol_id)
                 if lang == 'jp':
                     parse_volume_contents(args, title_id, title, vol_id)
 
@@ -598,7 +606,6 @@ def scan(args):
 
 
 def remove(args):
-
     title = get_title_by_id(args['title_id'])
     jp_title = get_jp_title_by_id(args['title_id'])
     print("Title: %s / %s " % (title, jp_title))
@@ -612,35 +619,29 @@ def remove(args):
 
     ans = input("Delete this?")
     if ans == 'y':
-        md = database[BR_METADATA].find_one(({'_id':args['title_id']}))
-        if md is None:
-            print("Couldn't find %s" % args['title_id'])
-            return
-
-        d = database[BR_METADATA].delete_one({'_id':args['title_id']})
-        d = database[BR_DATA].delete_one({'_id':args['title_id']})
-        d = database[BR_CUSTOM_LANG_ANALYSIS].delete_one({'_id':args['title_id']})
-        d = database[BR_LANG_SUMMARY].delete_one({'_id':args['title_id']})
-        d = database[BR_LANG_SUMMARY].delete_one({'_id':args['title_id']})
-        for vol in volumes:
-            ref = database[BR_VOL_IMPORT_METADATA].find_one({'_id':vol})
-            if ref is None:
-                print("Vol %s: No file reference to be freed(?)" % (vol))
-            else:
-                print("Vol %s: Freeing reference for %s" % (vol, ref['filename']))
-                d = database[BR_LANG_SUMMARY].delete_one({'_id':vol})
+        delete_title(args['title_id'])
+        return True
+    return False
 
 
 def set_google_book_id(args):
     title_id = args['title_id']
+    try:
+        volume_ids, vol_info = get_volume_and_chapter_info(title_id, 'jp')
+        first_vol = vol_info[volume_ids[0]]
+        first_vol_id = first_vol['vol_id']
+    except:
+        first_vol_id = args['title_id']
+        first_vol = get_volume_data(first_vol_id)
+
     google_book_id = args['google_book_id']
-    gb = match_googleid({'title':title_id, 'googleid':google_book_id})
+    gb = match_googleid({'vol_id':first_vol_id, 'googleid':google_book_id})
     if gb is not None:
         t_metadata = get_metadata_by_title_id(title_id)
-        t_data = get_data_by_title_id(title_id)
-        update_metadata_from_google_books(t_metadata, t_data, gb, force=True)
-        fetch_cover_from_google_books(title_id, t_metadata['jptit'], t_metadata, gb, force=True)
-        save_metadata(title_id, t_metadata, t_data, verbose_update)
+
+        update_metadata_from_google_books(t_metadata, first_vol, gb, force=True)
+        fetch_cover_from_google_books(first_vol, gb, force=True)
+        update_volume_data(first_vol)
     else:
         print("Couldn't set google book id to %s" % google_book_id)
 
@@ -654,14 +655,16 @@ def show(args):
     print(metadata)
     for vol_id in volume_ids:
         vol = get_volume_number_by_volume_id(vol_id)
-        import_data = database[BR_VOL_IMPORT_METADATA].find_one({'_id':vol_id})
+        import_data = database[COLLECTION_VOL_IMPORT_METADATA].find_one({'_id':vol_id})
         if import_data is None:
             print("No import data found for title %s / vol %d" % (title_id,vol_id))
         else:
             print("\nVol %d [%s]" % (vol,vol_id), import_data)
 
 
+# reimport volume (by id) or first volume of given title (by id)
 def reimport(args):
+    global ask_confirmation_for_new_chapters, ask_google_books_match_confirmation
 
     volume_ids = get_volumes_by_title_id(args['title_id'])
     if len(volume_ids) == 0:
@@ -674,13 +677,9 @@ def reimport(args):
     else:         
         title_id = args['title_id']
    
-    title_name = get_title_by_id(title_id)
-    if len(volume_ids)>1:
-        print("Supporting only 1 volume titles for now!")
-        return -1
-
     vol_id = volume_ids[0]
-    import_data = database[BR_VOL_IMPORT_METADATA].find_one({'_id':vol_id})
+
+    import_data = database[COLLECTION_VOL_IMPORT_METADATA].find_one({'_id':vol_id})
     if  import_data is None:
         print("No import data found for title %s / vol %d" % (title_id,vol_id))
         return -1
@@ -709,28 +708,40 @@ def reimport(args):
     ask_google_books_match_confirmation = False
     args['combine_chapters'] = False
     args['skip_content_import'] = False
+    args['collection'] = collection
 
     process_volume(args, title_id, title, vol_info, vol_id)
+
+    init_parser(load_meanings=True)
     parse_volume_contents(args, title_id, title, vol_id)
 
 
 
-#TESTING
-#args = {'command':'scan','keyword':None,'force':False,'collection':'PeepoHappyBooks2','source_dir':None,'automatic':True,'simulate':False,'verbose':True,'refresh_metadata':False,'skip_content':False, 'only_epub':False,'only_txt':False,'force_aggregate':False}
-#args = {'command':'scan','keyword':'銀河鉄道の','force':True,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':False,'skip_content':False, 'only_epub':False,'only_txt':False}
-#args = {'command':'scan','keyword':'Musk','force':False,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':True,'skip_content':False, 'only_epub':False,'only_txt':False}
-#args = {'command':'set_en_vol','title_id':'66981f12534685524f9e373a','file':'/Users/markojuhanne/Documents/books/import/Murakami, Haruki (29 books)/Underground/Murakami, Haruki - Underground (Vintage, 2000).epub'}
-#args = {'command':'scan','keyword':None,'force':False,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':True,'skip_content':False, 'only_epub':False,'only_txt':False}
-#args = {'command':'remove','title_id':'635d54596d960eb0ac756ab1'}
+if __name__ == '__main__':
 
-args['combine_chapters'] = True
-args['skip_content_import'] = True
+    #remove({'title_id':'678bb44b23502369d941f279'})
 
-#args = {'command':'reimport','title_id':'677500d3999d87aa4e9707fc','force':False,'verbose':True,'force_aggregate':False}
+    #TESTING
+    #args = {'command':'scan','keyword':None,'force':False,'collection':'PeepoHappyBooks2','source_dir':None,'automatic':True,'simulate':False,'verbose':True,'refresh_metadata':False,'skip_content':False, 'only_epub':False,'only_txt':False,'force_aggregate':False}
+    #args = {'command':'scan','keyword':None,'force':False,'collection':'User','source_dir':None,'automatic':False,'simulate':False,'verbose':True,'refresh_metadata':False,'skip_content':False, 'only_epub':False,'only_txt':False,'force_aggregate':False}
 
 
-cmd = args.pop('command')
+    #args = {'command':'scan','keyword':'銀河鉄道の','force':True,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':False,'skip_content':False, 'only_epub':False,'only_txt':False}
+    #args = {'command':'scan','keyword':'Musk','force':False,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':True,'skip_content':False, 'only_epub':False,'only_txt':False}
+    #args = {'command':'set_en_vol','title_id':'66981f12534685524f9e373a','file':'/Users/markojuhanne/Documents/books/import/Murakami, Haruki (29 books)/Underground/Murakami, Haruki - Underground (Vintage, 2000).epub'}
+    #args = {'command':'scan','keyword':None,'force':False,'source_dir':default_book_path,'simulate':False,'verbose':True,'refresh_metadata':True,'skip_content':False, 'only_epub':False,'only_txt':False}
+    #args = {'command':'remove','title_id':'635d54596d960eb0ac756ab1'}
+
+    args['combine_chapters'] = True
+    args['skip_content_import'] = True
+
+    #parse_volume_contents(args, '678bafb5eca8513c8e10ffda', 'ヴァーチャル・ライト', '678bafb6eca8513c8e10ffdb')
+
+    #args = {'command':'reimport','title_id':'677500d3999d87aa4e9707fc','force':False,'verbose':True,'force_aggregate':False}
 
 
-if cmd != None:
-  locals()[cmd](args)
+    cmd = args.pop('command')
+
+
+    if cmd != None:
+        locals()[cmd](args)

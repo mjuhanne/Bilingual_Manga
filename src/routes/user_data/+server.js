@@ -67,6 +67,27 @@ async function massSetChapterReadingStatus(status_list) {
 }
 
 
+async function updateSingleTitleCustomLanguageAnalysis(title_id) {
+    console.log("updateSingleTitleCustomLanguageAnalysis");
+    broadcastEvent(EVENT_TYPE.UPDATING_ANALYSIS,"start analysis");
+    LaunchLanguageTool_Spawn(ANALYZER_TOOL,['analyze','--title_id',title_id,'--force'],
+        (exit_code) => {
+            if (exit_code == 0) {
+                console.log("updateSingleTitleCustomLanguageAnalysis - analysis done")
+                broadcastEvent(EVENT_TYPE.UPDATED_ANALYSIS,"analysis complete");
+            } else {
+                broadcastEvent(EVENT_TYPE.ANALYSIS_ERROR, `Analysis tool exited with exit code ${exit_code}`);
+            }
+        },
+        (progress_msg) => {
+        },
+        (error_msg) => {
+            console.log("updateSingleTitleCustomLanguageAnalysis: err:",error_msg);
+            broadcastEvent(EVENT_TYPE.ANALYSIS_WARNING,error_msg)
+        }
+    );    
+}
+
 async function updateCustomLanguageAnalysis() {
     console.log("updateCustomLanguageAnalysis");
     if (update_process_lock) {
@@ -277,6 +298,9 @@ export async function POST({ request }) {
         return json(ret);
     } else if (data.func == 'update_learning_settings') {
         await updateLearningSettings(data.settings);
+        ret= {success : true};
+    } else if (data.func == 'update_custom_language_analysis_for_title') {
+        await updateSingleTitleCustomLanguageAnalysis(data.title_id);
         ret= {success : true};
     } else if (data.func == 'update_manually_set_word_learning_stage') {
         ret= {

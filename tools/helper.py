@@ -1,9 +1,8 @@
 import json
 import os
 import hashlib
-from br_mongo import *
-
-DEFAULT_USER_ID = 0
+from motoko_metadata import *
+from motoko_language_data import *
 
 AVERAGE_PAGES_PER_VOLUME = 180
 
@@ -86,12 +85,6 @@ METADATA_CACHE_VERSION = 'metadata_cache'
 # .. whereas older language parser works but may not have parsed all the words as efficiently
 LANUGAGE_PARSER_VERSION = 'language_parser'
 
-def get_language_summary(title_id):
-    summary = database[BR_LANG_SUMMARY].find_one({'_id':title_id})
-    if summary is None:
-        print("%s [%s] has no summary!" % (get_any_title_by_id(title_id),title_id))
-    return summary
-
 
 def get_version(version_type):
     if version_type in _versions:
@@ -117,167 +110,6 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
-def get_user_set_words():
-    words = database[BR_USER_SET_WORDS].find({'user_id':DEFAULT_USER_ID}).to_list()
-    wid_to_history = dict()
-    for w_data in words:
-        wid_to_history[w_data['wid']] = w_data['history']
-    return wid_to_history
-
-def get_chapter_name_by_id(id):
-    res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'ch_id':id})
-    return res['ch_name']
-
-def get_title_names():
-    res =  database[BR_METADATA].find({},{'entit':True})
-    title_names = {entry['_id']:entry['entit'] for entry in res}
-    return title_names
-
-def get_jp_title_names():
-    res =  database[BR_METADATA].find({},{'jptit':True})
-    jp_title_names = {entry['_id']:entry['jptit'] for entry in res}
-    return jp_title_names
-
-def get_title_by_id(id):
-    md = get_metadata_by_title_id(id)
-    return md['jptit']
-
-def get_any_title_by_id(id):
-    name = get_title_by_id(id)
-    if name == 'Placeholder':
-        name = get_jp_title_by_id(id)
-    return name
-
-def get_jp_title_by_id(id):
-    md = get_metadata_by_title_id(id)
-    return md['jptit']
-
-def get_title_id_by_title_name(name):
-    res = database[BR_METADATA].find_one({'entit':name})
-    if res is not None:
-        return res['_id']
-    res = database[BR_METADATA].find_one({'jptit':name})
-    if res is not None:
-        return res['_id']
-    return None
-
-def get_title_id_by_chapter_id(id):
-    res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'ch_id':id})
-    return res['title_id']
-
-def get_lang_by_chapter_id(id):
-    res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'ch_id':id})
-    return res['lang']
-
-# index number of chapter of all volumes in the title
-def get_chapter_idx_by_chapter_id(cid):
-    title_id = get_title_id_by_chapter_id(cid)
-    lang  = get_lang_by_chapter_id(cid)
-    res = database[BR_CHAPTER_LOOKUP_TABLE].aggregate(
-        [
-            { "$match" : {'title_id':title_id, 'lang':lang }},
-            { "$sort" : { 'vol_num':1, 'ch_num':1 }}
-        ]
-    ).to_list()
-    sorted_chapter_ids = [entry['ch_id'] for entry in res]
-    return sorted_chapter_ids.index(cid) + 1
-
-# index number of the chapter in its parent volume
-def get_chapter_number_by_chapter_id(id):
-    res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'ch_id':id})
-    return res['ch_num'] + 1
-
-def get_chapters_by_title_id(id,lang=None):
-    if lang is None:
-        res = database[BR_CHAPTER_LOOKUP_TABLE].find({'title_id':id},{'ch_id':True}).to_list()
-    else:
-        res = database[BR_CHAPTER_LOOKUP_TABLE].find({'title_id':id,'lang':lang},{'ch_id':True}).to_list()
-    chapter_ids = [entry['ch_id'] for entry in res ]
-    return chapter_ids
-
-def get_volumes_by_title_id(id, lang=None):
-    if lang is None:
-        res = database[BR_CHAPTER_LOOKUP_TABLE].find({'title_id':id},{'vol_id':True}).to_list()
-    else:
-        res = database[BR_CHAPTER_LOOKUP_TABLE].find({'title_id':id,'lang':lang},{'vol_id':True}).to_list()
-    volume_ids = set([entry['vol_id'] for entry in res ])
-    return list(volume_ids)
-
-def get_volume_name(vol_id):
-    res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'vol_id':vol_id})
-    return res['vol_name']
-
-def get_volume_number_by_volume_id(vol_id):
-    res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'vol_id':vol_id})
-    return res['vol_num'] + 1
-
-def get_chapters_by_volume_id(vol_id):
-    res = database[BR_CHAPTER_LOOKUP_TABLE].find({'vol_id':vol_id},{'ch_id':True}).to_list()
-    ch_ids = [entry['ch_id'] for entry in res ]
-    return ch_ids
-
-def get_volume_id_by_chapter_id(ch_id):
-    res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'ch_id':ch_id})
-    if res is not None:
-        return res['vol_id']
-    return None
-
-def get_title_id_by_volume_id(vol_id):
-    res = database[BR_CHAPTER_LOOKUP_TABLE].find_one({'vol_id':vol_id})
-    if res is not None:
-        return res['title_id']
-    return None
-
-def get_chapter_page_count(ch_id):
-    title_id = get_title_id_by_chapter_id(ch_id)
-    data = get_data_by_title_id(title_id)
-    chapter_number = get_chapter_idx_by_chapter_id(ch_id)
-    if is_book(title_id):
-        return data['jp_data']['virtual_chapter_page_count'][chapter_number-1]
-    else:
-        pages = data['jp_data']['ch_jp']
-        return len(pages[str(chapter_number)])
-
-def is_ocr_verified(id):
-    md = get_metadata_by_title_id(id)
-    return md['verified_ocr']
-
-def is_book(id):
-    md = get_metadata_by_title_id(id)
-    return md['is_book']
-
-def get_authors(id):
-    md = get_metadata_by_title_id(id)
-    return md['authors']
-
-def get_publisher(id):
-    md = get_metadata_by_title_id(id)
-    return md['publishers']
-
-def get_metadata_by_title_id(id):
-    return database[BR_METADATA].find_one({'_id':id})
-
-def get_data_by_title_id(id):
-    return database[BR_DATA].find_one({'_id':id})
-
-def get_chapter_files_by_chapter_id(ch_id):
-    title_id = get_title_id_by_chapter_id(ch_id)
-    chapter_number = get_chapter_idx_by_chapter_id(ch_id)
-    data = get_data_by_title_id(title_id)
-    pages = data['jp_data']['ch_jp']
-    return pages[str(chapter_number)]
-
-
-def get_title_id(item):
-    title_id = get_title_id_by_title_name(item)
-    if title_id is not None:
-        return title_id
-    
-    mt = database[BR_METADATA].find_one({'_id':item})
-    if mt is not None:
-        # the item is in fact the title id
-        return item
-    raise Exception("unknown manga title/id %s" % item)
 
 def get_jlpt_kanjis():
     with open(jlpt_kanjis_file,"r",encoding="utf-8") as f:
@@ -465,42 +297,3 @@ def strip_sense_from_word_id(word_id):
 def get_stable_hash(thing):
     byte_digest = hashlib.md5(json.dumps(thing).encode('utf-8')).digest()
     return int.from_bytes(byte_digest)
-
-
-def add_chapter_lookup_entry(title_id, vol_id, vol_num, vol_name, ch_id, ch_num, ch_name, lang):
-    search_terms = {
-        'title_id' : title_id,
-        'vol_id' : vol_id,
-        'ch_id' : ch_id,
-    }
-    d = {
-        'title_id' : title_id,
-        'vol_id' : vol_id,
-        'vol_num' : vol_num,
-        'vol_name' : vol_name,
-        'ch_id' : ch_id,
-        'ch_num' : ch_num,
-        'ch_name' : ch_name,
-        'lang' : lang
-    }
-    database[BR_CHAPTER_LOOKUP_TABLE].update_one(search_terms,{'$set':d},upsert=True)
-
-def remove_chapter_lookup_entry(title_id, vol_id, chapter_id):
-    if vol_id == 'ALL':
-        search_terms = {
-            'title_id' : title_id
-        }
-    elif chapter_id == 'ALL':
-        search_terms = {
-            'title_id' : title_id,
-            'vol_id' : vol_id,
-            'ch_id' : chapter_id,
-        }
-    else:
-        search_terms = {
-            'title_id' : title_id,
-            'vol_id' : vol_id,
-            'ch_id' : chapter_id,
-        }
-    database[BR_CHAPTER_LOOKUP_TABLE].delete_many(search_terms)
-    

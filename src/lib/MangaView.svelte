@@ -16,25 +16,27 @@
 
     export let selectedTab;
 
-    let chapters, volumes, cover, title, syn, secondary_title
+    let chapters, volumes, cover='', title='', syn='', secondary_title
     let syn_en_deepl = '';
     if (data.l=="en") {
         chapters=data.manga_data.en_data.ch_naen;
         volumes=data.manga_data.en_data.vol_en;
-        cover=ll.coveren;
-        title=ll.entit;
-        secondary_title=ll.jptit;
-        syn=data.manga_data.syn_en;
+        secondary_title=ll.lang.jp.title;
+        if (ll.languages.includes('en')) {
+            title=ll.lang.en.title;
+            cover=ll.first_en_vol.cover;
+            syn=ll.first_en_vol.syn;
+        } 
     } else {
         chapters=data.manga_data.jp_data.ch_najp;
         volumes=data.manga_data.jp_data.vol_jp;
-        cover=ll.coverjp;
-        title=ll.jptit;
-        secondary_title=ll.entit;
-        syn=data.manga_data.syn_jp;
+        cover=ll.first_jp_vol.cover;
+        title=ll.lang.jp.title;
+        secondary_title=ll.lang.en.title;
+        syn=ll.first_jp_vol.syn;
     }
-    if ('syn_en_deepl' in data.manga_data) {
-        syn_en_deepl = data.manga_data.syn_en_deepl
+    if ('syn_en_deepl' in ll.first_jp_vol) {
+        syn_en_deepl = ll.first_jp_vol.syn_en_deepl
     }
 </script>
 
