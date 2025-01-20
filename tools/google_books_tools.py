@@ -13,7 +13,7 @@ from deepl_helper import deepl_translate
 import unicodedata as ud
 import urllib
 from motoko_metadata import *
-from helper import get_metadata_by_title_id, get_jp_title_names, get_jp_title_by_id, get_authors, get_publisher, is_book, get_title_id, get_volume_and_chapter_info
+from helper import get_jp_title_names, get_jp_title_by_id, get_authors, get_publisher, is_book, get_title_id
 
 QUOTA_EXCEEDED = "quota_exceeded"
 NOT_FOUND = "not_found"
@@ -24,6 +24,46 @@ base_dir = "./"
 search_url = "https://www.googleapis.com/books/v1/volumes?q="
 get_volume_url = "https://www.googleapis.com/books/v1/volumes/"
 headers = {'Content-Type': 'application/json'}
+
+def remove_volume_part_from_title(title):
+    vols = ['上','中','下']
+    for vol in vols:
+        if title[-1] == vol:
+            if title[-2] == '\u3000':
+                title = title[:-2]
+    return title
+
+def update_metadata_from_google_books_entry(t_metadata, vol_data, gb, force=False):
+    vi = gb['volumeInfo']
+    if '訳)' in t_metadata['lang']['jp']['title']:
+        t_metadata['lang']['jp']['title'] = remove_volume_part_from_title(vi['title']) + " (%s訳)" % t_metadata['translator']
+    else:
+        t_metadata['lang']['jp']['title'] = remove_volume_part_from_title(vi['title'])
+
+    if t_metadata['lang']['en']['title'] == '' or force:
+        if 'en_title_deepl' in gb:
+            t_metadata['lang']['en']['title'] = gb['en_title_deepl']
+            t_metadata['lang']['en']['title_is_translated'] = True
+
+    if 'categories' in vi:
+        t_metadata['genres'] = vi['categories']
+
+    if ('publisher' not in t_metadata or force) and 'publisher' in vi:
+        t_metadata['publisher'] = vi['publisher']
+
+    if 'authors' in vi:
+        t_metadata['authors'] = vi['authors']
+
+    if vol_data['release'] == '' or force:
+        try:
+            vol_data['release'] = int(vi['publishedDate'].split('-')[0])
+        except:
+            pass
+
+    if 'en_synopsis_deepl' in gb:
+        vol_data['syn_en_deepl'] = gb['en_synopsis_deepl']
+    vol_data['syn'] = gb['volumeInfo']['description']
+
 
 def get_google_books_entry(vol_id):
     entry = database[COLLECTION_GOOGLE_BOOKS_VOLUMEDATA].find_one({'_id':vol_id})
@@ -204,13 +244,6 @@ def search_records_and_select_one(vol_data, search_metadata, index, manual_confi
     return None
 
     
-def clean_google_books_title(title):
-    vols = ['上','中','下']
-    for vol in vols:
-        if title[-1] == vol:
-            if title[-2] == '\u3000':
-                title = title[:-2]
-    return title
 
 def translate_metadata(j):
     title = j['volumeInfo']['title']
@@ -323,15 +356,16 @@ def match_url(args):
         print("Invalid url: %s" % args['url'])
     
 def match_googleid(args):
-    title_id = get_title_id(args['title'])
-    first_vol_id = get_first_jp_vol_id(title_id)
-    vol_data = get_volume_data(first_vol_id)
+    vol_data = get_volume_data(args['volume_id'])
+    if vol_data is None:
+        print("No volume data for id %s found!" % args['volume_id'])
+        return -1
 
     url = get_volume_url + args['googleid']
     response = requests.get(url, headers=headers, verify=False)
     if response.status_code != 200:
         print("Error:", response.reason)
-        return None
+        return -1
     j = response.json()
     if 'authors' not in j['volumeInfo']:
         print("Warning! No author included in response!")
@@ -497,8 +531,8 @@ if __name__ == '__MAIN__':
     parser_match_url.add_argument('title', type=str, help='Book title')
     parser_match_url.add_argument('url', type=str, help='Google Books URL')
 
-    parser_match_url = subparsers.add_parser('match_googleid', help='Match book titles via Google Books ID')
-    parser_match_url.add_argument('title', type=str, help='Book title')
+    parser_match_url = subparsers.add_parser('match_googleid', help='Match book volumes via Google Books ID')
+    parser_match_url.add_argument('volume_id', type=str, help='Volume ID')
     parser_match_url.add_argument('googleid', type=str, help='Google Books ID')
 
     parser_select = subparsers.add_parser('match', help='Select book title from search results')

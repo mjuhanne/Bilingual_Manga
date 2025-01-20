@@ -48,7 +48,6 @@ $: eni=`background-image:url(${cdncdn}/${data.coveren});background-position: cen
     </span>
  </span>
 {/if}
-{#if data.languages.includes('jp')}
  <span style="display:flex;">
     <span class="mangacardhover">
      <a href="/manga/{data.enid}?lang=jp" data-sveltekit:prefetch style="color: #f2f2f2;text-decoration: none;" target="_top" rel="noopener noreferrer"><div class="mangacard" style={jpi}>
@@ -59,7 +58,6 @@ $: eni=`background-image:url(${cdncdn}/${data.coveren});background-position: cen
     </a>
  </span>
  </span>
- {/if}
  {/if}
  {/if}
  {/key}

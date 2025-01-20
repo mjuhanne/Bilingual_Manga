@@ -326,11 +326,14 @@ def calculate_averages():
                 % (valid_books, len(get_title_names().keys()), avg_page_count))
 
 
-def save_summary():
+def save_summary(args):
 
     title_names = get_title_names()
 
     for title_idx, (title_id, title_name) in enumerate(title_names.items()):
+
+        if args['keyword'] is not None and args['keyword'] != title_id and args['keyword'] != title_name.lower():
+            continue
 
         # check if summary needs recalculation
         update = True
@@ -345,7 +348,9 @@ def save_summary():
         if update:
             print("%d/%d [%s]" % (title_idx, len(title_names), title_name))
             calculate_summary_for_title(title_id)
-    calculate_averages()
+
+    if args['keyword']  is None:
+        calculate_averages()
 
 
 if __name__ == '__main__':
@@ -353,8 +358,9 @@ if __name__ == '__main__':
         prog="bm_lang_summary",
         description="Bilingual Manga Language data summary generator",
     )
+    parser.add_argument('keyword', nargs='?', type=str, default=None, help='Title has to (partially) match the keyword in order to processed')
     parser.add_argument('--force', '-f', action='store_true', help='Force update')
     parser.add_argument('--update', '-u', action='store_true', help='Update summary (normally only add missing titles)')
     args = vars(parser.parse_args())
 
-    save_summary()
+    save_summary(args)

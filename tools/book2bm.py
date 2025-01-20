@@ -6,7 +6,7 @@ import time
 from book2bm_helper import *
 from book2bm_epub_helper import *
 from book2bm_txt_helper import *
-from google_books_tools import get_google_books_entry, search_records_and_select_one, clean_google_books_title, match_googleid, is_title_ignored_for_google_books, ignore_google_book_matching_for_title, match_googleid
+from google_books_tools import get_google_books_entry, search_records_and_select_one, is_title_ignored_for_google_books, ignore_google_book_matching_for_title, match_googleid, update_metadata_from_google_books_entry
 from jp_parser import *
 from bm_ocr_processor import do_process_title, parsed_ocr_dir
 from bm_lang_summary import calculate_summary_for_title, calculate_averages
@@ -68,7 +68,11 @@ parser_remove = subparsers.add_parser('remove', help='Remove given title)')
 parser_remove.add_argument('title_id', type=str, default=None, help='Title id')
 
 parser_remove = subparsers.add_parser('reimport', help='Re-import a title/volume')
-parser_remove.add_argument('title_id', type=str, default=None, help='Title or volume id')
+parser_remove.add_argument('volume_id', type=str, help='Volume id')
+parser_remove.add_argument('--title_id', type=str, default=None, help='Title id if volume is orphan')
+
+parser_detach_volume = subparsers.add_parser('detach_volume', help='Detach volume from title into new title')
+parser_detach_volume.add_argument('volume_id', type=str, help='Volume id')
 
 parser_search = subparsers.add_parser('search', help='Search title/chapter_ids with given keyword')
 parser_search.add_argument('-v', '--verbose', action='store_true', help='Show all subdirectory OIDs as well')
@@ -111,6 +115,7 @@ def get_file_listing(root_path):
                 items.append(f_name)
     return items
 
+
 scanned_file_count = 0
 scanned_dir_count = 0
 ignored_count_by_ext = dict()
@@ -140,112 +145,24 @@ def recursive_scan(args, root_path, filtered_file_type=None, recursion_depth=0, 
                 )
         else:
             scanned_file_count += 1
-            vol_info = None
-            title = None
-            ext = sub_item.split('.')[-1].lower()
-            if ext == 'epub':
-                title, vol_info = get_info_from_epub_file_name(root_path,sub_item)
-            elif ext == 'txt':
-                title, vol_info = get_info_from_txt_file_name(root_path,sub_item)
-            else:
+            vol_info = extract_vol_info_from_filename(root_path,sub_item)
+            if vol_info is None:
                 print("Ignoring ",new_path)
                 if ext not in ignored_count_by_ext:
                     ignored_count_by_ext[ext] = 1
                 else:
                     ignored_count_by_ext[ext] += 1
-            if title is not None and vol_info is not None:
+            else:
                 vol_info['verbose_recursion_depth'] = recursion_depth_str_iter
-                process_file(args, title, vol_info)
+                process_file(args, vol_info)
             #else:
             #    print("Missing file name processor: %s" % sub_item)
             #    pass
     pass
 
-def create_new_title(title, vol_info, simulate=False):
 
-    title_id = create_oid(title, "title", ask_confirmation=(ask_confirmation_for_new_titles and not simulate))
-    if title_id is None:
-        # oid not found and adding new one was manually skipped
-        return None
-
-    # normalize the title just in case
-    # It can be in Unicode composed form (i.e. で)
-    # or decomposed (i.e. て　+　゙	 mark).  The strings are stored in composed form
-    clean_title = ud.normalize('NFC',title)
-
-    print("Creating new title [%s]: %s " % (title_id, title))
-
-    t_metadata = dict()
-    t_metadata['created_timestamp'] = int(time.time())
-
-    t_metadata['lang'] = {'jp':{},'en':{}}
-
-    if has_cjk(clean_title) or has_word_hiragana(clean_title) or has_word_katakana(clean_title):
-        t_metadata['lang']['jp']['title'] = clean_title
-        t_metadata['lang']['en']['title'] = ''
-    else:
-        t_metadata['lang']['jp']['title'] = clean_title
-        t_metadata['lang']['en']['title'] = clean_title
-    t_metadata['title_from_filename'] = vol_info['title_from_filename']
-
-    t_metadata['genres'] = []
-    t_metadata['publisher'] = vol_info['publisher']
-
-    t_metadata['authors'] = []
-    if 'author' in vol_info:
-        t_metadata['authors'].append(vol_info['author'])
-
-    t_metadata['artists'] = []
-
-    t_metadata['status'] = 'Completed' # assumption
-    t_metadata['search'] = ''
-    t_metadata['type'] = 'book'
-
-    if not simulate:
-        save_metadata(title_id, t_metadata, False)
-    return title_id, t_metadata
-
-def update_metadata_from_google_books(t_metadata, vol_data, gb, force=False):
-    vi = gb['volumeInfo']
-    if '訳)' in t_metadata['lang']['jp']['title']:
-        t_metadata['lang']['jp']['title'] = clean_google_books_title(vi['title']) + " (%s訳)" % t_metadata['translator']
-    else:
-        t_metadata['lang']['jp']['title'] = clean_google_books_title(vi['title'])
-
-    if t_metadata['lang']['en']['title'] == '' or force:
-        if 'en_title_deepl' in gb:
-            t_metadata['lang']['en']['title'] = gb['en_title_deepl']
-            t_metadata['title_is_translated'] = True
-
-    if 'categories' in vi:
-        t_metadata['genres'] = vi['categories']
-
-    if ('publisher' not in t_metadata or force) and 'publisher' in vi:
-        t_metadata['publisher'] = vi['publisher']
-
-    if 'authors' in vi:
-        t_metadata['authors'] = vi['authors']
-
-    if vol_data['release'] == '' or force:
-        try:
-            vol_data['release'] = int(vi['publishedDate'].split('-')[0])
-        except:
-            pass
-
-    if 'en_synopsis_deepl' in gb:
-        vol_data['syn_en_deepl'] = gb['en_synopsis_deepl']
-    vol_data['syn'] = gb['volumeInfo']['description']
-
-def process_volume(args, title_id, title, vol_info, vol_id=None):
-    t_metadata = get_metadata_by_title_id(title_id)
-
-    vol_data = {
-        'chapters':[], 'cover':'', 'collection':args['collection'], 
-        'title_id':title_id, 'syn':'', 'release':'', 'num_pages':0,
-        'created_timestamp':int(time.time()), 'updated_timestamp':int(time.time())
-    }
-
-    # first try to get the metadata from epub or vol_info
+def populate_metadata_from_vol_info_and_epub(t_metadata, vol_data, vol_info):
+    book = None
     if vol_info['type'] == 'epub':
         filepath = vol_info['path'] + vol_info['filename']
         try:
@@ -263,42 +180,44 @@ def process_volume(args, title_id, title, vol_info, vol_id=None):
             else:
                 return None, None
         vol_data['lang'] = lang
-        vol_name = get_metadata_from_epub(t_metadata, vol_data, lang, book)
-        cover_title, _ = extract_publisher_from_title(title)
-        save_cover_image_from_epub(title_id, book, vol_data, cover_title)
+        vol_data['vol_name'] = get_metadata_from_epub(t_metadata, vol_data, lang, book)
     else:
         lang = 'jp' # assumption
         vol_data['lang'] = lang
-        vol_name = vol_info['volume_name']
+        vol_data['vol_name'] = vol_info['volume_name']
         detected_publisher = get_publisher_from_txt_file(vol_info['path'] + vol_info['filename'])
         if detected_publisher is not None and 'publisher' not in t_metadata:
             t_metadata['publisher'] = detected_publisher
-
-    vol_data['vol_name'] = vol_name
-
-    existing_volume_ids, existing_vol_info_dict = get_volume_and_chapter_info(title_id, lang)
-    existing_volume_names = [vi['vol_name'] for vi in existing_vol_info_dict.values()]
-
-    if vol_name in existing_volume_names:
-        print("%s [%s] Skipping already existing volume %s (%s)" % (title, title_id, vol_name, vol_info['filename']))
-        return None, None
 
     if 'author' in vol_info:
         if len(t_metadata['authors'])==0:
             t_metadata['authors'] = [vol_info['author']]
 
-    #if 'translator' not in t_metadata:
-    #    t_metadata['translator'] = ''
     if ('translator' not in t_metadata or t_metadata['translator'] == '') and vol_info['translator'] != '':
         t_metadata['translator'] = vol_info['translator']
+    return book
 
-    if vol_id is None:
-        vol_id = create_oid("%s/%s/%s" % (title_id,lang,vol_name), "volume", ask_confirmation=ask_confirmation_for_new_volumes, title_id=title_id)
-        if vol_id is None:
-            print("Skipped creating new volume")
-            return None, None
-    vol_data['vol_id'] = vol_id
 
+def extract_vol_info_from_filename(path,filename):
+    ext = filename.split('.')[-1].lower()
+    if ext == 'epub':
+        title, vol_info = get_info_from_epub_file_name(path,filename)
+    elif ext == 'txt':
+        title, vol_info = get_info_from_txt_file_name(path,filename)
+    else:
+        return None
+    
+    vol_info['title_from_filename'] = title
+    vol_info['title'], publisher = extract_publisher_from_title(title)
+    if publisher is not None:
+        vol_info['publisher'] = publisher
+    if 'publisher' not in vol_info:
+        vol_info['publisher'] = ''
+
+    return vol_info
+
+
+def populate_metadata_from_google_books(vol_data, t_metadata, vol_id):
     gb = None
     if not is_title_ignored_for_google_books(vol_id):
         gb = get_google_books_entry(vol_id)
@@ -331,17 +250,49 @@ def process_volume(args, title_id, title, vol_info, vol_id=None):
 
     # try to fill the remaining missing data from Google books
     if gb is not None:
-        update_metadata_from_google_books(t_metadata, vol_data, gb)
+        update_metadata_from_google_books_entry(t_metadata, vol_data, gb)
+    return gb
 
+
+def process_volume(args, title_id, vol_info, vol_id=None):
+    t_metadata = get_metadata_by_title_id(title_id)
+    title = vol_info['title']
+
+    vol_data = {
+        'chapters':[], 'cover':'', 'collection':args['collection'], 
+        'title_id':title_id, 'syn':'', 'release':'', 'num_pages':0,
+        'created_timestamp':int(time.time()), 'updated_timestamp':int(time.time())
+    }
+
+    # first try to get the metadata from epub or vol_info
+    book = populate_metadata_from_vol_info_and_epub(t_metadata, vol_data, vol_info)
+    lang = vol_data['lang']
+    vol_name = vol_data['vol_name']
+
+    existing_volume_ids, existing_vol_info_dict = get_volume_and_chapter_info(title_id, lang)
+    existing_volume_names = [vi['vol_name'] for vi in existing_vol_info_dict.values()]
+
+    if vol_name in existing_volume_names:
+        print("%s [%s] Skipping already existing volume %s (%s)" % (title, title_id, vol_name, vol_info['filename']))
+        return None, None
+
+    if vol_id is None:
+        vol_id = create_oid("%s/%s/%s" % (title_id,lang,vol_name), "volume", ask_confirmation=ask_confirmation_for_new_volumes, title_id=title_id)
+        if vol_id is None:
+            print("Skipped creating new volume")
+            return None, None
+    vol_data['vol_id'] = vol_id
+
+    gb = populate_metadata_from_google_books(vol_data, t_metadata, vol_id)
 
     args['ask_confirmation_for_new_chapters'] = ask_confirmation_for_new_chapters
+
+    if book is not None:
+        save_cover_image_from_epub(vol_id, book, vol_data)
 
     if lang == 'en':
         #############  process english volume
         print("\tVolume EN [%s]: %s " % (vol_id, vol_name))
-
-        if vol_data['cover'] == '':
-            save_cover_image_from_epub(title_id, book, vol_data, title)
 
         chapters_processed, total_num_pages = process_epub(vol_data, title_id, book, args)
 
@@ -371,7 +322,6 @@ def process_volume(args, title_id, title, vol_info, vol_id=None):
         return vol_id, lang
     else:
         print("Skipped title %s vol_id %s" % (title_id, vol_id))
-        database[COLLECTION_VOLUMEDATA].delete_one({'vol_id':vol_id})
         return None, None
 
 def fetch_cover_from_google_books(vol_data, gb, force=False):
@@ -388,7 +338,7 @@ def fetch_cover_from_google_books(vol_data, gb, force=False):
 
 def parse_volume_contents(args, title_id, title_name, vol_id):
     parser_args = {'force':False, 'chapter':None, 'read':False, 'first':False, 
-                   'start_index':False, 'only_new' :True, 'force_aggregate':True, 
+                   'start_index':False, 'only_new' :True, 'force_aggregate':True,
                    'omit_parsed_ocr_file':args['skip_content_import'] 
     }
     do_process_title(parser_args, title_id, title_name, counter_str='')
@@ -403,12 +353,12 @@ def parse_volume_contents(args, title_id, title_name, vol_id):
         if os.path.exists(target_ocr_file_path):
             os.remove(target_ocr_file_path)
             
-    analyzer_args = {'title':title_id,  'read':False, 'force':True }
+    analyzer_args = {'title_id':title_id,  'read':False, 'force':True }
     individual_analysis(analyzer_args)
 
 
 
-def process_file(args, title, vol_info):
+def process_file(args, vol_info):
 
     if args['keyword'] is not None and args['keyword'].lower() not in vol_info['filename']:
         return 
@@ -429,16 +379,11 @@ def process_file(args, title, vol_info):
         print("%s Processing %s" % (vol_info['verbose_recursion_depth'], vol_info['path'] + vol_info['filename']))
         if args['simulate']:
             if args['verbose']:
-                print("Title: ",title)
-                print("Publisher: ",extract_publisher_from_title(title))
                 print(vol_info)
 
-        vol_info['title_from_filename'] = title
         if vol_info['type'] == 'epub':
             filepath = vol_info['path'] + vol_info['filename']
-            if augment_vol_info_from_epub_file(filepath, vol_info):
-                title = vol_info['title']
-            else:
+            if not augment_vol_info_from_epub_file(filepath, vol_info):
                 print("Corrupt file (%s)?" % (filepath))
                 return False
             
@@ -457,13 +402,9 @@ def process_file(args, title, vol_info):
                 'md5' : md5(vol_info['path'] + vol_info['filename'])
             }
 
-        vol_info['title_from_filename'], publisher = extract_publisher_from_title(vol_info['title_from_filename'])
-        if publisher is not None:
-            vol_info['publisher'] = publisher
-        if 'publisher' not in vol_info:
-            vol_info['publisher'] = ''
 
         # try to match this volume with a title
+        title = vol_info['title']
         title_metadata = []
         match_query = {"$expr":{"$in":[vol_info['author'],"$authors"]},'lang.jp.title':title}
         if vol_info['translator'] != '':
@@ -508,7 +449,7 @@ def process_file(args, title, vol_info):
                 print("\tTranslator: ",vol_info['translator'])
             print("\tFilename: ",vol_info['filename'])
             print("\tPath: ",vol_info['path'])
-            title_id, _ = create_new_title(title, vol_info)
+            title_id, _ = create_new_title(vol_info, ask_confirmation=ask_confirmation_for_new_titles)
             if title_id is None:
                 # skipped creating new title
                 if input("Ignore this file?") == 'y':
@@ -635,13 +576,14 @@ def set_google_book_id(args):
         first_vol = get_volume_data(first_vol_id)
 
     google_book_id = args['google_book_id']
-    gb = match_googleid({'vol_id':first_vol_id, 'googleid':google_book_id})
+    gb = match_googleid({'volume_id':first_vol_id, 'googleid':google_book_id})
     if gb is not None:
         t_metadata = get_metadata_by_title_id(title_id)
 
-        update_metadata_from_google_books(t_metadata, first_vol, gb, force=True)
+        update_metadata_from_google_books_entry(t_metadata, first_vol, gb, force=True)
         fetch_cover_from_google_books(first_vol, gb, force=True)
         update_volume_data(first_vol)
+        save_metadata(title_id, t_metadata, True)
     else:
         print("Couldn't set google book id to %s" % google_book_id)
 
@@ -665,19 +607,17 @@ def show(args):
 # reimport volume (by id) or first volume of given title (by id)
 def reimport(args):
     global ask_confirmation_for_new_chapters, ask_google_books_match_confirmation
-
-    volume_ids = get_volumes_by_title_id(args['title_id'])
-    if len(volume_ids) == 0:
-        title_id = get_title_id_by_volume_id(args['title_id'])
-        if title_id is not None:
-            volume_ids = [args['title_id']]
-        else:
-            print("No volume or title id found!")
-            return -1
-    else:         
-        title_id = args['title_id']
    
-    vol_id = volume_ids[0]
+    vol_id = args['volume_id']
+    title_id = get_title_id_by_volume_id(args['volume_id'])
+    if title_id is None:
+        if args['title_id'] is None:
+            print("No title id found for this orphan volume! Declare title id with --title_id option")
+            return -1
+        title_id = args['title_id']
+        remove_vol_from_title_id = None
+    else:
+        remove_vol_from_title_id = title_id
 
     import_data = database[COLLECTION_VOL_IMPORT_METADATA].find_one({'_id':vol_id})
     if  import_data is None:
@@ -695,25 +635,73 @@ def reimport(args):
         print("No volume file %s found for title %s / vol %d" % (vol_path+vol_filename, title_id,vol_id))
         return -1
 
-    vol_info = None
-    if '.epub' in vol_filename:
-        title, vol_info = get_info_from_epub_file_name(vol_path,vol_filename)
-    elif '.txt' in vol_filename.lower():
-        title, vol_info = get_info_from_txt_file_name(vol_path,vol_filename)
+    vol_info = extract_vol_info_from_filename(vol_path, vol_filename)
 
     # remove existing volume info
-    remove_volume(title_id, vol_id)
+    remove_volume(remove_vol_from_title_id, vol_id)
 
     ask_confirmation_for_new_chapters = False
     ask_google_books_match_confirmation = False
     args['combine_chapters'] = False
     args['skip_content_import'] = False
     args['collection'] = collection
+    args['verbose'] = True
 
-    process_volume(args, title_id, title, vol_info, vol_id)
+    process_volume(args, title_id, vol_info, vol_id)
 
     init_parser(load_meanings=True)
-    parse_volume_contents(args, title_id, title, vol_id)
+    parse_volume_contents(args, title_id, vol_info['title'], vol_id)
+
+# move volume into a completely new title
+def detach_volume(args):
+
+    vol_id = args['volume_id']
+    old_title_id = get_title_id_by_volume_id(args['volume_id'])
+    old_title_data = get_metadata_by_title_id(old_title_id)
+    vol_data = get_volume_data(vol_id)
+    import_data = database[COLLECTION_VOL_IMPORT_METADATA].find_one({'_id':vol_id})
+    chapter_data_list = database[COLLECTION_CHAPTERDATA].find({'vol_id':vol_id})
+
+    vol_info = extract_vol_info_from_filename(import_data['path'], import_data['filename'])
+
+    with mongo_client.start_session() as session:
+        session.start_transaction()
+        try:
+
+            lang = vol_data['lang']
+            if lang not in old_title_data['lang']:
+                raise Exception("No language found in metadata!")
+            if 'volumes' not in old_title_data['lang'][lang] or vol_id not in old_title_data['lang'][lang]['volumes']:
+                print("Warning! No volume found in old title metadata!")
+            else:
+                old_title_data['lang'][lang]['volumes'].remove(vol_id)
+                save_metadata(old_title_id, old_title_data, True, session=session)
+
+            new_title_id, new_title_data = create_new_title(vol_info, session=session)
+
+            new_title_data['lang'][lang]['volumes'] = [vol_id]
+            populate_metadata_from_vol_info_and_epub(new_title_data, vol_data, vol_info)
+            gb = populate_metadata_from_google_books(vol_data, new_title_data, vol_id)
+            save_metadata(new_title_id, new_title_data, False, session=session)
+
+            vol_data['updated_timestamp'] = int(time.time())
+            vol_data['title_id'] = new_title_id
+            update_volume_data(vol_data, session=session)
+
+            for ch_data in chapter_data_list:
+                ch_data['title_id'] = new_title_id
+                update_chapter_data(ch_data, session=session)
+
+            session.commit_transaction()
+        except Exception as e:
+            print("Error: ",e)
+            session.abort_transaction()
+    
+    # analyze new and old titles again
+    init_parser(load_meanings=True)
+    parse_volume_contents(args, old_title_id, vol_info['title'], None)
+    parse_volume_contents(args, new_title_id, vol_info['title'], None)
+
 
 
 
@@ -737,8 +725,10 @@ if __name__ == '__main__':
 
     #parse_volume_contents(args, '678bafb5eca8513c8e10ffda', 'ヴァーチャル・ライト', '678bafb6eca8513c8e10ffdb')
 
-    #args = {'command':'reimport','title_id':'677500d3999d87aa4e9707fc','force':False,'verbose':True,'force_aggregate':False}
+    #args = {'command':'reimport','volume_id':'67717f63f0b4f9b39323edb0','title_id':'6696a9de5346852c2184aed0','force':False,'verbose':True,'force_aggregate':False}
 
+    #set_google_book_id({'title_id':'678d7d728c2a9749bf380101'})
+    #move_volume_to_new_title({'volume_id':'67717f63f0b4f9b39323edb0'})
 
     cmd = args.pop('command')
 

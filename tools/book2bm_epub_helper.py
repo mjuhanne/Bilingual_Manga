@@ -38,7 +38,7 @@ def get_info_from_epub_file_name(root_path,source_item):
     return title, {'type':'epub','path':root_path,'volume_name':title,'filename':source_item, 'translator':''}
 
 
-def save_cover_image_from_epub(title_id, book, vol_data, title):
+def save_cover_image_from_epub(vol_id, book, vol_data):
     cover = None
     cover_img_id = None
     lang = vol_data['lang']
@@ -69,10 +69,7 @@ def save_cover_image_from_epub(title_id, book, vol_data, title):
         cover_f_ext = cover_f_name.split('.')[-1]
         content = cover.get_content()
 
-        target_img_f_name = clean_name(title)
-        if len(target_img_f_name) > 30:
-            target_img_f_name = title_id
-        target_img_f_name += '.' + cover_f_ext
+        target_img_f_name = vol_id + '.' + cover_f_ext
         target_img_path = 'manga_cover/' + lang + '/'
         vol_data['cover'] = target_img_path + target_img_f_name
 
@@ -392,7 +389,6 @@ def extract_paragraphs_recursively(soup, element, paragraphs):
 
 
 def process_epub(vol_data, title_id, book, args):
-
 
     lang = vol_data['lang']
     vol_id = vol_data['vol_id']

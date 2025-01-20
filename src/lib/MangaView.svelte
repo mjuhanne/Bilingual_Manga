@@ -21,22 +21,26 @@
     if (data.l=="en") {
         chapters=data.manga_data.en_data.ch_naen;
         volumes=data.manga_data.en_data.vol_en;
+        title=ll.lang.en.title;
         secondary_title=ll.lang.jp.title;
         if (ll.languages.includes('en')) {
-            title=ll.lang.en.title;
             cover=ll.first_en_vol.cover;
             syn=ll.first_en_vol.syn;
         } 
     } else {
         chapters=data.manga_data.jp_data.ch_najp;
         volumes=data.manga_data.jp_data.vol_jp;
-        cover=ll.first_jp_vol.cover;
+        if (ll.languages.includes('jp')) {
+            cover=ll.first_jp_vol.cover;
+            syn=ll.first_jp_vol.syn;
+        }
         title=ll.lang.jp.title;
         secondary_title=ll.lang.en.title;
-        syn=ll.first_jp_vol.syn;
     }
-    if ('syn_en_deepl' in ll.first_jp_vol) {
-        syn_en_deepl = ll.first_jp_vol.syn_en_deepl
+    if (ll.languages.includes('jp')) {
+        if ('syn_en_deepl' in ll.first_jp_vol) {
+            syn_en_deepl = ll.first_jp_vol.syn_en_deepl
+        }
     }
 </script>
 

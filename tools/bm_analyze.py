@@ -117,7 +117,7 @@ def get_next_unread_volume(title_id):
 
 def get_next_unread_chapter(title_id):
 
-    title_chapters = get_chapters_by_title_id(title_id,lang='jp')
+    title_chapters = get_ordered_chapter_list_by_title(title_id,lang='jp')
     if len(title_chapters) == 0:
         print(" * Warning! %s has no chapters" % title_id)
         return None
@@ -759,8 +759,7 @@ if __name__ == '__main__':
 
     load_jmdict(verbose=not progress_output)
 
-
-    #analyze({'title_id':'677500d3999d87aa4e9707fc','force':True,'read':False})
+    #analyze({'title_id':None,'force':False,'read':False})
     #suggest_preread({'title':'678bb4fdd20a3129a6d9f2c4','filter':'book','progress-output':False,'target_scope':'title','source_scope':'next_unread_volume'})
     #suggest_preread({'title':'6696a9de5346852c2184aed0','filter':'manga','progress-output':False,'target_scope':'next_unread_chapter','source_scope':'next_unread_volume'})
 

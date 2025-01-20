@@ -1,5 +1,5 @@
 from mongo import *
-jmdict_db = client['jmdict']
+jmdict_db = mongo_client['jmdict']
 
 JMDICT_ENTRIES = "entries"
 

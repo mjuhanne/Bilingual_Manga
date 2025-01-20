@@ -9,6 +9,7 @@ import shutil
 import time
 from helper import *
 from motoko_metadata import *
+from bm_learning_engine_helper import read_user_settings
 
 PLACEHOLDER = 'Placeholder'
 
@@ -172,31 +173,93 @@ def md5(fname):
     return hash_md5.hexdigest()
 
 
-def save_metadata(title_id, t_metadata, verbose):
+def save_metadata(title_id, t_metadata, verbose, session=None):
     if t_metadata is not None:
         old_metadata = get_metadata_by_title_id(title_id)
         if old_metadata is not None and verbose:
             show_diff(old_metadata, t_metadata)
         t_metadata['updated_timestamp'] = int(time.time())
-        database[COLLECTION_TITLEDATA].update_one({'_id':title_id},{'$set':t_metadata},upsert=True)
+        database[COLLECTION_TITLEDATA].update_one({'_id':title_id},{'$set':t_metadata},upsert=True, session=session)
 
 
 def remove_volume(title_id, vol_id, lang='jp'):
-    metadata = get_metadata_by_title_id(title_id)
-    if lang not in metadata['lang']:
-        raise Exception("No language found in metadata!")
-    if 'volumes' not in metadata['lang'][lang] or vol_id not in metadata['lang'][lang]['volumes']:
-        print("Warning! No volume found in title metadata!")
+
+    # make sure not to remove volume with read chapters
+    chapters = get_chapters_by_volume_id(vol_id)
+    user_settings = read_user_settings()
+    chapter_comprehension = user_settings['chapter_reading_status']
+    read_chapters = set(chapter_comprehension.keys())
+    if len(set(chapters).intersection(read_chapters))>0:
+        raise Exception("Don't remove volumes that have read chapters!")
+    
+    with mongo_client.start_session() as session:
+        session.start_transaction()    
+        try:
+            if title_id is not None:
+                metadata = get_metadata_by_title_id(title_id)
+                if lang not in metadata['lang']:
+                    raise Exception("No language found in metadata!")
+                if 'volumes' not in metadata['lang'][lang] or vol_id not in metadata['lang'][lang]['volumes']:
+                    print("Warning! No volume found in title metadata!")
+                else:
+                    metadata['lang'][lang]['volumes'].remove(vol_id)
+                    save_metadata(title_id, metadata, True, session=session)
+            database[COLLECTION_VOLUMEDATA].delete_many({'vol_id':vol_id}, session=session)
+            database[COLLECTION_CHAPTERDATA].delete_many({'vol_id':vol_id}, session=session)
+            session.commit_transaction()
+        except Exception as e:
+            print("Error: ",e)
+            session.abort_transaction()
+
+
+def update_chapter_data(ch_data, session=None):
+    database[COLLECTION_CHAPTERDATA].update_one({'ch_id':ch_data['ch_id']},{'$set':ch_data},upsert=True, session=session)
+
+def update_volume_data(vol_data, session=None):
+    database[COLLECTION_VOLUMEDATA].update_one({'vol_id':vol_data['vol_id']},{'$set':vol_data},upsert=True, session=session)
+
+
+def create_new_title(vol_info, simulate=False, ask_confirmation=False, session=None):
+
+    title = vol_info['title']
+    title_id = create_oid(title, "title", ask_confirmation=(ask_confirmation and not simulate))
+    if title_id is None:
+        # oid not found and adding new one was manually skipped
+        return None
+
+    # normalize the title just in case
+    # It can be in Unicode composed form (i.e. で)
+    # or decomposed (i.e. て　+　゙	 mark).  The strings are stored in composed form
+    clean_title = ud.normalize('NFC',title)
+
+    print("Creating new title [%s]: %s " % (title_id, title))
+
+    t_metadata = dict()
+    t_metadata['created_timestamp'] = int(time.time())
+
+    t_metadata['lang'] = {'jp':{},'en':{}}
+
+    if has_cjk(clean_title) or has_word_hiragana(clean_title) or has_word_katakana(clean_title):
+        t_metadata['lang']['jp']['title'] = clean_title
+        t_metadata['lang']['en']['title'] = ''
     else:
-        metadata['lang'][lang]['volumes'].remove(vol_id)
-        save_metadata(title_id, metadata, True)
+        t_metadata['lang']['jp']['title'] = clean_title
+        t_metadata['lang']['en']['title'] = clean_title
+    t_metadata['title_from_filename'] = vol_info['title_from_filename']
 
-    database[COLLECTION_VOLUMEDATA].delete_many({'title_id':title_id,'vol_id':vol_id})
-    database[COLLECTION_CHAPTERDATA].delete_many({'title_id':title_id,'vol_id':vol_id})
+    t_metadata['genres'] = []
+    t_metadata['publisher'] = vol_info['publisher']
 
+    t_metadata['authors'] = []
+    if 'author' in vol_info:
+        t_metadata['authors'].append(vol_info['author'])
 
-def update_chapter_data(ch_data):
-    database[COLLECTION_CHAPTERDATA].update_one({'ch_id':ch_data['ch_id']},{'$set':ch_data},upsert=True)
+    t_metadata['artists'] = []
 
-def update_volume_data(vol_data):
-    database[COLLECTION_VOLUMEDATA].update_one({'vol_id':vol_data['vol_id']},{'$set':vol_data},upsert=True)
+    t_metadata['status'] = 'Completed' # assumption
+    t_metadata['search'] = ''
+    t_metadata['type'] = 'book'
+
+    if not simulate:
+        save_metadata(title_id, t_metadata, False, session=session)
+    return title_id, t_metadata

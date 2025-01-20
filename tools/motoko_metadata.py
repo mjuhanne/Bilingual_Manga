@@ -40,6 +40,8 @@ def get_title_id_by_title_name(name):
 
 def get_title_id_by_chapter_id(id):
     res = database[COLLECTION_CHAPTERDATA].find_one({'ch_id':id})
+    if res is None:
+        return None
     return res['title_id']
 
 def get_lang_by_chapter_id(id):

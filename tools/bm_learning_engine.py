@@ -550,6 +550,10 @@ def update(args):
             comprehension = reading_data['comprehension']
 
             title_id = get_title_id_by_chapter_id(chapter_id)
+            if title_id is None:
+                print("Warning! Title not found for chapter %s" % chapter_id)
+                continue
+
             title_name = get_title_by_id(title_id)
             chapter_filename = chapter_analysis_dir + chapter_id + ".json"
             chapter = get_chapter_idx_by_chapter_id(chapter_id)

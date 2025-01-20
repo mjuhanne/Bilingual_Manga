@@ -2,7 +2,7 @@ from helper import *
 from jp_parser_helper import *
 import time
 from mongo import *
-database =client['jmdict']
+database =mongo_client['jmdict']
 
 original_jmdict_file = base_dir + "lang/JMdict_e"
 original_jmnedict_file = base_dir + "lang/JMnedict.xml"

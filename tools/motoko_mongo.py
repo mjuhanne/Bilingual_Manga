@@ -1,5 +1,5 @@
 from mongo import *
-database = client['motoko']
+database = mongo_client['motoko']
 
 COLLECTION_SETTINGS = "settings"
 COLLECTION_TITLEDATA = "titledata"

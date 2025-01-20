@@ -22,11 +22,13 @@ Source code of bilingual manga(home)
 4. Install MongoDB (see instructions for your platform)
     https://www.mongodb.com/docs/manual/administration/install-community/
 
-5. Import Manga/book metadata from json files into MongoDB
+5. To use scripts in order to move volumes to other title, please enable MongoDB replication to allow for transactions to occur (REQUIRED):   https://gist.github.com/mramirid/6d0e27ddc1d375b4d7d4046ee938bcc7
+
+6. Import Manga/book metadata from json files into MongoDB
     python tools/import_json_to_mongo.py 
 
 
-6. Run these commands in the main directory
+7. Run these commands in the main directory
 - `npm install`
 - `node --env-file=.env app.js`
 - `npm run dev`
